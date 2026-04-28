@@ -10,7 +10,7 @@ export default function ContactModal({ open, onClose }: { open: boolean; onClose
           Giá hiển thị là giá tham khảo. Vui lòng liên hệ để chốt chỗ qua đại lý Tân Phú APG.
         </p>
         <div className="space-y-2 text-sm">
-          <div>Hotline: <a href="tel:19006091" className="font-semibold text-brand">1900 6091</a></div>
+          <div>Điện thoại: <a href="tel:19006091" className="font-semibold text-brand">1900 6091</a></div>
           <div>Telegram: <a href="https://t.me/tanphuapg" className="text-brand">@tanphuapg</a></div>
           <div>Email: <a href="mailto:contact@tanphuapg.com" className="text-brand">contact@tanphuapg.com</a></div>
         </div>

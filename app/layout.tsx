@@ -1,14 +1,36 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { Be_Vietnam_Pro, JetBrains_Mono, Raleway } from 'next/font/google';
+
+const fontSans = Be_Vietnam_Pro({
+  subsets: ['latin', 'vietnamese'],
+  weight: ['400', '500', '600', '700', '800', '900'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
+const fontDisplay = Raleway({
+  subsets: ['latin', 'vietnamese'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+const fontMono = JetBrains_Mono({
+  subsets: ['latin'],
+  weight: ['500', '600', '700', '800'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
-  title: 'APG Flight Agent — TAN PHU APG',
-  description: 'So sánh giá vé máy bay. Đặt vé qua TAN PHU APG.',
-  keywords: 'vé máy bay, đặt vé, TAN PHU APG, Hà Nội, TP.HCM, giá rẻ',
+  title: 'Đặt vé máy bay - TAN PHU APG',
+  description: 'So sánh giá vé máy bay và giữ chỗ qua TAN PHU APG.',
+  keywords: 'vé máy bay, đặt vé, TAN PHU APG, Hà Nội, TP.HCM, giá vé',
   metadataBase: new URL('https://book.tanphuapg.com'),
   openGraph: {
-    title: 'APG Flight Agent — TAN PHU APG',
-    description: 'So sánh giá vé máy bay nội địa & quốc tế. Đặt vé qua TAN PHU APG.',
+    title: 'Đặt vé máy bay - TAN PHU APG',
+    description: 'So sánh giá vé máy bay nội địa và quốc tế. Đặt vé qua TAN PHU APG.',
     url: 'https://book.tanphuapg.com',
     siteName: 'TAN PHU APG',
     images: [
@@ -16,7 +38,7 @@ export const metadata: Metadata = {
         url: '/assets/tanphu-apg-logo.jpg',
         width: 800,
         height: 800,
-        alt: 'TAN PHU APG - Đại lý vé máy bay',
+        alt: 'TAN PHU APG - Corporate Aviation Services',
       },
     ],
     locale: 'vi_VN',
@@ -24,8 +46,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary',
-    title: 'APG Flight Agent — TAN PHU APG',
-    description: 'So sánh giá vé máy bay. Đặt vé qua TAN PHU APG.',
+    title: 'Đặt vé máy bay - TAN PHU APG',
+    description: 'So sánh giá vé máy bay và đặt vé qua TAN PHU APG.',
     images: ['/assets/tanphu-apg-logo.jpg'],
   },
 };
@@ -33,12 +55,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-      </head>
-      <body>{children}</body>
+      <body className={`${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable}`}>{children}</body>
     </html>
   );
 }

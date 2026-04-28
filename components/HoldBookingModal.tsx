@@ -11,7 +11,9 @@ import type {
   PassengerType,
   TripType,
 } from '@/lib/types';
+import { loadAncillaryResponse, peekAncillaryResponse } from '@/lib/ancillary-cache';
 import { fmtVND, hhmm } from '@/lib/utils';
+import { findAirportByCode, useAirports } from '@/lib/useAirports';
 
 type UiPassenger = {
   id: string;
@@ -32,12 +34,39 @@ type UiPassenger = {
 };
 
 type AncillaryRoute = BookingAncillaryResponse['routes'][number];
+type AirportList = ReturnType<typeof useAirports>['airports'];
 type HoldProgressStep = {
   from: number;
   to: number;
   durationMs: number;
   text: string;
 };
+
+function airportCodeLabel(airports: AirportList, code?: string) {
+  const normalized = String(code || '').trim().toUpperCase();
+  if (!normalized) return '';
+  const meta = findAirportByCode(airports, normalized);
+  return meta ? `${meta.city} (${meta.code})` : normalized;
+}
+
+function airportEndpointLabel(airports: AirportList, endpoint: FlightResult['departure']) {
+  const code = String(endpoint.airport || '').trim().toUpperCase();
+  const meta = findAirportByCode(airports, code);
+  if (meta) return `${meta.city} (${meta.code})`;
+
+  const city = String(endpoint.city || '').trim();
+  const name = String(endpoint.airportName || '').trim();
+  if (code && city && city.toUpperCase() !== code) return `${city} (${code})`;
+  if (code && name && name.toUpperCase() !== code) return `${name} (${code})`;
+  return code || city || name;
+}
+
+function routeCodeLabel(airports: AirportList, route?: string) {
+  const [from = '', to = ''] = String(route || '').split('-');
+  if (!from && !to) return 'ROUTE';
+  if (!to) return airportCodeLabel(airports, from);
+  return `${airportCodeLabel(airports, from)} → ${airportCodeLabel(airports, to)}`;
+}
 
 const HOLD_PROGRESS_STEPS: HoldProgressStep[] = [
   { from: 0, to: 15, durationMs: 1200, text: 'Đang kiểm tra dữ liệu hành khách...' },
@@ -71,8 +100,77 @@ function cleanKey(value: string) {
     .toUpperCase();
 }
 
+function stableHash(value: string) {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) + hash) ^ value.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36).toUpperCase();
+}
+
+function shortPart(value: unknown, fallback: string, maxLength = 18) {
+  return (cleanKey(String(value || '')) || fallback).slice(0, maxLength);
+}
+
+function makeIdempotencyKey(parts: unknown[]) {
+  const raw = parts.map((part) => String(part || '')).join('|');
+  const readable = [
+    'HOLD',
+    shortPart(parts[0], 'SEARCH', 14),
+    shortPart(parts[1], 'OUT', 18),
+    shortPart(parts[4], 'IN', 18),
+    stableHash(raw),
+  ].join('-');
+
+  return readable.slice(0, 120);
+}
+
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function normalizeMessageText(value: unknown): string {
+  return String(value || '').replace(/\s+/g, ' ').trim();
+}
+
+function uniqueMessageParts(parts: Array<string | undefined | null>) {
+  const seen = new Set<string>();
+  return parts.filter((part): part is string => {
+    const text = normalizeMessageText(part);
+    if (!text) return false;
+    const key = text.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function fieldLabel(path: string) {
+  const labels: Record<string, string> = {
+    'contact.fullName': 'Tên liên hệ',
+    'contact.phone': 'Điện thoại liên hệ',
+    'contact.email': 'Email liên hệ',
+    passengers: 'Hành khách',
+    outbound: 'Chuyến bay chiều đi',
+    inbound: 'Chuyến bay chiều về',
+    displayedNetPrice: 'Giá hiển thị',
+    tripType: 'Kiểu hành trình',
+  };
+
+  return labels[path] || labels[path.split('.')[0]] || path;
+}
+
+function fieldErrorsText(value: unknown) {
+  const source = recordOf(value);
+  return Object.entries(source)
+    .flatMap(([path, messages]) => {
+      const list = Array.isArray(messages) ? messages : [messages];
+      return list
+        .map((message) => normalizeMessageText(message))
+        .filter(Boolean)
+        .map((message) => `${fieldLabel(path)}: ${message}`);
+    })
+    .join(' | ');
 }
 
 function holdErrorText(data: unknown) {
@@ -82,17 +180,22 @@ function holdErrorText(data: unknown) {
   const nestedErrors = recordOf(nested.errors);
   const detailErrors = recordOf(details.errors);
   const bodyErrors = recordOf(body.errors);
+  const topMessage = normalizeMessageText(body.error);
+  const fieldErrors = fieldErrorsText(body.fieldErrors);
   const flatErrors = [nestedErrors, detailErrors, bodyErrors]
     .flatMap((source) => Object.entries(source))
     .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : String(value)}`)
     .filter(Boolean);
-  const parts = [
-    body.error ? String(body.error) : '',
+  const parts = uniqueMessageParts([
+    topMessage,
     nested.code ? `code ${String(nested.code)}` : '',
-    nested.message ? String(nested.message) : '',
+    normalizeMessageText(nested.message).toLowerCase() !== topMessage.toLowerCase()
+      ? normalizeMessageText(nested.message)
+      : '',
     details.path ? `path ${String(details.path)}` : '',
+    fieldErrors,
     flatErrors.join(' | '),
-  ].filter(Boolean);
+  ]);
   return parts.join(' | ') || 'Lỗi giữ chỗ';
 }
 
@@ -108,6 +211,16 @@ function normalizeDateInput(value: string) {
   const dmy = text.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
   if (dmy) return `${dmy[1]}-${dmy[2]}-${dmy[3]}`;
   return text;
+}
+
+function normalizedPhoneDigits(value: string) {
+  const digits = value.replace(/\D+/g, '');
+  if (digits.startsWith('84') && digits.length >= 11) return `0${digits.slice(2)}`;
+  return digits;
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 function passengerLabel(type: PassengerType, index: number) {
@@ -175,12 +288,45 @@ function dedupeByKey(items: BookingAncillaryService[]) {
   return [...map.values()];
 }
 
+// Whitelist các serviceType được coi là HÀNH LÝ KÝ GỬI.
+// Backend Nam Thanh trả nhiều loại (BAGGAGE, MEAL, SEAT, INSURANCE...) trong cùng response
+// → Trước đây code không lọc, gây bug seat/meal lẫn vào dropdown hành lý.
+const BAGGAGE_TYPE_PATTERN = /^(BAGGAGE|CHECKED[_-]?BAG|EXTRA[_-]?BAG|BAG)$/i;
+const SEAT_TYPE_PATTERN = /^SEAT|^STSL/i;
+
+function isBaggageService(service: BookingAncillaryService) {
+  const type = String(service.serviceType || '').toUpperCase().trim();
+  if (!type) return false;
+  if (BAGGAGE_TYPE_PATTERN.test(type)) return true;
+  // Một số hãng đặt code BG, BG15, BG23 mà không set serviceType chuẩn
+  const code = String(service.code || '').toUpperCase();
+  if (/^BG\d*/i.test(code) || /\bBAGGAGE\b/i.test(service.description || '')) return true;
+  return false;
+}
+
+function isSeatService(service: BookingAncillaryService) {
+  const type = String(service.serviceType || '').toUpperCase().trim();
+  if (SEAT_TYPE_PATTERN.test(type)) return true;
+  // Code chỗ ngồi thường có dạng "21A", "12B" v.v.
+  return /^\d{1,2}[A-K]$/i.test(String(service.code || '').trim());
+}
+
 function servicesForPassenger(route: AncillaryRoute, passenger: UiPassenger) {
   const exact = route.services.filter((service) => service.paxId === passenger.id);
   const scoped = exact.length > 0
     ? exact
     : route.services.filter((service) => service.paxType === passenger.type);
   return dedupeByKey(scoped).sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+}
+
+function baggageServicesForPassenger(route: AncillaryRoute, passenger: UiPassenger) {
+  return servicesForPassenger(route, passenger).filter(isBaggageService);
+}
+
+// Phase 1 chưa render seat picker — chỉ tiện thể loại bỏ seat khỏi dropdown baggage.
+// Phase 2 sẽ dùng hàm này để render seat map.
+export function _seatServicesForPassenger(route: AncillaryRoute, passenger: UiPassenger) {
+  return servicesForPassenger(route, passenger).filter(isSeatService);
 }
 
 function passengerValidationError(passenger: UiPassenger, index: number) {
@@ -257,12 +403,19 @@ export default function HoldBookingModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { airports } = useAirports();
   const [passengers, setPassengers] = useState<UiPassenger[]>(() => buildPassengerSeeds(adults, children, infants));
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [createRealHold, setCreateRealHold] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // Khi split-roundtrip outbound thành công nhưng inbound fail → lưu PNR mồ côi để hiển thị
+  const [partialHold, setPartialHold] = useState<{
+    orphanPnrs: Array<{ airline?: string; pnr: string; status?: string; from?: string; to?: string }>;
+    cancelStatus: 'AUTO_CANCELLED' | 'PARTIAL_CANCELLED' | 'NEEDS_MANUAL_CANCEL';
+    detail: string;
+  } | null>(null);
   const [holdTimedOut, setHoldTimedOut] = useState(false);
   const [result, setResult] = useState<HoldBookingResponse | null>(null);
   const [holdProgressPct, setHoldProgressPct] = useState(0);
@@ -270,7 +423,10 @@ export default function HoldBookingModal({
   const [holdProgressElapsedMs, setHoldProgressElapsedMs] = useState(0);
   const [ancillaryLoading, setAncillaryLoading] = useState(false);
   const [ancillaryError, setAncillaryError] = useState('');
+  const [ancillaryWarning, setAncillaryWarning] = useState('');
   const [ancillaryRoutes, setAncillaryRoutes] = useState<AncillaryRoute[]>([]);
+  const [ancillaryAttempt, setAncillaryAttempt] = useState(0); // ép re-fetch khi user bấm "Thử lại"
+  const [skipBaggage, setSkipBaggage] = useState(false);       // user chọn "tiếp tục không kèm hành lý"
   const resultRef = useRef<HoldBookingResponse | null>(null);
 
   const isRoundtrip = tripType === 'roundtrip' && !!inbound;
@@ -293,7 +449,7 @@ export default function HoldBookingModal({
     const passengerKey = passengers
       .map((p) => `${p.id}-${compactUpper(p.fullName)}-${p.dateOfBirth}`)
       .join('-');
-    return cleanKey([
+    return makeIdempotencyKey([
       flight.searchId || 'search',
       flight.id,
       flight.fareId || 'fare',
@@ -301,8 +457,23 @@ export default function HoldBookingModal({
       inbound?.id || '',
       inbound?.fareId || '',
       passengerKey,
-    ].join('-'));
+    ]);
   }, [flight, inbound, passengers]);
+
+  const ancillaryPayload = useMemo(() => {
+    if (!flight) return null;
+    return {
+      flight,
+      outbound: flight,
+      inbound: isRoundtrip ? inbound : null,
+      tripType: isRoundtrip ? 'roundtrip' : 'oneway',
+      search,
+      adults,
+      children,
+      infants,
+      cabin,
+    } as const;
+  }, [flight, inbound, isRoundtrip, search, adults, children, infants, cabin]);
 
   useEffect(() => {
     if (!open) return;
@@ -342,38 +513,36 @@ export default function HoldBookingModal({
   }, [loading, createRealHold, result]);
 
   useEffect(() => {
-    if (!open || !flight) return;
+    if (!open || !ancillaryPayload) return;
+    if (skipBaggage) return; // user đã chọn "không kèm hành lý" → không fetch nữa
     let ignore = false;
 
     const fetchAncillaries = async () => {
+      const cached = peekAncillaryResponse(ancillaryPayload);
+      if (cached) {
+        if (!ignore) {
+          setAncillaryRoutes(Array.isArray(cached.routes) ? cached.routes : []);
+          setAncillaryWarning(cached.message || '');
+          setAncillaryError('');
+          setAncillaryLoading(false);
+        }
+        return;
+      }
+
       setAncillaryLoading(true);
       setAncillaryError('');
+      setAncillaryWarning('');
+      setAncillaryRoutes([]);
       try {
-        const res = await fetch('/api/booking/ancillaries', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            flight,
-            outbound: flight,
-            inbound: isRoundtrip ? inbound : undefined,
-            tripType: isRoundtrip ? 'roundtrip' : 'oneway',
-            search,
-            adults,
-            children,
-            infants,
-            cabin,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok || data.success === false) {
-          throw new Error(holdErrorText(data));
-        }
+        const data = await loadAncillaryResponse(ancillaryPayload);
         if (!ignore) {
           setAncillaryRoutes(Array.isArray(data.routes) ? data.routes : []);
+          setAncillaryWarning(data.message || '');
         }
       } catch (err: unknown) {
         if (!ignore) {
           setAncillaryRoutes([]);
+          setAncillaryWarning('');
           setAncillaryError(err instanceof Error ? err.message : String(err));
         }
       } finally {
@@ -385,15 +554,18 @@ export default function HoldBookingModal({
     return () => { ignore = true; };
   }, [
     open,
-    flight,
-    inbound,
-    isRoundtrip,
-    adults,
-    children,
-    infants,
-    cabin,
-    search,
+    ancillaryPayload,
+    ancillaryAttempt, // bấm "Thử lại" → tăng attempt → re-run effect
+    skipBaggage,
   ]);
+
+  // Reset state khi modal đóng để lần mở sau bắt đầu sạch
+  useEffect(() => {
+    if (open) return;
+    setSkipBaggage(false);
+    setAncillaryAttempt(0);
+    setPartialHold(null);
+  }, [open]);
 
   if (!open || !flight) return null;
 
@@ -441,6 +613,7 @@ export default function HoldBookingModal({
     let timeoutId: number | null = null;
     setLoading(true);
     setError('');
+    setPartialHold(null);
     setHoldTimedOut(false);
     setResult(null);
     if (createRealHold) {
@@ -460,6 +633,17 @@ export default function HoldBookingModal({
 
       const payloadPassengers = passengers.map((passenger) => buildPassengerPayload(passenger));
       const contactName = payloadPassengers[0]?.fullName || '';
+      const phoneDigits = normalizedPhoneDigits(phone);
+      const trimmedEmail = email.trim();
+
+      if (!phoneDigits || phoneDigits.length < 9 || phoneDigits.length > 15) {
+        throw new Error('Điện thoại liên hệ không hợp lệ. Vui lòng nhập 9-15 chữ số.');
+      }
+
+      if (!isValidEmail(trimmedEmail)) {
+        throw new Error('Email liên hệ không hợp lệ. Vui lòng nhập email để nhận xác nhận giữ chỗ.');
+      }
+
       if (createRealHold) {
         setHoldProgressPct((prev) => Math.max(prev, 18));
         setHoldProgressText('Đang gửi yêu cầu tạo PNR...');
@@ -474,6 +658,10 @@ export default function HoldBookingModal({
           'Idempotency-Key': idempotencyKey,
         },
         body: JSON.stringify({
+          airline: flight.airlineCode,
+          route: `${flight.departure.airport}-${flight.arrival.airport}`,
+          fareClass: flight.namthanh?.class || flight.namthanh?.fareBasis,
+          displayedNetPrice: estimatedTotal,
           flight,
           outbound: flight,
           inbound: isRoundtrip ? inbound : undefined,
@@ -486,8 +674,8 @@ export default function HoldBookingModal({
           passengers: payloadPassengers,
           contact: {
             fullName: contactName,
-            phone,
-            email,
+            phone: phoneDigits,
+            email: trimmedEmail,
           },
           dryRun: !createRealHold,
           idempotencyKey,
@@ -498,7 +686,21 @@ export default function HoldBookingModal({
         setHoldProgressText('Đang đồng bộ giá chuẩn từ ticket-info-by-id...');
       }
       const data = await res.json();
-      if (!res.ok || data.success === false) throw new Error(holdErrorText(data));
+      if (!res.ok || data.success === false) {
+        // Phát hiện PARTIAL_HOLD (orphan PNR) → lưu riêng để hiển thị block đỏ rõ ràng
+        const errorBody = recordOf(data);
+        if (errorBody.error === 'PARTIAL_HOLD' && Array.isArray(errorBody.orphanPnrs)) {
+          setPartialHold({
+            orphanPnrs: errorBody.orphanPnrs as Array<{ airline?: string; pnr: string; status?: string; from?: string; to?: string }>,
+            cancelStatus: (errorBody.orphanCancelStatus as 'AUTO_CANCELLED' | 'PARTIAL_CANCELLED' | 'NEEDS_MANUAL_CANCEL') || 'NEEDS_MANUAL_CANCEL',
+            detail: String(errorBody.detail || ''),
+          });
+          // Vẫn set error để giữ block lỗi cũ chạy song song nếu cần
+          setError(holdErrorText(data));
+          return;
+        }
+        throw new Error(holdErrorText(data));
+      }
       setResult(data);
       if (createRealHold) {
         setHoldProgressPct(100);
@@ -518,25 +720,25 @@ export default function HoldBookingModal({
   }
 
   const summaryBlock = (
-    <div className="space-y-2">
+    <div className="apg-panel space-y-3 px-3 py-3">
       {holdFlights.map((item, index) => {
         const amount = item.fareBreakdown?.totalAmount ?? item.price.amount ?? 0;
         return (
-          <div key={`${item.id}-${index}`} className="rounded-lg bg-[#faf7f2] px-3 py-2 text-xs">
-            <div className="font-bold text-[#1a1a1a]">{isRoundtrip ? (index === 0 ? 'Chiều đi' : 'Chiều về') : 'Chuyến bay'} - {item.airlineCode} {item.flightNumber}</div>
+          <div key={`${item.id}-${index}`} className="rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-3 text-xs">
+            <div className="apg-display text-[12px] font-semibold tracking-[0.04em] text-[var(--apg-aviation-navy)]">{isRoundtrip ? (index === 0 ? 'Chiều đi' : 'Chiều về') : 'Chuyến bay'} - {item.airlineCode} {item.flightNumber}</div>
             <div className="text-slate-600">
-              {item.departure.airport} {hhmm(item.departure.time)} - {item.arrival.airport} {hhmm(item.arrival.time)}
+              {airportEndpointLabel(airports, item.departure)} {hhmm(item.departure.time)} - {airportEndpointLabel(airports, item.arrival)} {hhmm(item.arrival.time)}
             </div>
             <div className="mt-1 flex justify-between">
               <span>{item.namthanh?.class || ''} {item.namthanh?.cabinClass || ''}</span>
-              <span className="font-bold">{fmtVND(amount)}</span>
+              <span className="apg-tabular font-bold">{fmtVND(amount)}</span>
             </div>
           </div>
         );
       })}
-      <div className="flex justify-between rounded border border-[#e8dcc8] px-3 py-2 text-xs font-bold">
+      <div className="flex justify-between rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-white px-3 py-2 text-xs font-bold">
         <span>Tổng hành trình (ước tính)</span>
-        <span>{fmtVND(estimatedTotal)}</span>
+        <span className="apg-tabular">{fmtVND(estimatedTotal)}</span>
       </div>
       <div className="text-[11px] text-slate-500">
         Giá trên là ước tính theo fare snapshot. Giá chuẩn sẽ đồng bộ theo PNR sau khi giữ chỗ.
@@ -545,30 +747,122 @@ export default function HoldBookingModal({
   );
 
   const progressBlock = showHoldProgress ? (
-    <div className="rounded-lg border border-[#dbeafe] bg-[#f8fbff] px-3 py-2">
-      <div className="flex items-center justify-between text-[11px] font-semibold text-[#1e3a8a]">
+    <div className="apg-panel px-3 py-3">
+      <div className="flex items-center justify-between text-[11px] font-semibold text-[var(--apg-aviation-navy)]">
         <span>{holdProgressText || 'Đang xử lý tạo PNR...'}</span>
-        <span>{Math.max(0, Math.min(100, Math.round(holdProgressPct)))}%</span>
+        <span className="apg-tabular">{Math.max(0, Math.min(100, Math.round(holdProgressPct)))}%</span>
       </div>
-      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#dbeafe]">
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--apg-aviation-navy-soft)]">
         <div
-          className="h-full rounded-full bg-[#2563eb] transition-[width] duration-300 ease-linear"
-          style={{ width: `${Math.max(0, Math.min(100, holdProgressPct))}%` }}
+          className="h-full rounded-full transition-[width] duration-300 ease-linear"
+          style={{ background: 'linear-gradient(90deg, var(--apg-brand-gold), color-mix(in srgb, var(--apg-route-inbound) 55%, var(--apg-aviation-navy)))', width: `${Math.max(0, Math.min(100, holdProgressPct))}%` }}
         />
       </div>
       {showHoldSlowHint && (
-        <div className="mt-2 text-[11px] text-[#1e40af]">Hệ thống đang xử lý trên Tan Phu APG, vui lòng chờ…</div>
+        <div className="mt-2 text-[11px] text-[var(--apg-aviation-navy)]">Hệ thống đang xử lý trên Tan Phu APG, vui lòng chờ…</div>
       )}
     </div>
   ) : null;
 
-  const errorBlock = error ? (
+  const partialHoldBlock = partialHold ? (
+    <div className="rounded-[var(--apg-radius-md)] border-2 border-amber-300 bg-amber-50 px-4 py-3 text-xs">
+      <div className="mb-2 flex items-start gap-2">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="mt-0.5 shrink-0 text-amber-600">
+          <path d="M12 2 1 21h22L12 2zm1 14h-2v-2h2v2zm0-4h-2V8h2v4z" />
+        </svg>
+        <div className="flex-1">
+          <div className="font-bold text-amber-900">⚠ Giữ chỗ một phần — Cần xử lý PNR mồ côi</div>
+          <div className="mt-1 leading-relaxed text-amber-800">
+            Chiều đi đã tạo PNR thành công nhưng <strong>chiều về bị lỗi</strong> ({partialHold.detail}).
+          </div>
+        </div>
+      </div>
+
+      {/* Trạng thái auto-cancel */}
+      <div className="mb-2 rounded-md border border-amber-200 bg-white/70 px-3 py-2">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Trạng thái xử lý tự động</div>
+        <div className="mt-1 text-[12px] text-amber-900">
+          {partialHold.cancelStatus === 'AUTO_CANCELLED' && (
+            <span className="font-semibold text-emerald-700">✓ Đã tự động huỷ thành công các PNR mồ côi. Anh/chị có thể thử lại.</span>
+          )}
+          {partialHold.cancelStatus === 'PARTIAL_CANCELLED' && (
+            <span className="font-semibold text-orange-700">⚠ Đã huỷ được một phần. Vui lòng kiểm tra danh sách bên dưới và liên hệ CSKH cho PNR còn lại.</span>
+          )}
+          {partialHold.cancelStatus === 'NEEDS_MANUAL_CANCEL' && (
+            <span className="font-semibold text-red-700">✗ Auto-cancel không khả dụng. Vui lòng liên hệ CSKH (Hotline 0918.752.686) để huỷ thủ công các PNR dưới đây.</span>
+          )}
+        </div>
+      </div>
+
+      {/* Danh sách PNR mồ côi */}
+      {partialHold.orphanPnrs.length > 0 && (
+        <div className="mb-2 rounded-md border border-amber-200 bg-white px-3 py-2">
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">PNR đã tạo (cần xử lý)</div>
+          <div className="space-y-1.5">
+            {partialHold.orphanPnrs.map((p, idx) => (
+              <div key={`${p.pnr}-${idx}`} className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2.5 py-1.5">
+                <div className="min-w-0">
+                  <div className="apg-mono text-[13px] font-bold text-[#1a1a1a]">
+                    {p.airline ? `${p.airline} · ` : ''}{p.pnr}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    {p.from && p.to ? `${p.from} → ${p.to}` : ''}
+                    {p.status ? ` · ${p.status}` : ''}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="rounded border border-slate-300 bg-white px-2 py-1 text-[10px] font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                  onClick={() => {
+                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                      navigator.clipboard.writeText(p.pnr).catch(() => {});
+                    }
+                  }}
+                >
+                  Copy PNR
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Quick actions */}
+      <div className="flex flex-wrap gap-2">
+        <a
+          href="tel:0918752686"
+          className="inline-flex items-center gap-1.5 rounded-md border border-amber-400 bg-amber-100 px-3 py-1.5 text-[11px] font-semibold text-amber-900 hover:bg-amber-200"
+        >
+          📞 Gọi CSKH 0918.752.686
+        </a>
+        <button
+          type="button"
+          onClick={() => window.open('https://booking.namthanh.vn/booking/reservation-status', '_blank', 'noopener,noreferrer')}
+          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Mở Nam Thanh booking
+        </button>
+        <button
+          type="button"
+          onClick={() => { setPartialHold(null); setError(''); }}
+          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Đóng cảnh báo
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  const errorBlock = (error || partialHold) ? (
     <div className="space-y-2">
-      <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>
+      {partialHoldBlock}
+      {error && !partialHold && (
+        <div className="rounded-[var(--apg-radius-md)] border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-700">{error}</div>
+      )}
       {holdTimedOut && (
         <button
           type="button"
-          className="rounded border border-[#c8a96b] px-3 py-2 text-xs font-semibold text-[#7a6a52]"
+          className="apg-btn-secondary h-10 px-3 text-xs font-semibold text-[var(--apg-aviation-navy)]"
           onClick={() => window.open('https://booking.namthanh.vn/booking/reservation-status', '_blank', 'noopener,noreferrer')}
         >
           Mở lịch sử đặt chỗ
@@ -578,8 +872,9 @@ export default function HoldBookingModal({
   ) : null;
 
   const resultBlock = result ? (
-    <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+    <div className="rounded-[var(--apg-radius-md)] border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800">
       <div className="font-bold">{result.dryRun ? 'Kiểm tra thử thành công' : 'Giữ chỗ OK'}</div>
+      {result.orderCode && <div>Mã đơn hàng: <b>{result.orderCode}</b></div>}
       {result.sessionID && <div>Phiên: {result.sessionID}</div>}
       {result.passenger && <div>Khách: {result.passenger}</div>}
       {result.dryRun && typeof result.totalAmount === 'number' && (
@@ -602,7 +897,7 @@ export default function HoldBookingModal({
         <div>PNR đang chờ đồng bộ giá: {unresolvedPricingPnrs.join(', ')}</div>
       )}
       {pricingByPnr.map((item) => (
-        <div key={`pricing-live-${item.pnr}`} className="mt-1 rounded bg-white/70 px-2 py-1">
+        <div key={`pricing-live-${item.pnr}`} className="mt-1 rounded-[var(--apg-radius-sm)] bg-white/70 px-2 py-1">
           <div>
             Giá PNR <b>{item.pnr}</b>:{' '}
             {typeof item.totalAmount === 'number'
@@ -615,7 +910,7 @@ export default function HoldBookingModal({
       {result.splitRoundtrip && <div>Khác hãng: đã tách thành 2 mã giữ chỗ/PNR riêng.</div>}
       {result.protectionVerified && <div>Đã xử lý xác thực Nam Thanh trước khi tạo PNR.</div>}
       {(result.pnrs || []).map((pnr, idx) => (
-        <div key={`${pnr.pnr || idx}`} className="mt-1 rounded bg-white/70 px-2 py-1">
+        <div key={`${pnr.pnr || idx}`} className="mt-1 rounded-[var(--apg-radius-sm)] bg-white/70 px-2 py-1">
           <div>PNR: <b>{pnr.pnr || '-'}</b> | {pnr.airline || '-'} | {pnr.status || '-'}</div>
           {pnr.timelimit && <div>Thời hạn giữ chỗ: {pnr.timelimit}</div>}
           {pnr.message && pnr.message !== pnr.pnr && <div>{pnr.message}</div>}
@@ -626,21 +921,21 @@ export default function HoldBookingModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-2 lg:items-center lg:p-6" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="mb-2 flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl lg:mb-0 lg:max-h-[92vh] lg:max-w-[1240px] lg:rounded-2xl" style={{ border: '1px solid #e8dcc8' }}>
-        <div className="flex items-center justify-between border-b border-[#e8dcc8] px-4 py-3 lg:px-5">
+      <div className="mb-2 flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl lg:mb-0 lg:max-h-[92vh] lg:max-w-[1240px] lg:rounded-[var(--apg-radius-lg)]" style={{ border: '1px solid var(--apg-border-default)' }}>
+        <div className="flex items-center justify-between border-b border-[var(--apg-border-default)] bg-white px-4 py-3 lg:px-5">
           <div>
-            <div className="text-sm font-bold text-[#1a1a1a]">Giữ chỗ Nam Thanh</div>
+            <div className="apg-display text-[18px] font-semibold tracking-[0.05em] text-[var(--apg-aviation-navy)]">Giữ chỗ Nam Thanh</div>
             <div className="text-[11px] text-slate-500">
               {splitRoundtrip ? 'Khác hãng: hệ thống sẽ tạo 2 PNR riêng.' : isRoundtrip ? 'Khứ hồi cùng hãng: giữ cả chiều đi và chiều về.' : 'Mặc định là kiểm tra thử, chưa tạo PNR thật.'}
             </div>
           </div>
-          <button className="rounded border border-[#e8dcc8] px-2 py-1 text-xs" onClick={onClose}>Đóng</button>
+          <button className="apg-btn-secondary h-9 px-3 text-xs font-semibold" onClick={onClose}>Đóng</button>
         </div>
 
-        <div className="flex-1 overflow-auto px-4 py-3 lg:bg-[#fcfaf6] lg:px-5 lg:py-5">
+        <div className="flex-1 overflow-auto px-4 py-3 lg:bg-[var(--apg-bg-page)] lg:px-5 lg:py-5">
           <div className="lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-5">
             <aside className="hidden lg:block">
-              <div className="sticky top-0 space-y-3">
+              <div className="sticky top-3 space-y-3">
                 {summaryBlock}
                 {progressBlock}
                 {errorBlock}
@@ -658,24 +953,26 @@ export default function HoldBookingModal({
               const routeOptions = ancillaryRoutes
                 .map((route) => ({
                   ...route,
-                  options: servicesForPassenger(route, passenger),
+                  options: baggageServicesForPassenger(route, passenger),
                 }))
                 .filter((route) => route.options.length > 0);
 
               return (
-                <div key={passenger.id} className="overflow-hidden rounded-xl border border-[#e8dcc8] bg-white shadow-sm">
-                  <div className="border-b border-[#eee2cf] bg-[#faf7f2] px-3 py-2 text-sm font-semibold text-[#1a1a1a] lg:px-4 lg:py-3">
+                <div key={passenger.id} className="overflow-hidden rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-white shadow-sm">
+                  <div className="border-b border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-2 text-sm text-[#1a1a1a] lg:px-4 lg:py-3">
+                    <span className="apg-display font-semibold tracking-[0.04em] text-[var(--apg-aviation-navy)]">
                     {passengerLabel(
                       passenger.type,
                       Number(passenger.id.replace(passenger.type, '')) || index + 1
                     )}
+                    </span>
                   </div>
                   <div className="space-y-3 px-3 py-3 lg:px-4 lg:py-4">
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-4 lg:grid-cols-[150px_minmax(0,1fr)_180px]">
                       <label className="text-xs font-semibold text-[#7a6a52]">
                         Quý danh
                         <select
-                          className="mt-1 w-full rounded-lg px-2 py-2 text-sm focus:outline-none"
+                          className="apg-field mt-1 px-2 text-sm"
                           style={{ border: '1px solid #e8dcc8' }}
                           value={passenger.title}
                           onChange={(e) => updatePassenger(index, { title: compactUpper(e.target.value) })}
@@ -698,7 +995,7 @@ export default function HoldBookingModal({
                       <label className="text-xs font-semibold text-[#7a6a52] md:col-span-2 lg:col-auto">
                         Họ tên đầy đủ {passenger.type === 'ADT' ? '*' : passenger.type === 'CHD' ? '* (trẻ em)' : '*'}
                         <input
-                          className="mt-1 w-full rounded-lg px-2 py-2 text-sm focus:outline-none"
+                          className="apg-field mt-1 px-2 text-sm"
                           style={{ border: '1px solid #e8dcc8' }}
                           value={passenger.fullName}
                           onChange={(e) => updatePassenger(index, { fullName: e.target.value.toUpperCase() })}
@@ -710,7 +1007,7 @@ export default function HoldBookingModal({
                         Ngày sinh {passenger.type === 'CHD' ? '*' : '(tùy chọn)'}
                         <input
                           type="date"
-                          className="mt-1 w-full rounded-lg px-2 py-2 text-sm focus:outline-none"
+                          className="apg-field mt-1 px-2 text-sm"
                           style={{ border: '1px solid #e8dcc8' }}
                           value={passenger.dateOfBirth}
                           onChange={(e) => updatePassenger(index, { dateOfBirth: e.target.value })}
@@ -763,8 +1060,8 @@ export default function HoldBookingModal({
                       </label>
                     </div>
 
-                    <div className="rounded-xl border border-[#eee2cf] bg-[#fcfaf6] px-3 py-3">
-                      <div className="mb-2 text-xs font-semibold text-[#7a6a52]">Bổ sung thông tin (tùy chọn)</div>
+                    <div className="rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-3">
+                      <div className="apg-display mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--apg-brand-gold)]">Bổ sung thông tin</div>
                       <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
                         <label className="text-xs text-[#7a6a52] md:col-span-2">
                           Số hộ chiếu/CCCD
@@ -789,14 +1086,68 @@ export default function HoldBookingModal({
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-[#eee2cf] bg-[#fcfaf6] px-3 py-3">
-                      <div className="mb-2 text-xs font-semibold text-[#7a6a52]">Hành lý ký gửi</div>
-                      {ancillaryLoading && <div className="text-xs text-slate-500">Đang tải gói hành lý...</div>}
-                      {!ancillaryLoading && ancillaryError && <div className="text-xs text-red-600">{ancillaryError}</div>}
-                      {!ancillaryLoading && !ancillaryError && routeOptions.length === 0 && (
+                    <div className="rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-3">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <div className="apg-display text-[11px] font-medium uppercase tracking-[0.16em] text-[var(--apg-brand-gold)]">Hành lý ký gửi</div>
+                        {skipBaggage && (
+                          <button
+                            type="button"
+                            onClick={() => { setSkipBaggage(false); setAncillaryAttempt((n) => n + 1); }}
+                            className="rounded-full border border-[var(--apg-border-default)] bg-white px-2.5 py-0.5 text-[10px] font-semibold text-[var(--apg-aviation-navy)] hover:border-[var(--apg-brand-gold)]"
+                          >
+                            ↺ Tải lại hành lý
+                          </button>
+                        )}
+                      </div>
+                      {/* Skeleton loading */}
+                      {ancillaryLoading && (
+                        <div className="space-y-2">
+                          {[0, 1, 2].map((i) => (
+                            <div key={i} className="grid grid-cols-[80px_minmax(0,1fr)] items-center gap-2">
+                              <div className="h-3 animate-pulse rounded bg-slate-200/70" />
+                              <div className="h-9 animate-pulse rounded bg-slate-200/50" />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {/* Error state với nút Thử lại + Tiếp tục không kèm hành lý */}
+                      {!ancillaryLoading && ancillaryError && !skipBaggage && (
+                        <div className="space-y-2 rounded-[var(--apg-radius-sm)] border border-red-200 bg-red-50/60 px-3 py-2.5">
+                          <div className="flex items-start gap-2 text-xs text-red-700">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="mt-0.5 shrink-0"><path d="M12 2 1 21h22L12 2zm1 14h-2v-2h2v2zm0-4h-2V8h2v4z"/></svg>
+                            <span className="leading-relaxed">{ancillaryError}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setAncillaryAttempt((n) => n + 1)}
+                              className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-700 hover:border-red-400 hover:bg-red-50"
+                            >
+                              ↺ Thử lại
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setSkipBaggage(true); setAncillaryError(''); setAncillaryRoutes([]); }}
+                              className="rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
+                            >
+                              Tiếp tục giữ chỗ không kèm hành lý →
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      {/* User đã chủ động skip → hiện thông báo gọn */}
+                      {!ancillaryLoading && skipBaggage && (
+                        <div className="rounded-[var(--apg-radius-sm)] border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] text-amber-800">
+                          Bạn đang giữ chỗ <strong>không kèm hành lý ký gửi</strong>. Có thể mua thêm tại sân bay hoặc trên web hãng sau khi có PNR.
+                        </div>
+                      )}
+                      {!ancillaryLoading && !ancillaryError && !skipBaggage && ancillaryWarning && (
+                        <div className="text-xs text-amber-700">{ancillaryWarning}</div>
+                      )}
+                      {!ancillaryLoading && !ancillaryError && !ancillaryWarning && !skipBaggage && routeOptions.length === 0 && (
                         <div className="text-xs text-slate-500">Chưa có gói hành lý phù hợp cho hành khách này.</div>
                       )}
-                      {!ancillaryLoading && !ancillaryError && routeOptions.length > 0 && (
+                      {!ancillaryLoading && !ancillaryError && !skipBaggage && routeOptions.length > 0 && (
                         <div className="space-y-2 lg:grid lg:grid-cols-2 lg:gap-3 lg:space-y-0">
                           {routeOptions.map((route) => {
                             const selected = passenger.listLuggage.find(
@@ -804,7 +1155,7 @@ export default function HoldBookingModal({
                             );
                             return (
                               <label key={`${route.route}-${route.segmentId}`} className="block text-xs text-[#7a6a52]">
-                                {route.route || 'ROUTE'} {route.airline ? `(${route.airline})` : ''}
+                                {routeCodeLabel(airports, route.route)} {route.airline ? `(${route.airline})` : ''}
                                 <select
                                   className="mt-1 w-full rounded px-2 py-2 text-sm focus:outline-none"
                                   style={{ border: '1px solid #e8dcc8' }}
@@ -836,20 +1187,34 @@ export default function HoldBookingModal({
             })}
           </div>
 
-              <div className="rounded-xl border border-[#e8dcc8] bg-white px-4 py-4 shadow-sm">
-                <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#b8893d]">Thông tin liên hệ</div>
+              <div className="apg-panel px-4 py-4">
+                <div className="apg-eyebrow">Thông tin liên hệ</div>
                 <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
                   <label className="text-xs font-semibold text-[#7a6a52]">
-                    Điện thoại
-                    <input className="mt-1 w-full rounded-lg px-3 py-2 text-sm focus:outline-none" style={{ border: '1px solid #e8dcc8' }} value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    Điện thoại *
+                    <input
+                      type="tel"
+                      className="apg-field mt-1 px-3 text-sm"
+                      style={{ border: '1px solid #e8dcc8' }}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="0918752686"
+                    />
                   </label>
                   <label className="text-xs font-semibold text-[#7a6a52]">
-                    Email
-                    <input className="mt-1 w-full rounded-lg px-3 py-2 text-sm focus:outline-none" style={{ border: '1px solid #e8dcc8' }} value={email} onChange={(e) => setEmail(e.target.value)} />
+                    Email *
+                    <input
+                      type="email"
+                      className="apg-field mt-1 px-3 text-sm"
+                      style={{ border: '1px solid #e8dcc8' }}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="khachhang@example.com"
+                    />
                   </label>
                 </div>
 
-                <label className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-700">
+                <label className="mt-3 flex items-start gap-2 rounded-[var(--apg-radius-md)] border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-700">
                   <input type="checkbox" className="mt-0.5" checked={createRealHold} onChange={(e) => setCreateRealHold(e.target.checked)} />
                   <span>Tôi xác nhận tạo PNR giữ chỗ thật. Nếu không tick, hệ thống chỉ kiểm tra thử payload.</span>
                 </label>
@@ -864,13 +1229,12 @@ export default function HoldBookingModal({
           </div>
         </div>
 
-        <div className="flex gap-2 border-t border-[#e8dcc8] px-4 py-3 lg:px-5 lg:sticky lg:bottom-0 lg:bg-white">
-          <button className="flex-1 rounded-lg border border-[#c8a96b] py-2 text-sm font-semibold text-[#7a6a52]" onClick={onClose}>
+        <div className="flex gap-2 border-t border-[var(--apg-border-default)] px-4 py-3 lg:px-5 lg:sticky lg:bottom-0 lg:bg-white">
+          <button className="apg-btn-secondary flex-1 text-sm font-semibold text-[var(--apg-aviation-navy)]" onClick={onClose}>
             Đóng
           </button>
           <button
-            className="flex-1 rounded-lg py-2 text-sm font-bold text-white disabled:opacity-60"
-            style={{ backgroundColor: createRealHold ? '#dc2626' : '#c8a96b' }}
+            className={`${createRealHold ? 'apg-btn-danger' : 'apg-btn-primary'} flex-1 text-sm font-bold text-white disabled:opacity-60`}
             onClick={submitHold}
             disabled={loading}
           >

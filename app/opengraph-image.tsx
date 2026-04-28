@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'TAN PHU APG - APG Flight Agent';
+export const alt = 'TAN PHU APG - Corporate Aviation Services';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -35,7 +35,7 @@ export default async function Image() {
           {/* Text */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: 56, fontWeight: 900, color: '#1a1a1a', letterSpacing: 2 }}>TAN PHU APG</div>
-            <div style={{ fontSize: 26, color: '#c8a96b', fontWeight: 600, marginTop: 8 }}>APG Flight Agent</div>
+            <div style={{ fontSize: 26, color: '#c8a96b', fontWeight: 600, marginTop: 8 }}>Corporate Aviation Services</div>
             <div style={{ fontSize: 22, color: '#666', marginTop: 20, lineHeight: 1.5 }}>
               So sánh & tìm kiếm vé máy bay{'\n'}nội địa và quốc tế giá tốt nhất
             </div>

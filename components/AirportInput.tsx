@@ -1,53 +1,130 @@
 "use client";
-import { Airport, searchAirport } from '@/lib/airports';
-import { useMemo, useRef, useState, useEffect } from 'react';
+
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { AirportSelection } from '@/lib/types';
+import { filterAirports, matchAirport, useAirports } from '@/lib/useAirports';
 
 export default function AirportInput({
-  label, value, onChange,
-}: { label: string; value: string; onChange: (v: string) => void }) {
-  const [q, setQ] = useState(value);
+  label,
+  value,
+  onSelect,
+  placeholder,
+}: {
+  label: string;
+  value: AirportSelection | null;
+  onSelect: (value: AirportSelection | null) => void;
+  placeholder?: string;
+}) {
+  const { airports, loading } = useAirports();
+  const [draft, setDraft] = useState(value?.label || '');
   const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const list = useMemo(() => searchAirport(q), [q]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const pick = (a: Airport) => {
-    setQ(a.code);
-    onChange(a.code);
-    setOpen(false);
-  };
-
-  // Close dropdown on outside click
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    if (!focused) setDraft(value?.label || '');
+  }, [focused, value]);
+
+  useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (!ref.current || ref.current.contains(event.target as Node)) return;
+      setOpen(false);
+      setFocused(false);
+      setDraft(value?.label || '');
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [value]);
+
+  const list = useMemo(() => filterAirports(airports, draft, 8), [airports, draft]);
+
+  const commit = (selection: AirportSelection | null) => {
+    onSelect(selection);
+    setDraft(selection?.label || '');
+    setOpen(false);
+    setFocused(false);
+  };
+
+  const handleBlur = () => {
+    window.setTimeout(() => {
+      const trimmed = draft.trim();
+      if (!trimmed) {
+        commit(null);
+        return;
+      }
+
+      const matched = matchAirport(airports, trimmed);
+      if (matched) {
+        commit({ code: matched.code, label: matched.label });
+        return;
+      }
+
+      setDraft(value?.label || '');
+      setOpen(false);
+      setFocused(false);
+    }, 120);
+  };
+
+  const selectAll = () => {
+    window.requestAnimationFrame(() => {
+      inputRef.current?.select();
+    });
+  };
 
   return (
-    <div className="relative" ref={ref}>
-      <label className="mb-1 block text-xs font-semibold text-slate-600">{label}</label>
+    <div ref={ref} className="relative">
+      <label className="apg-field-label">{label}</label>
       <input
-        value={q}
-        onFocus={() => setOpen(true)}
-        onChange={(e) => {
-          const val = e.target.value.toUpperCase();
-          setQ(val);
-          onChange(val);
+        ref={inputRef}
+        value={draft}
+        onFocus={() => {
+          setFocused(true);
+          setOpen(true);
+          selectAll();
+        }}
+        onClick={selectAll}
+        onBlur={handleBlur}
+        onChange={(event) => {
+          setDraft(event.target.value);
           setOpen(true);
         }}
-        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 outline-none ring-brand/40 focus:ring"
-        placeholder="VD: HAN hoặc Hà Nội"
-        maxLength={20}
+        className="apg-field lg:text-[15px]"
+        placeholder={placeholder}
       />
-      {open && list.length > 0 && (
-        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border bg-white shadow">
-          {list.map((a) => (
-            <button key={a.code} type="button" className="block w-full px-3 py-2 text-left hover:bg-slate-50" onClick={() => pick(a)}>
-              <span className="font-semibold">{a.code}</span> — {a.city} ({a.name})
-            </button>
-          ))}
+      {open && (
+        <div className="apg-dropdown absolute left-0 right-0 top-full z-50 mt-1 lg:mt-2 lg:max-h-[360px] lg:overflow-auto">
+          {loading && (
+            <div className="px-3 py-2 text-xs text-[var(--apg-text-secondary)] lg:px-4 lg:py-3 lg:text-[13px]">
+              Đang tải danh sách sân bay...
+            </div>
+          )}
+          {!loading && list.length === 0 && (
+            <div className="px-3 py-2 text-xs text-[var(--apg-text-secondary)] lg:px-4 lg:py-3 lg:text-[13px]">
+              Không tìm thấy sân bay phù hợp.
+            </div>
+          )}
+          {!loading &&
+            list.map((airport) => (
+              <button
+                key={airport.code}
+                type="button"
+                className="flex w-full items-center gap-2 border-b border-[var(--apg-border-default)] px-3 py-2 text-left transition-colors hover:bg-[var(--apg-bg-surface-soft)] last:border-b-0 lg:gap-3 lg:px-4 lg:py-3"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  commit({ code: airport.code, label: airport.label });
+                }}
+              >
+                <span className="text-sm text-[var(--apg-brand-gold)] lg:text-base">✈</span>
+                <div className="min-w-0">
+                  <div className="truncate text-xs font-bold text-[var(--apg-text-primary)] lg:text-sm">
+                    {airport.city}{' '}
+                    <span className="apg-mono text-[var(--apg-brand-gold)]">({airport.code})</span>
+                  </div>
+                  <div className="truncate text-[10px] text-[var(--apg-text-muted)] lg:text-xs">{airport.name}</div>
+                </div>
+              </button>
+            ))}
         </div>
       )}
     </div>

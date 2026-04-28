@@ -1,0 +1,11 @@
+node_modules
+.next
+.next.old
+.next-dev
+tsconfig.tsbuildinfo
+.env.local
+*.log
+logs
+debug
+.claude
+.kilo

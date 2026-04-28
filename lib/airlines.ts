@@ -4,6 +4,7 @@ export const AIRLINE_META: Record<string, AirlineMeta> = {
   "VN": { "code": "VN", "name": "Vietnam Airlines", "logo": "https://images.kiwi.com/airlines/64/VN.png" },
   "VJ": { "code": "VJ", "name": "VietJet Air", "logo": "https://images.kiwi.com/airlines/64/VJ.png" },
   "QH": { "code": "QH", "name": "Bamboo Airways", "logo": "https://images.kiwi.com/airlines/64/QH.png" },
+  "HU": { "code": "HU", "name": "Hainan Airlines", "logo": "https://images.kiwi.com/airlines/64/HU.png" },
   "BL": { "code": "BL", "name": "Pacific Airlines", "logo": "https://images.kiwi.com/airlines/64/BL.png" },
   "VU": { "code": "VU", "name": "Vietravel Airlines", "logo": "https://images.kiwi.com/airlines/64/VU.png" },
   "9G": { "code": "9G", "name": "Sun Phu Quoc Airways", "logo": "https://images.kiwi.com/airlines/64/9G.png" },
@@ -38,19 +39,87 @@ export const AIRLINE_META: Record<string, AirlineMeta> = {
   "GS": { "code": "GS", "name": "Tianjin Airlines", "logo": "https://images.kiwi.com/airlines/64/GS.png" },
   "HO": { "code": "HO", "name": "Juneyao Airlines", "logo": "https://images.kiwi.com/airlines/64/HO.png" },
   "MF": { "code": "MF", "name": "Xiamen Airlines", "logo": "https://images.kiwi.com/airlines/64/MF.png" },
-  "ZH_SZ": { "code": "ZH", "name": "Shenzhen Airlines", "logo": "https://images.kiwi.com/airlines/64/ZH.png" },
 };
 
-export function getAirlineMeta(code?: string, airline?: string): AirlineMeta {
-  const key = (code || '').toUpperCase();
-  if (AIRLINE_META[key]) return AIRLINE_META[key];
-  // fallback: search by airline name
-  if (airline) {
-    const found = Object.values(AIRLINE_META).find(m =>
-      m.name.toLowerCase().includes(airline.toLowerCase()) ||
-      airline.toLowerCase().includes(m.name.toLowerCase())
-    );
-    if (found) return found;
+function normalizeAirlineCode(value?: string): string {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeLogoUrl(value?: string): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^\/assets\/airlines\//i.test(raw)) return raw;
+  if (/^\/api\/airline-logo\//i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^\/\//.test(raw)) return `https:${raw}`;
+  return '';
+}
+
+function cacheLogoUrl(code: string, sourceLogo: string): string {
+  if (!sourceLogo) return '';
+  if (/^\/assets\/airlines\//i.test(sourceLogo) || /^\/api\/airline-logo\//i.test(sourceLogo)) {
+    return sourceLogo;
   }
-  return { code: key, name: airline || key, logo: '' };
+  if (!/^https?:\/\//i.test(sourceLogo)) return sourceLogo;
+
+  const safeCode = normalizeAirlineCode(code).slice(0, 10);
+  if (!safeCode) return sourceLogo;
+
+  return `/api/airline-logo/${encodeURIComponent(safeCode)}?src=${encodeURIComponent(sourceLogo)}`;
+}
+
+function isGenericProviderCode(code: string): boolean {
+  return /^1[A-Z0-9]$/i.test(code);
+}
+
+function tokenize(value: string): string[] {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 3);
+}
+
+function scoreAirlineByName(airlineName: string): AirlineMeta | undefined {
+  const inputTokens = tokenize(airlineName);
+  if (inputTokens.length === 0) return undefined;
+
+  let best: { meta: AirlineMeta; score: number } | undefined;
+  for (const meta of Object.values(AIRLINE_META)) {
+    const metaTokens = tokenize(meta.name);
+    if (metaTokens.length === 0) continue;
+    let matches = 0;
+    for (const t of inputTokens) {
+      if (metaTokens.includes(t)) matches++;
+    }
+    if (matches === 0) continue;
+    const score = matches / Math.max(metaTokens.length, inputTokens.length);
+    if (!best || score > best.score) best = { meta, score };
+  }
+
+  if (!best) return undefined;
+  if (best.score < 0.5) return undefined;
+  return best.meta;
+}
+
+export function getAirlineMeta(code?: string, airline?: string, preferredLogo?: string): AirlineMeta {
+  const key = normalizeAirlineCode(code);
+  const airlineName = String(airline || '').trim();
+  const nameLooksLikeCode = !airlineName || normalizeAirlineCode(airlineName) === airlineName;
+
+  const byCode = key && !isGenericProviderCode(key) ? AIRLINE_META[key] : undefined;
+
+  const byName = !byCode && airlineName && !nameLooksLikeCode && airlineName.length >= 3
+    ? scoreAirlineByName(airlineName)
+    : undefined;
+
+  const finalCode = byCode?.code || byName?.code || key;
+  const finalName = airlineName || byCode?.name || byName?.name || finalCode;
+  const sourceLogo = normalizeLogoUrl(preferredLogo) || byCode?.logo || byName?.logo || '';
+  const finalLogo = cacheLogoUrl(finalCode, sourceLogo);
+
+  return { code: finalCode, name: finalName, logo: finalLogo };
 }

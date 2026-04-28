@@ -1,5 +1,8 @@
+const { PHASE_DEVELOPMENT_SERVER } = require('next/constants');
+
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+const createConfig = (phase) => ({
+  distDir: phase === PHASE_DEVELOPMENT_SERVER ? '.next-dev' : '.next',
   poweredByHeader: false,
   async headers() {
     return [
@@ -13,6 +16,6 @@ const nextConfig = {
       },
     ];
   },
-};
+});
 
-module.exports = nextConfig;
+module.exports = createConfig;

@@ -2,17 +2,1194 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+
+  --apg-bg-page: #f4f3ef;
+  --apg-bg-surface: #ffffff;
+  --apg-bg-surface-soft: #e9eef2;
+  --apg-bg-surface-muted: #eef2f5;
+  --apg-admin-shell-bg: #eef2f5;
+  --apg-admin-rail: #113450;
+  --apg-admin-rail-deep: #0c2940;
+  --apg-admin-rail-hover: rgba(255, 255, 255, 0.1);
+  --apg-admin-rail-active: #ffffff;
+  --apg-admin-table-hover: #f7fafc;
+
+  --apg-border-default: #d7dfe6;
+  --apg-border-strong: #b8c6d4;
+  --apg-border-focus: #5e7288;
+
+  --apg-text-primary: #0f2f4b;
+  --apg-text-secondary: #5e7288;
+  --apg-text-muted: #8090a0;
+  --apg-text-inverse: #ffffff;
+
+  --apg-brand-gold: #5e7288;
+  --apg-brand-gold-hover: #4c6076;
+  --apg-brand-gold-soft: #e9eef2;
+
+  --apg-aviation-navy: #143b5f;
+  --apg-aviation-navy-hover: #102f4b;
+  --apg-aviation-navy-soft: #e9eef2;
+  --apg-aviation-navy-deep: #0f2f4b;
+  --apg-aviation-navy-mid: #1a4b74;
+  --apg-aviation-navy-light: #245b86;
+
+  --apg-route-inbound: #355d83;
+  --apg-success: #2e7d5b;
+  --apg-warning: #c27a1a;
+  --apg-danger: #c84c3a;
+
+  --apg-radius-xs: 4px;
+  --apg-radius-sm: 6px;
+  --apg-radius-md: 8px;
+  --apg-radius-lg: 10px;
+
+  --apg-shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --apg-shadow-sm: 0 4px 10px rgba(16, 24, 40, 0.06);
+  --apg-shadow-md: 0 8px 24px rgba(16, 24, 40, 0.08);
+  --apg-shadow-lg: 0 18px 40px rgba(16, 24, 40, 0.12);
+}
 
 body {
-  font-family: 'Be Vietnam Pro', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  background-color: #f5f0e8;
-  color: #2b231b;
+  font-family: var(--font-sans), 'Be Vietnam Pro', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  background-color: var(--apg-bg-page);
+  color: var(--apg-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(94, 114, 136, 0.18);
+  color: var(--apg-text-primary);
+}
+
 /* Smooth scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #f0ebe0; }
-::-webkit-scrollbar-thumb { background: #c8a96b; border-radius: 3px; }
+::-webkit-scrollbar-track { background: #e7edf2; }
+::-webkit-scrollbar-thumb { background: #5e7288; border-radius: 999px; }
+
+@layer components {
+  .apg-tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .apg-mono {
+    font-family: var(--font-mono), 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .apg-display {
+    font-family: var(--font-display), var(--font-sans), ui-sans-serif, sans-serif;
+    letter-spacing: 0.02em;
+  }
+
+  .apg-eyebrow {
+    font-family: var(--font-display), var(--font-sans), ui-sans-serif, sans-serif;
+    color: var(--apg-brand-gold);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .apg-panel {
+    background: var(--apg-bg-surface);
+    border: 1px solid var(--apg-border-default);
+    border-radius: var(--apg-radius-md);
+    box-shadow: var(--apg-shadow-sm);
+  }
+
+  .apg-panel-soft {
+    background: var(--apg-bg-surface-soft);
+    border: 1px solid var(--apg-border-default);
+    border-radius: var(--apg-radius-md);
+  }
+
+  .apg-admin-shell {
+    background:
+      radial-gradient(circle at top, rgba(36, 91, 134, 0.08) 0%, rgba(244, 243, 239, 0) 38%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(238, 242, 245, 0.85)),
+      var(--apg-admin-shell-bg);
+  }
+
+  .apg-admin-masthead {
+    background:
+      radial-gradient(circle at top right, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 35%),
+      linear-gradient(135deg, var(--apg-aviation-navy-deep), var(--apg-aviation-navy-light));
+  }
+
+  .apg-admin-rail {
+    background:
+      linear-gradient(180deg, var(--apg-admin-rail) 0%, var(--apg-admin-rail-deep) 100%);
+  }
+
+  .apg-admin-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-radius: 18px;
+    padding: 14px 14px;
+    color: rgba(255, 255, 255, 0.92);
+    transition:
+      background-color 140ms ease,
+      color 140ms ease,
+      transform 140ms ease,
+      box-shadow 140ms ease;
+  }
+
+  .apg-admin-nav-link:hover {
+    background: var(--apg-admin-rail-hover);
+    transform: translateY(-1px);
+  }
+
+  .apg-admin-nav-link-active {
+    background: var(--apg-admin-rail-active);
+    box-shadow: 0 10px 24px rgba(8, 25, 39, 0.22);
+    color: var(--apg-aviation-navy-deep);
+  }
+
+  .apg-admin-sheet {
+    background: var(--apg-bg-surface);
+    border: 1px solid var(--apg-border-default);
+    border-radius: 24px;
+    box-shadow: var(--apg-shadow-sm);
+  }
+
+  .apg-admin-toolbar {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(233, 238, 242, 0.95));
+    border: 1px solid var(--apg-border-default);
+    border-radius: 24px;
+    box-shadow: var(--apg-shadow-sm);
+  }
+
+  .apg-admin-stat {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 247, 249, 0.98));
+    border: 1px solid var(--apg-border-default);
+    border-radius: 20px;
+    box-shadow: var(--apg-shadow-xs);
+  }
+
+  .apg-admin-table thead {
+    background: linear-gradient(180deg, rgba(233, 238, 242, 0.98), rgba(255, 255, 255, 0.98));
+    color: var(--apg-aviation-navy-deep);
+  }
+
+  .apg-admin-table thead th {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .apg-admin-table tbody tr {
+    transition: background-color 120ms ease;
+  }
+
+  .apg-admin-table tbody tr:hover {
+    background: var(--apg-admin-table-hover);
+  }
+
+  .apg-field-label {
+    display: block;
+    margin-bottom: 6px;
+    color: color-mix(in srgb, var(--apg-aviation-navy) 68%, white);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .apg-field {
+    width: 100%;
+    height: 44px;
+    border-radius: var(--apg-radius-md);
+    border: 1px solid var(--apg-border-default);
+    background: var(--apg-bg-surface);
+    color: var(--apg-text-primary);
+    padding-inline: 14px;
+    font-size: 16px;
+    line-height: 1.2;
+    transition:
+      border-color 120ms ease,
+      box-shadow 120ms ease,
+      background-color 120ms ease;
+  }
+
+  .apg-field::placeholder {
+    color: var(--apg-text-muted);
+  }
+
+  .apg-field:focus {
+    outline: none;
+    border-color: var(--apg-border-focus);
+    box-shadow: 0 0 0 3px rgba(94, 114, 136, 0.14);
+  }
+
+  .apg-dropdown {
+    border: 1px solid var(--apg-border-default);
+    border-radius: var(--apg-radius-lg);
+    background: var(--apg-bg-surface);
+    box-shadow: var(--apg-shadow-lg);
+    overflow: hidden;
+  }
+
+  .apg-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: var(--apg-radius-sm);
+    border: 1px solid var(--apg-border-default);
+    background: var(--apg-bg-surface);
+    color: color-mix(in srgb, var(--apg-aviation-navy) 70%, white);
+    font-size: 12px;
+    font-weight: 600;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease;
+  }
+
+  .apg-chip:hover {
+    background: var(--apg-bg-surface-soft);
+  }
+
+  .apg-chip-active {
+    background: var(--apg-brand-gold);
+    border-color: var(--apg-brand-gold);
+    color: var(--apg-text-inverse);
+  }
+
+  .apg-btn-primary,
+  .apg-btn-secondary,
+  .apg-btn-danger {
+    border-radius: var(--apg-radius-md);
+    height: 44px;
+    padding-inline: 16px;
+    font-size: 14px;
+    font-weight: 700;
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease,
+      color 120ms ease,
+      box-shadow 120ms ease,
+      transform 120ms ease;
+  }
+
+  .apg-btn-primary:hover,
+  .apg-btn-secondary:hover,
+  .apg-btn-danger:hover {
+    box-shadow: var(--apg-shadow-xs);
+  }
+
+  .apg-btn-primary {
+    background: linear-gradient(135deg, var(--apg-brand-gold), #6f849b);
+    border: 1px solid var(--apg-brand-gold);
+    color: var(--apg-text-inverse);
+  }
+
+  .apg-btn-primary:hover {
+    background: var(--apg-brand-gold-hover);
+    border-color: var(--apg-brand-gold-hover);
+  }
+
+  .apg-btn-secondary {
+    background: var(--apg-bg-surface);
+    border: 1px solid var(--apg-border-default);
+    color: var(--apg-aviation-navy);
+  }
+
+  .apg-btn-secondary:hover {
+    background: var(--apg-bg-surface-soft);
+  }
+
+  .apg-btn-danger {
+    background: var(--apg-danger);
+    border: 1px solid var(--apg-danger);
+    color: var(--apg-text-inverse);
+  }
+
+  .apg-btn-danger:hover {
+    background: #b74031;
+    border-color: #b74031;
+  }
+}
+
+@media (min-width: 1024px) {
+  @layer components {
+    .apg-field {
+      height: 48px;
+    }
+
+    .apg-field-label {
+      font-size: 13px;
+    }
+  }
+}
+
+/* Admin console visual system: Vercel/APG-manager inspired, scoped to /admin only. */
+.apg-admin-shell,
+.apg-admin-shell[data-admin-theme="dark"] {
+  color-scheme: dark;
+  --apg-bg-page: #090909;
+  --apg-bg-surface: #111111;
+  --apg-bg-surface-soft: #1a1a1a;
+  --apg-bg-surface-muted: #171717;
+  --apg-admin-shell-bg: #090909;
+  --apg-admin-rail: #090909;
+  --apg-admin-rail-deep: #090909;
+  --apg-admin-rail-hover: rgba(255, 255, 255, 0.06);
+  --apg-admin-rail-active: #1f1f1f;
+  --apg-admin-table-hover: #151515;
+  --apg-border-default: #262626;
+  --apg-border-strong: #3a3a3a;
+  --apg-border-focus: #ededed;
+  --apg-text-primary: #ededed;
+  --apg-text-secondary: #a1a1a1;
+  --apg-text-muted: #737373;
+  --apg-text-inverse: #050505;
+  --apg-brand-gold: #f5b51b;
+  --apg-brand-gold-hover: #ffd45a;
+  --apg-brand-gold-soft: rgba(245, 181, 27, 0.12);
+  --apg-aviation-navy: #ededed;
+  --apg-aviation-navy-hover: #ffffff;
+  --apg-aviation-navy-soft: #1f1f1f;
+  --apg-aviation-navy-deep: #ededed;
+  --apg-aviation-navy-mid: #a1a1a1;
+  --apg-aviation-navy-light: #ededed;
+  --apg-route-inbound: #60a5fa;
+  --apg-success: #00d084;
+  --apg-warning: #f5b51b;
+  --apg-danger: #ff5c5c;
+  --apg-radius-xs: 4px;
+  --apg-radius-sm: 6px;
+  --apg-radius-md: 8px;
+  --apg-radius-lg: 10px;
+  --apg-shadow-xs: none;
+  --apg-shadow-sm: none;
+  --apg-shadow-md: none;
+  --apg-shadow-lg: none;
+  min-height: 100vh;
+  background: var(--apg-bg-page);
+  font-family: var(--font-admin-sans), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.apg-admin-shell[data-admin-theme="light"] {
+  color-scheme: light;
+  --apg-bg-page: #f6f7f8;
+  --apg-bg-surface: #ffffff;
+  --apg-bg-surface-soft: #f1f3f5;
+  --apg-bg-surface-muted: #f8fafc;
+  --apg-admin-shell-bg: #f6f7f8;
+  --apg-admin-rail: #ffffff;
+  --apg-admin-rail-deep: #f8fafc;
+  --apg-admin-rail-hover: #f1f5f9;
+  --apg-admin-rail-active: #0f172a;
+  --apg-admin-table-hover: #f8fafc;
+  --apg-border-default: #d8dee5;
+  --apg-border-strong: #b7c0cc;
+  --apg-border-focus: #0f172a;
+  --apg-text-primary: #101828;
+  --apg-text-secondary: #526071;
+  --apg-text-muted: #7a8795;
+  --apg-text-inverse: #ffffff;
+  --apg-brand-gold: #b7791f;
+  --apg-brand-gold-hover: #975a16;
+  --apg-brand-gold-soft: #fff7df;
+  --apg-aviation-navy: #0f2f4b;
+  --apg-aviation-navy-hover: #143b5f;
+  --apg-aviation-navy-soft: #e9f1f8;
+  --apg-aviation-navy-deep: #101828;
+  --apg-aviation-navy-mid: #475569;
+  --apg-aviation-navy-light: #1d4f7a;
+  --apg-route-inbound: #2563eb;
+  --apg-success: #047857;
+  --apg-warning: #b45309;
+  --apg-danger: #dc2626;
+  --apg-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --apg-shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.05);
+  --apg-shadow-md: 0 12px 32px rgba(15, 23, 42, 0.08);
+  --apg-shadow-lg: 0 18px 48px rgba(15, 23, 42, 0.12);
+  background:
+    radial-gradient(circle at top, rgba(20, 59, 95, 0.07) 0%, rgba(246, 247, 248, 0) 34%),
+    linear-gradient(180deg, #ffffff 0%, #f6f7f8 36%, #eef2f6 100%);
+}
+
+.apg-admin-shell .apg-mono,
+.apg-admin-shell .apg-tabular {
+  font-family: var(--font-admin-mono), var(--font-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+.apg-admin-sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f3f transparent;
+}
+
+.apg-admin-topbar {
+  background: rgba(10, 10, 10, 0.86);
+}
+
+.apg-admin-shell ::-webkit-scrollbar-track {
+  background: #090909;
+}
+
+.apg-admin-shell ::-webkit-scrollbar-thumb {
+  background: #3f3f3f;
+}
+
+.apg-admin-shell .apg-admin-nav-link {
+  min-height: 36px;
+  gap: 10px;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--apg-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  transform: none;
+}
+
+.apg-admin-shell .apg-admin-nav-link:hover {
+  background: var(--apg-admin-rail-hover);
+  color: var(--apg-text-primary);
+  transform: none;
+}
+
+.apg-admin-shell .apg-admin-nav-link-active {
+  background: var(--apg-admin-rail-active);
+  box-shadow: none;
+  color: var(--apg-text-primary);
+}
+
+.apg-admin-shell .apg-eyebrow {
+  color: var(--apg-text-muted);
+  font-family: var(--font-admin-sans), var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.apg-admin-shell .apg-admin-sheet,
+.apg-admin-shell .apg-admin-toolbar,
+.apg-admin-shell .apg-admin-stat,
+.apg-admin-shell .apg-panel,
+.apg-admin-shell .apg-panel-soft {
+  background: var(--apg-bg-surface) !important;
+  border: 1px solid var(--apg-border-default) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+.apg-admin-shell .apg-admin-toolbar,
+.apg-admin-shell .apg-panel-soft {
+  background: var(--apg-bg-surface-muted) !important;
+}
+
+.apg-admin-shell .apg-admin-stat {
+  position: relative;
+  overflow: hidden;
+}
+
+.apg-admin-shell .apg-admin-stat::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, #f5b51b, #00d084, #38bdf8);
+  opacity: 0.8;
+}
+
+.apg-admin-shell .apg-chip {
+  height: 28px;
+  border-color: var(--apg-border-default);
+  background: #161616;
+  color: var(--apg-text-secondary);
+  border-radius: 999px;
+  font-size: 11.5px;
+}
+
+.apg-admin-shell .apg-chip-active {
+  border-color: rgba(0, 208, 132, 0.22);
+  background: rgba(0, 208, 132, 0.12);
+  color: #27e79b;
+}
+
+.apg-admin-shell .apg-field,
+.apg-admin-shell input,
+.apg-admin-shell select,
+.apg-admin-shell textarea {
+  border-color: var(--apg-border-default);
+  background-color: #0d0d0d;
+  color: var(--apg-text-primary);
+}
+
+.apg-admin-shell .apg-field {
+  height: 40px;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.apg-admin-shell .apg-field::placeholder,
+.apg-admin-shell input::placeholder,
+.apg-admin-shell textarea::placeholder {
+  color: var(--apg-text-muted);
+}
+
+.apg-admin-shell .apg-field-label {
+  color: var(--apg-text-secondary);
+  font-size: 12px;
+}
+
+.apg-admin-shell .apg-btn-primary,
+.apg-admin-shell .apg-btn-secondary,
+.apg-admin-shell .apg-btn-danger {
+  height: 38px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.apg-admin-shell .apg-btn-primary {
+  border-color: #ededed;
+  background: #ededed;
+  color: #050505;
+}
+
+.apg-admin-shell .apg-btn-primary:hover {
+  border-color: #ffffff;
+  background: #ffffff;
+}
+
+.apg-admin-shell .apg-btn-secondary {
+  border-color: var(--apg-border-default);
+  background: #111111;
+  color: var(--apg-text-primary);
+}
+
+.apg-admin-shell .apg-btn-secondary:hover {
+  background: #1f1f1f;
+}
+
+.apg-admin-shell .apg-btn-danger {
+  border-color: rgba(255, 92, 92, 0.28);
+  background: rgba(255, 92, 92, 0.16);
+  color: #ff8f8f;
+}
+
+.apg-admin-shell .apg-btn-danger:hover {
+  border-color: rgba(255, 92, 92, 0.42);
+  background: rgba(255, 92, 92, 0.22);
+}
+
+.apg-admin-shell .apg-admin-table {
+  color: var(--apg-text-secondary);
+}
+
+.apg-admin-shell .apg-admin-table thead {
+  background: #161616 !important;
+  color: var(--apg-text-muted);
+}
+
+.apg-admin-shell .apg-admin-table thead th {
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.apg-admin-shell .apg-admin-table tbody tr {
+  border-color: var(--apg-border-default);
+}
+
+.apg-admin-shell .apg-admin-table tbody tr:hover {
+  background: var(--apg-admin-table-hover);
+}
+
+.apg-admin-shell h1,
+.apg-admin-shell h2,
+.apg-admin-shell h3 {
+  color: var(--apg-text-primary) !important;
+  letter-spacing: -0.02em;
+}
+
+.apg-admin-shell h2 {
+  font-size: clamp(1.15rem, 2vw, 1.55rem) !important;
+  line-height: 1.25 !important;
+}
+
+.apg-admin-shell h3 {
+  font-size: clamp(1rem, 1.5vw, 1.2rem) !important;
+  line-height: 1.35 !important;
+}
+
+.apg-admin-shell p,
+.apg-admin-shell label,
+.apg-admin-shell div {
+  border-color: var(--apg-border-default);
+}
+
+.apg-admin-shell .bg-white {
+  background-color: var(--apg-bg-surface) !important;
+}
+
+.apg-admin-shell .text-white {
+  color: var(--apg-text-primary) !important;
+}
+
+.apg-admin-shell .shadow-sm,
+.apg-admin-shell .shadow-lg,
+.apg-admin-shell .shadow-xl,
+.apg-admin-shell [class*="shadow-"] {
+  box-shadow: none !important;
+}
+
+.apg-admin-shell .bg-emerald-50 {
+  background-color: rgba(0, 208, 132, 0.12) !important;
+}
+
+.apg-admin-shell .text-emerald-700 {
+  color: #27e79b !important;
+}
+
+.apg-admin-shell .border-emerald-200 {
+  border-color: rgba(0, 208, 132, 0.26) !important;
+}
+
+.apg-admin-shell .bg-amber-50 {
+  background-color: rgba(245, 181, 27, 0.13) !important;
+}
+
+.apg-admin-shell .text-amber-700 {
+  color: #ffd45a !important;
+}
+
+.apg-admin-shell .border-amber-200 {
+  border-color: rgba(245, 181, 27, 0.26) !important;
+}
+
+.apg-admin-shell .bg-rose-50 {
+  background-color: rgba(255, 92, 92, 0.13) !important;
+}
+
+.apg-admin-shell .text-rose-700 {
+  color: #ff8f8f !important;
+}
+
+.apg-admin-shell .border-rose-200 {
+  border-color: rgba(255, 92, 92, 0.28) !important;
+}
+
+.apg-admin-shell .bg-slate-50 {
+  background-color: rgba(161, 161, 161, 0.12) !important;
+}
+
+.apg-admin-shell .text-slate-700 {
+  color: #d4d4d4 !important;
+}
+
+.apg-admin-shell .border-slate-200 {
+  border-color: rgba(161, 161, 161, 0.24) !important;
+}
+
+.apg-admin-shell [class*="bg-[linear-gradient"] {
+  background: var(--apg-bg-surface) !important;
+}
+
+.apg-admin-shell [class*="bg-[color:"] {
+  background: var(--apg-bg-surface-soft) !important;
+}
+
+.apg-admin-shell {
+  font-size: 13px;
+}
+
+.apg-admin-shell main {
+  line-height: 1.45;
+}
+
+.apg-admin-shell .apg-admin-stat::before {
+  display: none;
+}
+
+.apg-admin-shell .apg-admin-sheet > [class*="border-b"] {
+  padding: 12px 16px !important;
+}
+
+.apg-admin-shell .apg-admin-toolbar {
+  padding: 14px 16px !important;
+}
+
+.apg-admin-shell .apg-admin-table thead th {
+  padding: 10px 12px !important;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.apg-admin-shell .apg-admin-table tbody td {
+  padding: 10px 12px !important;
+}
+
+.apg-admin-shell .apg-field {
+  height: 36px;
+  padding-inline: 10px;
+  font-size: 13px;
+}
+
+.apg-admin-shell .apg-field-label,
+.apg-admin-shell label {
+  font-size: 12px;
+}
+
+.apg-admin-shell .apg-btn-primary,
+.apg-admin-shell .apg-btn-secondary,
+.apg-admin-shell .apg-btn-danger {
+  min-height: 34px;
+  height: 34px;
+  padding-inline: 12px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.apg-admin-shell .apg-chip {
+  height: 24px;
+  padding-inline: 9px;
+  font-size: 11px;
+}
+
+.apg-admin-shell .apg-display {
+  letter-spacing: 0.01em;
+}
+
+.apg-admin-shell [class*="text-3xl"] {
+  font-size: 1.35rem !important;
+  line-height: 1.2 !important;
+}
+
+.apg-admin-shell [class*="text-2xl"] {
+  font-size: 1.05rem !important;
+  line-height: 1.3 !important;
+}
+
+.apg-admin-shell [class*="rounded-[22px]"],
+.apg-admin-shell [class*="rounded-[24px]"],
+.apg-admin-shell [class*="rounded-[26px]"] {
+  border-radius: 10px !important;
+}
+
+.apg-admin-shell .apg-admin-sheet {
+  border-radius: 12px !important;
+}
+
+.apg-admin-shell .apg-admin-stat {
+  border-radius: 10px !important;
+  padding: 12px !important;
+}
+
+.apg-admin-shell .apg-admin-toolbar {
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+}
+
+.apg-admin-shell .apg-eyebrow {
+  font-size: 10px !important;
+  letter-spacing: 0.16em !important;
+}
+
+.apg-admin-shell .apg-admin-stat .text-base,
+.apg-admin-shell .apg-admin-toolbar .text-base {
+  font-size: 0.88rem !important;
+}
+
+.apg-admin-shell input[type="date"] {
+  color-scheme: dark;
+}
+
+.apg-admin-shell pre {
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.apg-admin-shell .apg-pnr-chip {
+  display: inline-flex;
+  min-width: 86px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  background: rgba(34, 211, 238, 0.12);
+  padding: 8px 12px;
+  color: #67e8f9;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.apg-admin-shell .apg-pnr-chip:hover {
+  border-color: rgba(34, 211, 238, 0.72);
+  background: rgba(34, 211, 238, 0.18);
+  color: #a5f3fc;
+}
+
+.apg-admin-shell .admin-airline-logo {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-sidebar {
+  background: rgba(255, 255, 255, 0.92) !important;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-topbar {
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.apg-admin-shell[data-admin-theme="light"] ::-webkit-scrollbar-track {
+  background: #eef2f6;
+}
+
+.apg-admin-shell[data-admin-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #c2ccd7;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-nav-link {
+  color: #526071;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-nav-link:hover {
+  background: #f1f5f9;
+  color: #101828;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-nav-link-active {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-nav-link-active svg {
+  color: #ffffff !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-sheet,
+.apg-admin-shell[data-admin-theme="light"] .apg-panel {
+  background: #ffffff !important;
+  border-color: #d8dee5 !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04) !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-toolbar,
+.apg-admin-shell[data-admin-theme="light"] .apg-panel-soft {
+  background: #f8fafc !important;
+  border-color: #d8dee5 !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-stat {
+  background: #ffffff !important;
+  border-color: #d8dee5 !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-chip {
+  background: #ffffff;
+  border-color: #d8dee5;
+  color: #526071;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-chip-active {
+  border-color: rgba(4, 120, 87, 0.22);
+  background: rgba(4, 120, 87, 0.08);
+  color: #047857;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-field,
+.apg-admin-shell[data-admin-theme="light"] input,
+.apg-admin-shell[data-admin-theme="light"] select,
+.apg-admin-shell[data-admin-theme="light"] textarea {
+  background-color: #ffffff;
+  border-color: #d8dee5;
+  color: #101828;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-field:focus,
+.apg-admin-shell[data-admin-theme="light"] input:focus,
+.apg-admin-shell[data-admin-theme="light"] select:focus,
+.apg-admin-shell[data-admin-theme="light"] textarea:focus {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-btn-primary {
+  border-color: #0f172a;
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-btn-primary:hover {
+  border-color: #1e293b;
+  background: #1e293b;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-btn-secondary {
+  border-color: #d8dee5;
+  background: #ffffff;
+  color: #101828;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-btn-secondary:hover {
+  background: #f8fafc;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-btn-danger {
+  border-color: rgba(220, 38, 38, 0.22);
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-btn-danger:hover {
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-table {
+  color: #526071;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-table thead {
+  background: #f8fafc !important;
+  color: #64748b;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-admin-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .bg-white {
+  background-color: #ffffff !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .text-white {
+  color: #ffffff !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .bg-emerald-50 {
+  background-color: #ecfdf5 !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .text-emerald-700 {
+  color: #047857 !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .border-emerald-200 {
+  border-color: #a7f3d0 !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .bg-amber-50 {
+  background-color: #fffbeb !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .text-amber-700 {
+  color: #b45309 !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .border-amber-200 {
+  border-color: #fde68a !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .bg-rose-50 {
+  background-color: #fff1f2 !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .text-rose-700 {
+  color: #be123c !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .border-rose-200 {
+  border-color: #fecdd3 !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .bg-slate-50 {
+  background-color: #f8fafc !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .text-slate-700 {
+  color: #334155 !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .border-slate-200 {
+  border-color: #e2e8f0 !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] [class*="bg-[linear-gradient"] {
+  background: #ffffff !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] [class*="bg-[color:"] {
+  background: #f8fafc !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] input[type="date"] {
+  color-scheme: light;
+}
+
+.apg-admin-shell[data-admin-theme="light"] pre {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-pnr-chip {
+  border-color: rgba(8, 145, 178, 0.36);
+  background: #ecfeff;
+  color: #075985;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.75);
+}
+
+.apg-admin-shell[data-admin-theme="light"] .apg-pnr-chip:hover {
+  border-color: rgba(8, 145, 178, 0.6);
+  background: #cffafe;
+  color: #083344;
+}
+
+.apg-admin-shell[data-admin-theme="light"] .admin-airline-logo {
+  border-color: #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+/* === Flight result row entry animation (stale-while-revalidate UX) === */
+@keyframes apgRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes apgSlide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+.apg-row-in {
+  animation: apgRowIn 0.4s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+.apg-reload-bar {
+  position: relative;
+  height: 2px;
+  width: 100%;
+  overflow: hidden;
+  background: rgba(245, 158, 11, 0.12);
+}
+.apg-reload-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, #f59e0b, transparent);
+  animation: apgSlide 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apg-row-in {
+    animation: none;
+  }
+  .apg-reload-bar::after {
+    animation: none;
+  }
+}
+
+/* === Plane-fly loading indicator (replaces "Đang kết nối với Tanphuapg" text) === */
+@keyframes apgPlaneFly {
+  0% {
+    left: 0;
+    transform: translateX(-28px) translateY(0);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  45% {
+    transform: translateX(0) translateY(-1.5px);
+  }
+  55% {
+    transform: translateX(0) translateY(-1.5px);
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    transform: translateX(0) translateY(0);
+    opacity: 0;
+  }
+}
+
+@keyframes apgTrailDrift {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+.apg-plane-loader {
+  position: relative;
+  height: 32px;
+  overflow: hidden;
+  border-radius: var(--apg-radius-md);
+  border: 1px solid var(--apg-border-default);
+  background:
+    radial-gradient(ellipse 60% 80% at 50% 50%, rgba(255, 255, 255, 0.85), rgba(233, 238, 242, 0.6)),
+    linear-gradient(to right, rgba(233, 238, 242, 0.5), rgba(255, 255, 255, 0.7) 50%, rgba(233, 238, 242, 0.5));
+}
+
+.apg-plane-loader__trail {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+  margin-top: -0.5px;
+  background-image: linear-gradient(to right, rgba(94, 114, 136, 0.45) 4px, transparent 4px);
+  background-size: 9px 1px;
+  background-repeat: repeat-x;
+  animation: apgTrailDrift 2.8s ease-in-out infinite;
+}
+
+.apg-plane-loader__plane {
+  position: absolute;
+  top: 50%;
+  margin-top: -8px;
+  width: 16px;
+  height: 16px;
+  color: var(--apg-aviation-navy);
+  animation: apgPlaneFly 2.8s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: left, transform, opacity;
+  filter: drop-shadow(0 1px 2px rgba(20, 59, 95, 0.28));
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apg-plane-loader__plane,
+  .apg-plane-loader__trail {
+    animation-duration: 8s;
+  }
+}

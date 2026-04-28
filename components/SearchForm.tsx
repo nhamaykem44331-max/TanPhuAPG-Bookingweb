@@ -1,17 +1,30 @@
 "use client";
+
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
 import AirportInput from '@/components/AirportInput';
 import PassengerCabin from '@/components/PassengerCabin';
-import { POPULAR_ROUTES } from '@/lib/airports';
-import type { Cabin } from '@/lib/types';
+import type { AirportSelection, Cabin } from '@/lib/types';
+import { buildAirportSelection, useAirports } from '@/lib/useAirports';
+
+const QUICK_ROUTE_CODES: Array<[string, string]> = [
+  ['HAN', 'SGN'],
+  ['HAN', 'DAD'],
+  ['SGN', 'HAN'],
+  ['HAN', 'PQC'],
+];
+
+const DEFAULT_FROM: AirportSelection = { code: 'HAN', label: 'Hà Nội (HAN) - Nội Bài' };
+const DEFAULT_TO: AirportSelection = { code: 'SGN', label: 'TP.HCM (SGN) - Tân Sơn Nhất' };
 
 export default function SearchForm() {
   const router = useRouter();
+  const { airports } = useAirports();
   const [tripType, setTripType] = useState<'oneway' | 'roundtrip'>('oneway');
-  const [from, setFrom] = useState('HAN');
-  const [to, setTo] = useState('SGN');
-  const d = new Date(); d.setDate(d.getDate() + 7);
+  const [fromSel, setFromSel] = useState<AirportSelection | null>(DEFAULT_FROM);
+  const [toSel, setToSel] = useState<AirportSelection | null>(DEFAULT_TO);
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
   const [date, setDate] = useState(d.toISOString().slice(0, 10));
   const [returnDate, setReturnDate] = useState('');
   const [adults, setAdults] = useState(1);
@@ -19,8 +32,23 @@ export default function SearchForm() {
   const [infants, setInfants] = useState(0);
   const [cabin, setCabin] = useState<Cabin>('economy');
 
+  const quickRoutes = useMemo(() => QUICK_ROUTE_CODES.map(([from, to]) => ({
+    from: buildAirportSelection(airports, from, from) || { code: from, label: from },
+    to: buildAirportSelection(airports, to, to) || { code: to, label: to },
+  })), [airports]);
+
   const submit = () => {
-    const q = new URLSearchParams({ from, to, date, adults: String(adults), children: String(children), infants: String(infants), cabin, tripType });
+    if (!fromSel?.code || !toSel?.code) return;
+    const q = new URLSearchParams({
+      from: fromSel.code,
+      to: toSel.code,
+      date,
+      adults: String(adults),
+      children: String(children),
+      infants: String(infants),
+      cabin,
+      tripType,
+    });
     if (tripType === 'roundtrip' && returnDate) q.set('returnDate', returnDate);
     router.push(`/search?${q.toString()}`);
   };
@@ -33,11 +61,20 @@ export default function SearchForm() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">
-        <AirportInput label="Điểm đi" value={from} onChange={setFrom} />
+        <AirportInput label="Điểm đi" value={fromSel} onSelect={setFromSel} placeholder="Hà Nội, HAN..." />
         <div className="flex items-end justify-center pb-2">
-          <button className="rounded-full border px-3 py-1" onClick={() => { setFrom(to); setTo(from); }}>⇄</button>
+          <button
+            className="rounded-full border px-3 py-1"
+            onClick={() => {
+              const currentFrom = fromSel;
+              setFromSel(toSel);
+              setToSel(currentFrom);
+            }}
+          >
+            ⇄
+          </button>
         </div>
-        <AirportInput label="Điểm đến" value={to} onChange={setTo} />
+        <AirportInput label="Điểm đến" value={toSel} onSelect={setToSel} placeholder="TP.HCM, SGN..." />
         <div>
           <label className="mb-1 block text-xs font-semibold text-slate-600">Ngày đi</label>
           <input type="date" min={new Date().toISOString().slice(0, 10)} value={date} onChange={(e) => setDate(e.target.value)} className="w-full rounded-xl border px-3 py-2" />
@@ -56,8 +93,17 @@ export default function SearchForm() {
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {POPULAR_ROUTES.map((r) => (
-          <button key={`${r.from}-${r.to}`} className="rounded-full border bg-slate-50 px-3 py-1 text-sm" onClick={() => { setFrom(r.from); setTo(r.to); }}>{r.from}→{r.to}</button>
+        {quickRoutes.map((route) => (
+          <button
+            key={`${route.from.code}-${route.to.code}`}
+            className="rounded-full border bg-slate-50 px-3 py-1 text-sm"
+            onClick={() => {
+              setFromSel(route.from);
+              setToSel(route.to);
+            }}
+          >
+            {route.from.code}-{route.to.code}
+          </button>
         ))}
       </div>
     </div>

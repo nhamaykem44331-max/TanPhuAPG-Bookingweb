@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiKey, unauthorizedResponse } from '@/lib/api-auth';
+import { getVndUsdRate } from '@/lib/exchange';
 
 export const runtime = 'nodejs';
 
@@ -65,6 +66,8 @@ export async function POST(req: NextRequest) {
   const taxEst        = Math.round(totalAdults * 0.12);
   const grandTotal    = Math.round(totalAdults + totalChildren + totalInfants + taxEst);
   const isRoundtrip   = !!inbound;
+  const usdRate       = await getVndUsdRate();
+  const grandTotalUSD = Math.round(grandTotal / usdRate);
 
   const quoteId = `APG-${Date.now().toString(36).toUpperCase().slice(-6)}`;
 
@@ -99,7 +102,7 @@ export async function POST(req: NextRequest) {
 • Thuế + phí (ước tính): ${fmt(taxEst)}
 
 🔴 *TỔNG GIÁ: ${fmt(grandTotal)}*
-_(≈ $${Math.round(grandTotal / 25000)} USD)_
+_(≈ $${grandTotalUSD} USD)_
 
 ━━━━━━━━━━━━━━━━━━━━
 📞 Đặt vé: *0918.752.686* (Zalo/Call)
@@ -149,7 +152,8 @@ Liên hệ đặt vé: 0918.752.686 | tanphuapg.com | tkt.tanphu@gmail.com
       totalFareInfants:  Math.round(totalInfants),
       taxEstimate:     taxEst,
       grandTotal,
-      grandTotalUSD:   Math.round(grandTotal / 25000),
+      grandTotalUSD,
+      usdRate,
     },
     outbound,
     inbound: inbound || null,
@@ -157,7 +161,7 @@ Liên hệ đặt vé: 0918.752.686 | tanphuapg.com | tkt.tanphu@gmail.com
     telegramText:  format === 'telegram' ? telegramText : undefined,
     plainText:     format === 'plain'    ? plainText    : undefined,
     // Luôn có cả 2
-    messages: { telegram: telegramText || buildTelegram(outbound, inbound, adults, children, infants, cabin, cabinLabel, outPrice, inPrice, totalAdults, totalChildren, totalInfants, taxEst, grandTotal, quoteId, isRoundtrip), plain: plainText },
+    messages: { telegram: telegramText || buildTelegram(outbound, inbound, adults, children, infants, cabin, cabinLabel, outPrice, inPrice, totalAdults, totalChildren, totalInfants, taxEst, grandTotal, quoteId, isRoundtrip, grandTotalUSD), plain: plainText },
   });
 }
 
@@ -168,8 +172,9 @@ function buildTelegram(
   outPrice: number, inPrice: number,
   totalAdults: number, totalChildren: number, totalInfants: number,
   taxEst: number, grandTotal: number,
-  quoteId: string, isRoundtrip: boolean
+  quoteId: string, isRoundtrip: boolean,
+  grandTotalUSD: number
 ): string {
   const fmt = (n: number) => Number(n).toLocaleString('vi-VN') + 'đ';
-  return `✈️ *BÁO GIÁ VÉ MÁY BAY*\n📋 Mã: \`${quoteId}\`\n\n📍 *${isRoundtrip ? 'CHIỀU ĐI' : 'CHUYẾN BAY'}*: ${outbound.from}→${outbound.to} | ${longDate(outbound.date)}\n✈ ${outbound.airline} ${outbound.flightNumber} | ${outbound.departureTime}→${outbound.arrivalTime}\n💰 ${fmt(outPrice)}/người\n${inbound ? `\n📍 *CHIỀU VỀ*: ${inbound.from}→${inbound.to} | ${longDate(inbound.date)}\n✈ ${inbound.airline} ${inbound.flightNumber} | ${inbound.departureTime}→${inbound.arrivalTime}\n💰 ${fmt(inPrice)}/người\n` : ''}\n👥 ${adults} NL${children > 0 ? ` · ${children} TE` : ''}${infants > 0 ? ` · ${infants} EB` : ''} · ${cabinLabel[cabin] || cabin}\n\n🔴 *TỔNG: ${fmt(grandTotal)}* (≈$${Math.round(grandTotal / 25000)})\n\n📞 *0918.752.686* | tanphuapg.com\n⚠️ _Giá tham khảo_`;
+  return `✈️ *BÁO GIÁ VÉ MÁY BAY*\n📋 Mã: \`${quoteId}\`\n\n📍 *${isRoundtrip ? 'CHIỀU ĐI' : 'CHUYẾN BAY'}*: ${outbound.from}→${outbound.to} | ${longDate(outbound.date)}\n✈ ${outbound.airline} ${outbound.flightNumber} | ${outbound.departureTime}→${outbound.arrivalTime}\n💰 ${fmt(outPrice)}/người\n${inbound ? `\n📍 *CHIỀU VỀ*: ${inbound.from}→${inbound.to} | ${longDate(inbound.date)}\n✈ ${inbound.airline} ${inbound.flightNumber} | ${inbound.departureTime}→${inbound.arrivalTime}\n💰 ${fmt(inPrice)}/người\n` : ''}\n👥 ${adults} NL${children > 0 ? ` · ${children} TE` : ''}${infants > 0 ? ` · ${infants} EB` : ''} · ${cabinLabel[cabin] || cabin}\n\n🔴 *TỔNG: ${fmt(grandTotal)}* (≈$${grandTotalUSD})\n\n📞 *0918.752.686* | tanphuapg.com\n⚠️ _Giá tham khảo_`;
 }
