@@ -608,6 +608,26 @@ async function postHoldForFlightWithRetry(
   throw lastError instanceof Error ? lastError : new Error('Hold failed without error info');
 }
 
+async function postHoldRoundtripWithRetry(
+  body: HoldBookingRequest,
+  idempotencyKey?: string,
+  maxAttempts = 3,
+): Promise<HoldBookingResponse> {
+  const effectiveIdempotencyKey = idempotencyKey || body.idempotencyKey;
+  const payload = roundtripHoldPayload(body, effectiveIdempotencyKey);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await postHold(payload, effectiveIdempotencyKey);
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableHoldError(error) || attempt === maxAttempts - 1) throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Roundtrip hold failed without error info');
+}
+
 // Best-effort cancel PNR — không throw nếu fail (chỉ log) vì user đã thấy lỗi rồi.
 // Nam Thanh backend có thể có hoặc chưa có endpoint /bookings/cancel.
 // Khi backend chưa hỗ trợ → endpoint trả 404, ta chấp nhận và để admin xử lý thủ công.
@@ -882,6 +902,7 @@ export async function holdNamThanhBooking(
   idempotencyKey?: string
 ): Promise<HoldBookingResponse> {
   const flight = body.flight;
+  const effectiveIdempotencyKey = idempotencyKey || body.idempotencyKey;
   const isRoundtrip = body.tripType === 'roundtrip' && !!(body.outbound || body.flight) && !!body.inbound;
   const outbound = body.outbound || body.flight;
   const inbound = body.inbound;
@@ -891,22 +912,24 @@ export async function holdNamThanhBooking(
     String(outbound.airlineCode || '').toUpperCase() !== String(inbound.airlineCode || '').toUpperCase();
 
   if (shouldSplitRoundtrip) {
-    return holdSplitRoundtripBooking(body, idempotencyKey || body.idempotencyKey);
+    return holdSplitRoundtripBooking(body, effectiveIdempotencyKey);
   }
 
   if (!isRoundtrip && flight) {
-    return postHoldForFlight(body, flight, idempotencyKey);
+    return postHoldForFlightWithRetry(body, flight, effectiveIdempotencyKey);
   }
 
-  const payload = isRoundtrip
-    ? roundtripHoldPayload(body, idempotencyKey || body.idempotencyKey)
-    : {
-      ...body,
-      searchId: body.searchId || flight?.searchId,
-      flightId: body.flightId || flight?.id || flight?.namthanh?.flightId,
-      fareId: body.fareId || flight?.fareId || flight?.namthanh?.fareId,
-      passengers: keepServicesForFlight(body.passengers, flight),
-    };
+  if (isRoundtrip) {
+    return postHoldRoundtripWithRetry(body, effectiveIdempotencyKey);
+  }
 
-  return postHold(payload, idempotencyKey);
+  const payload = {
+    ...body,
+    searchId: body.searchId || flight?.searchId,
+    flightId: body.flightId || flight?.id || flight?.namthanh?.flightId,
+    fareId: body.fareId || flight?.fareId || flight?.namthanh?.fareId,
+    passengers: keepServicesForFlight(body.passengers, flight),
+  };
+
+  return postHold(payload, effectiveIdempotencyKey);
 }
