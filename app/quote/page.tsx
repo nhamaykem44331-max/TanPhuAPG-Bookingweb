@@ -1098,6 +1098,13 @@ export default function QuotePage() {
   const [usdRate, setUsdRate] = useState<number>(26357);
 
   useEffect(() => {
+    const ctrl = new AbortController();
+    fetch('/api/warmup', { cache: 'no-store', signal: ctrl.signal })
+      .catch(() => {});
+    return () => ctrl.abort();
+  }, []);
+
+  useEffect(() => {
     const raw = localStorage.getItem('apg_quote_selection');
     if (!raw) return;
     try {

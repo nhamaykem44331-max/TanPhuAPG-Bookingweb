@@ -411,6 +411,8 @@ export default function HoldBookingModal({
   const createRealHold = true;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [backendReady, setBackendReady] = useState(true);
+  const [warmupChecking, setWarmupChecking] = useState(false);
   // Khi split-roundtrip outbound thành công nhưng inbound fail → lưu PNR mồ côi để hiển thị
   const [partialHold, setPartialHold] = useState<{
     orphanPnrs: Array<{ airline?: string; pnr: string; status?: string; from?: string; to?: string }>;
@@ -487,6 +489,19 @@ export default function HoldBookingModal({
     setHoldProgressText('');
     setHoldProgressElapsedMs(0);
   }, [open, adults, children, infants]);
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    setWarmupChecking(true);
+    setBackendReady(false);
+    fetch('/api/warmup', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { if (alive) setBackendReady(d.ready === true || d.warming !== true); })
+      .catch(() => { if (alive) setBackendReady(true); })
+      .finally(() => { if (alive) setWarmupChecking(false); });
+    return () => { alive = false; };
+  }, [open]);
 
   useEffect(() => {
     resultRef.current = result;
@@ -568,6 +583,8 @@ export default function HoldBookingModal({
     setSkipBaggage(false);
     setAncillaryAttempt(0);
     setPartialHold(null);
+    setBackendReady(true);
+    setWarmupChecking(false);
   }, [open]);
 
   if (!open || !flight) return null;
@@ -651,6 +668,7 @@ export default function HoldBookingModal({
         setHoldProgressPct((prev) => Math.max(prev, 18));
         setHoldProgressText('Đang gửi yêu cầu tạo PNR...');
       }
+      await fetch('/api/warmup', { cache: 'no-store' }).catch(() => {});
       const controller = new AbortController();
       timeoutId = window.setTimeout(() => controller.abort(), 180000);
       const res = await fetch('/api/booking/hold', {
@@ -886,6 +904,12 @@ export default function HoldBookingModal({
     </div>
   ) : null;
 
+  const warmupBlock = (warmupChecking || !backendReady) ? (
+    <div className="rounded-[var(--apg-radius-md)] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+      Đang chuẩn bị hệ thống Nam Thanh...
+    </div>
+  ) : null;
+
   const partialHoldBlock = partialHold ? (
     <div className="rounded-[var(--apg-radius-md)] border-2 border-amber-300 bg-amber-50 px-4 py-3 text-xs">
       <div className="mb-2 flex items-start gap-2">
@@ -1085,6 +1109,7 @@ export default function HoldBookingModal({
             <aside className="hidden lg:block">
               <div className="sticky top-3 space-y-3">
                 {summaryBlock}
+                {warmupBlock}
                 {progressBlock}
                 {errorBlock}
                 {resultBlock}
@@ -1364,6 +1389,7 @@ export default function HoldBookingModal({
               </div>
 
               <div className="mt-3 space-y-3 lg:hidden">
+                {warmupBlock}
                 {progressBlock}
                 {errorBlock}
                 {resultBlock}
@@ -1379,7 +1405,7 @@ export default function HoldBookingModal({
           <button
             className="apg-btn-primary flex-1 text-sm font-bold text-white disabled:opacity-60"
             onClick={submitHold}
-            disabled={loading}
+            disabled={loading || !backendReady || warmupChecking}
           >
             {loading ? 'Đang giữ chỗ...' : 'Giữ Chỗ'}
           </button>
