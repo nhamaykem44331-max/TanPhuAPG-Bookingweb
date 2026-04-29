@@ -497,17 +497,19 @@ test("2b. Search cache miss fallback route re-price va khong tra QUOTE_EXPIRED",
   assert.equal(await bookingCount(idempotencyKey), 0);
 });
 
-test("3. Lỗi quote generic được map thành 502 UPSTREAM_UNAVAILABLE và không tạo Booking", async () => {
+test("3. Lỗi quote generic được map thành BACKEND_DOWN retryable và không tạo Booking", async () => {
   const idempotencyKey = `gate-c0-generic-${Date.now()}`;
   mockState.quoteMode = "generic";
 
   assert.equal(await bookingCount(idempotencyKey), 0);
 
   const response = await postHold(createHoldPayload(idempotencyKey, true));
-  const body = (await response.json()) as { error?: string };
+  const body = (await response.json()) as { error?: string; retryable?: boolean; retryDelayMs?: number };
 
-  assert.equal(response.status, 502);
-  assert.equal(body.error, "UPSTREAM_UNAVAILABLE");
+  assert.equal(response.status, 503);
+  assert.equal(body.error, "BACKEND_DOWN");
+  assert.equal(body.retryable, true);
+  assert.equal(body.retryDelayMs, 5000);
   assert.equal(await bookingCount(idempotencyKey), 0);
 });
 
