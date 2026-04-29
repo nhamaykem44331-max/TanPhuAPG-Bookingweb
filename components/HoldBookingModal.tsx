@@ -1232,8 +1232,8 @@ export default function HoldBookingModal({
   ) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 px-2 lg:items-center lg:p-6" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="mb-2 flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl lg:mb-0 lg:max-h-[92vh] lg:max-w-[1240px] lg:rounded-[var(--apg-radius-lg)]" style={{ border: '1px solid var(--apg-border-default)' }}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 px-2 pb-[calc(16px+env(safe-area-inset-bottom))] pt-2 lg:items-center lg:p-6" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="flex max-h-[calc(100svh-32px)] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl lg:max-h-[92vh] lg:max-w-[1240px] lg:rounded-[var(--apg-radius-lg)]" style={{ border: '1px solid var(--apg-border-default)' }}>
         <div className="flex items-center justify-between border-b border-[var(--apg-border-default)] bg-white px-4 py-3 lg:px-5">
           <div>
             <div className="apg-display text-[18px] font-semibold tracking-[0.05em] text-[var(--apg-aviation-navy)]">Nhập thông tin đặt vé</div>
