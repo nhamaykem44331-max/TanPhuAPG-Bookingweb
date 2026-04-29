@@ -88,6 +88,12 @@ async function namThanhFetch<T>(path: string, init: RequestInit = {}, timeoutMs 
     if (error instanceof Error && error.name === 'AbortError') {
       throw new NamThanhApiError('Nam Thanh backend timeout', 504);
     }
+    if (error instanceof Error) {
+      throw new NamThanhApiError('Nam Thanh backend unavailable', 503, {
+        cause: error.name,
+        message: error.message,
+      });
+    }
     throw error;
   } finally {
     clearTimeout(timeout);
