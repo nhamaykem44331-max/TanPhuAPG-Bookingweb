@@ -379,6 +379,15 @@ function serializePnrPricing(quote: QuoteServiceResult, pnrs: NonNullable<HoldBo
     return [];
   }
 
+  if (pnrs.length === 1 && quote.legs.length > 1) {
+    return [{
+      pnr: pnrs[0].pnr || "PNR-1",
+      totalAmount: Number(quote.totalSellPrice.toFixed(0)),
+      currency: quote.currency,
+      timelimit: pnrs[0].timelimit,
+    }];
+  }
+
   const usedLegIndexes = new Set<number>();
 
   return pnrs.map((pnr, index) => {

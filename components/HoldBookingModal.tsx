@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Check, Copy } from 'lucide-react';
 import type {
   BookingAncillaryResponse,
   BookingAncillaryService,
@@ -407,7 +408,7 @@ export default function HoldBookingModal({
   const [passengers, setPassengers] = useState<UiPassenger[]>(() => buildPassengerSeeds(adults, children, infants));
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
-  const [createRealHold, setCreateRealHold] = useState(false);
+  const createRealHold = true;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   // Khi split-roundtrip outbound thành công nhưng inbound fail → lưu PNR mồ côi để hiển thị
@@ -427,6 +428,7 @@ export default function HoldBookingModal({
   const [ancillaryRoutes, setAncillaryRoutes] = useState<AncillaryRoute[]>([]);
   const [ancillaryAttempt, setAncillaryAttempt] = useState(0); // ép re-fetch khi user bấm "Thử lại"
   const [skipBaggage, setSkipBaggage] = useState(false);       // user chọn "tiếp tục không kèm hành lý"
+  const [copiedResult, setCopiedResult] = useState(false);
   const resultRef = useRef<HoldBookingResponse | null>(null);
 
   const isRoundtrip = tripType === 'roundtrip' && !!inbound;
@@ -488,6 +490,7 @@ export default function HoldBookingModal({
 
   useEffect(() => {
     resultRef.current = result;
+    setCopiedResult(false);
   }, [result]);
 
   useEffect(() => {
@@ -677,7 +680,7 @@ export default function HoldBookingModal({
             phone: phoneDigits,
             email: trimmedEmail,
           },
-          dryRun: !createRealHold,
+          dryRun: false,
           idempotencyKey,
         }),
       });
@@ -716,6 +719,125 @@ export default function HoldBookingModal({
     } finally {
       if (timeoutId !== null) window.clearTimeout(timeoutId);
       setLoading(false);
+    }
+  }
+
+  const pnrRows = (() => {
+    if (!result) return [];
+    const pnrs = result.pnrs || [];
+    const pricingItems = pricingByPnr;
+    const singlePnrRoundtrip = isRoundtrip && pnrs.length === 1 && holdFlights.length > 1;
+    const pricingByCode = new Map(
+      pricingItems.map((item) => [String(item.pnr || '').trim().toUpperCase(), item])
+    );
+    const usedPricingKeys = new Set<string>();
+    const rows = pnrs.map((pnr, index) => {
+      const pnrCode = String(pnr.pnr || `PNR-${index + 1}`).trim();
+      const pricingItem = pricingByCode.get(pnrCode.toUpperCase()) || pricingItems[index];
+      if (pricingItem?.pnr) usedPricingKeys.add(String(pricingItem.pnr).trim().toUpperCase());
+      const fallbackFlight = holdFlights[index] || holdFlights[0] || null;
+      const rowFlights = singlePnrRoundtrip ? holdFlights : (fallbackFlight ? [fallbackFlight] : []);
+      const routeLabel = singlePnrRoundtrip
+        ? rowFlights
+            .map((item) => `${airportEndpointLabel(airports, item.departure)} → ${airportEndpointLabel(airports, item.arrival)}`)
+            .join(' / ')
+        : pnr.from && pnr.to
+        ? `${airportCodeLabel(airports, pnr.from)} → ${airportCodeLabel(airports, pnr.to)}`
+        : fallbackFlight
+          ? `${airportEndpointLabel(airports, fallbackFlight.departure)} → ${airportEndpointLabel(airports, fallbackFlight.arrival)}`
+          : '';
+      const flightSummary = rowFlights
+        .map((item) => `${item.airlineCode} ${item.flightNumber} · ${hhmm(item.departure.time)} → ${hhmm(item.arrival.time)}`)
+        .join(' / ');
+      const roundtripPnrTotal = typeof result.totalAmount === 'number'
+        ? result.totalAmount
+        : typeof pricing?.totalAmount === 'number'
+          ? pricing.totalAmount
+          : estimatedTotal;
+      return {
+        key: `${pnrCode}-${index}`,
+        pnr: pnrCode || '-',
+        airline: pnr.airline || fallbackFlight?.airlineCode || '',
+        status: pnr.status || (result.success ? 'SUCCESS' : ''),
+        routeLabel,
+        flightSummary,
+        legLabel: singlePnrRoundtrip ? 'Khứ hồi' : isRoundtrip ? (index === 0 ? 'Chiều đi' : 'Chiều về') : 'Chuyến bay',
+        totalAmount: singlePnrRoundtrip
+          ? roundtripPnrTotal
+          : typeof pricingItem?.totalAmount === 'number'
+            ? pricingItem.totalAmount
+            : undefined,
+        timelimit: pricingItem?.timelimit || pnr.timelimit || result.holdExpiresAt || '',
+        message: pnr.message && pnr.message !== pnr.pnr ? pnr.message : '',
+      };
+    });
+
+    pricingItems.forEach((item, index) => {
+      const pnrCode = String(item.pnr || '').trim();
+      const key = pnrCode.toUpperCase();
+      if (!pnrCode || usedPricingKeys.has(key)) return;
+      const fallbackFlight = holdFlights[pnrs.length + index] || holdFlights[index] || holdFlights[0] || null;
+      rows.push({
+        key: `${pnrCode}-pricing-${index}`,
+        pnr: pnrCode,
+        airline: fallbackFlight?.airlineCode || '',
+        status: result.success ? 'SUCCESS' : '',
+        routeLabel: fallbackFlight
+          ? `${airportEndpointLabel(airports, fallbackFlight.departure)} → ${airportEndpointLabel(airports, fallbackFlight.arrival)}`
+          : '',
+        flightSummary: fallbackFlight
+          ? `${fallbackFlight.airlineCode} ${fallbackFlight.flightNumber} · ${hhmm(fallbackFlight.departure.time)} → ${hhmm(fallbackFlight.arrival.time)}`
+          : '',
+        legLabel: isRoundtrip ? (rows.length === 0 ? 'Chiều đi' : 'Chiều về') : 'Chuyến bay',
+        totalAmount: typeof item.totalAmount === 'number' ? item.totalAmount : undefined,
+        timelimit: item.timelimit || result.holdExpiresAt || '',
+        message: '',
+      });
+    });
+
+    return rows;
+  })();
+
+  const holdResultCopyText = result ? [
+    'Giữ chỗ OK',
+    result.orderCode ? `Mã đơn hàng: ${result.orderCode}` : '',
+    result.sessionID ? `Phiên: ${result.sessionID}` : '',
+    result.passenger ? `Khách: ${result.passenger}` : '',
+    typeof result.totalAmount === 'number' ? `Tổng chuẩn: ${fmtVND(result.totalAmount)}` : '',
+    pricing?.source ? `Nguồn giá: ${pricing.source}` : '',
+    pnrRows.length ? '' : 'PNR: Chưa có dữ liệu PNR',
+    ...pnrRows.map((row) => [
+      `${row.legLabel}: PNR ${row.pnr}`,
+      row.airline ? `Hãng: ${row.airline}` : '',
+      row.status ? `Trạng thái: ${row.status}` : '',
+      row.routeLabel ? `Chặng: ${row.routeLabel}` : '',
+      row.flightSummary ? `Chuyến: ${row.flightSummary}` : '',
+      typeof row.totalAmount === 'number' ? `Giá PNR: ${fmtVND(row.totalAmount)}` : 'Giá PNR: Đang đồng bộ',
+      row.timelimit ? `Thời hạn giữ chỗ: ${row.timelimit}` : '',
+      row.message ? `Ghi chú: ${row.message}` : '',
+    ].filter(Boolean).join('\n')),
+  ].filter(Boolean).join('\n\n') : '';
+
+  async function copyHoldResultText() {
+    if (!holdResultCopyText) return;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(holdResultCopyText);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = holdResultCopyText;
+        textarea.setAttribute('readonly', 'true');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedResult(true);
+      window.setTimeout(() => setCopiedResult(false), 1400);
+    } catch {
+      setCopiedResult(false);
     }
   }
 
@@ -873,49 +995,75 @@ export default function HoldBookingModal({
 
   const resultBlock = result ? (
     <div className="rounded-[var(--apg-radius-md)] border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800">
-      <div className="font-bold">{result.dryRun ? 'Kiểm tra thử thành công' : 'Giữ chỗ OK'}</div>
-      {result.orderCode && <div>Mã đơn hàng: <b>{result.orderCode}</b></div>}
-      {result.sessionID && <div>Phiên: {result.sessionID}</div>}
-      {result.passenger && <div>Khách: {result.passenger}</div>}
-      {result.dryRun && typeof result.totalAmount === 'number' && (
-        <div>Tổng ước tính (kiểm tra thử): {fmtVND(result.totalAmount)}</div>
-      )}
-      {hasVerifiedPricing && typeof result?.totalAmount === 'number' && (
-        <div className="font-semibold">Tổng chuẩn: {fmtVND(result.totalAmount)}</div>
-      )}
-      {!result.dryRun && pricing && (
-        <div className="mt-0.5 text-[10px] text-gray-500 italic">
-          {pricing.verified === true
-            ? `Giá xác thực từ ${pricing.source || 'hệ thống Nam Thanh'}`
-            : `Giá ước tính — đang đồng bộ từ ${pricing.source || 'hệ thống Nam Thanh'}`}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-bold">Giữ chỗ OK</div>
+          <div className="mt-0.5 text-[11px] text-green-700/80">Thông tin PNR và giá đã được gộp theo từng mã giữ chỗ.</div>
         </div>
-      )}
-      {shouldShowPricingPending && (
-        <div>{pricing?.message || 'Đang đồng bộ giá chuẩn từ hệ thống Nam Thanh...'}</div>
-      )}
-      {shouldShowPricingPending && unresolvedPricingPnrs.length > 0 && (
-        <div>PNR đang chờ đồng bộ giá: {unresolvedPricingPnrs.join(', ')}</div>
-      )}
-      {pricingByPnr.map((item) => (
-        <div key={`pricing-live-${item.pnr}`} className="mt-1 rounded-[var(--apg-radius-sm)] bg-white/70 px-2 py-1">
-          <div>
-            Giá PNR <b>{item.pnr}</b>:{' '}
-            {typeof item.totalAmount === 'number'
-              ? <b>{fmtVND(item.totalAmount)}</b>
-              : <span className="italic text-gray-500">Đang đồng bộ…</span>}
+        <button
+          type="button"
+          aria-label="Copy thông tin giữ chỗ"
+          onClick={copyHoldResultText}
+          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-green-200 bg-white px-2.5 text-[11px] font-semibold text-green-800 shadow-sm transition hover:border-green-300 hover:bg-green-50 active:scale-95"
+        >
+          {copiedResult ? <Check size={14} strokeWidth={2.4} /> : <Copy size={14} strokeWidth={2.4} />}
+          <span className="hidden sm:inline">{copiedResult ? 'Đã copy' : 'Copy'}</span>
+        </button>
+      </div>
+
+      <div className="mt-2 grid gap-1.5 rounded-[var(--apg-radius-sm)] bg-white/70 px-2.5 py-2 text-[11px]">
+        {result.orderCode && <div>Mã đơn hàng: <b>{result.orderCode}</b></div>}
+        {result.sessionID && <div>Phiên: {result.sessionID}</div>}
+        {result.passenger && <div>Khách: {result.passenger}</div>}
+        {typeof result.totalAmount === 'number' && (
+          <div className="font-semibold">Tổng chuẩn: {fmtVND(result.totalAmount)}</div>
+        )}
+        {pricing && (
+          <div className="text-[10px] italic text-gray-500">
+            {pricing.verified === true
+              ? `Giá xác thực từ ${pricing.source || 'hệ thống Nam Thanh'}`
+              : `Giá ước tính — đang đồng bộ từ ${pricing.source || 'hệ thống Nam Thanh'}`}
           </div>
-          {item.timelimit && <div>Thời hạn giữ chỗ: {item.timelimit}</div>}
-        </div>
-      ))}
-      {result.splitRoundtrip && <div>Khác hãng: đã tách thành 2 mã giữ chỗ/PNR riêng.</div>}
-      {result.protectionVerified && <div>Đã xử lý xác thực Nam Thanh trước khi tạo PNR.</div>}
-      {(result.pnrs || []).map((pnr, idx) => (
-        <div key={`${pnr.pnr || idx}`} className="mt-1 rounded-[var(--apg-radius-sm)] bg-white/70 px-2 py-1">
-          <div>PNR: <b>{pnr.pnr || '-'}</b> | {pnr.airline || '-'} | {pnr.status || '-'}</div>
-          {pnr.timelimit && <div>Thời hạn giữ chỗ: {pnr.timelimit}</div>}
-          {pnr.message && pnr.message !== pnr.pnr && <div>{pnr.message}</div>}
-        </div>
-      ))}
+        )}
+        {shouldShowPricingPending && (
+          <div>{pricing?.message || 'Đang đồng bộ giá chuẩn từ hệ thống Nam Thanh...'}</div>
+        )}
+        {shouldShowPricingPending && unresolvedPricingPnrs.length > 0 && (
+          <div>PNR đang chờ đồng bộ giá: {unresolvedPricingPnrs.join(', ')}</div>
+        )}
+      </div>
+
+      <div className="mt-2 space-y-2">
+        {pnrRows.length > 0 ? pnrRows.map((row) => (
+          <div key={row.key} className="rounded-[var(--apg-radius-sm)] bg-white/80 px-2.5 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="rounded-full bg-green-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-white">{row.legLabel}</span>
+                  <span className="apg-mono font-bold text-[#1a1a1a]">{row.pnr}</span>
+                  {row.airline && <span className="text-[10px] text-green-700/75">· {row.airline}</span>}
+                  {row.status && <span className="rounded-full border border-green-200 bg-green-50 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">{row.status}</span>}
+                </div>
+                {row.routeLabel && <div className="mt-1 text-[11px] text-green-900/80">Chặng: {row.routeLabel}</div>}
+                {row.flightSummary && <div className="mt-0.5 text-[11px] text-slate-500">Chuyến: {row.flightSummary}</div>}
+              </div>
+              <div className="text-right">
+                <div className="apg-tabular text-sm font-black text-[#1a1a1a]">
+                  {typeof row.totalAmount === 'number' ? fmtVND(row.totalAmount) : 'Đang đồng bộ'}
+                </div>
+                <div className="text-[10px] text-slate-400">Giá PNR</div>
+              </div>
+            </div>
+            {row.timelimit && <div className="mt-1 text-[11px]">Thời hạn giữ chỗ: {row.timelimit}</div>}
+            {row.message && <div className="mt-1 text-[11px] text-slate-500">{row.message}</div>}
+          </div>
+        )) : (
+          <div className="rounded-[var(--apg-radius-sm)] bg-white/80 px-2.5 py-2 text-[11px]">Chưa có dữ liệu PNR trả về.</div>
+        )}
+      </div>
+
+      {result.splitRoundtrip && <div className="mt-2 text-[11px]">Khác hãng: đã tách thành 2 mã giữ chỗ/PNR riêng.</div>}
+      {result.protectionVerified && <div className="mt-1 text-[11px]">Đã xử lý xác thực Nam Thanh trước khi tạo PNR.</div>}
     </div>
   ) : null;
 
@@ -924,9 +1072,9 @@ export default function HoldBookingModal({
       <div className="mb-2 flex max-h-[94vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl lg:mb-0 lg:max-h-[92vh] lg:max-w-[1240px] lg:rounded-[var(--apg-radius-lg)]" style={{ border: '1px solid var(--apg-border-default)' }}>
         <div className="flex items-center justify-between border-b border-[var(--apg-border-default)] bg-white px-4 py-3 lg:px-5">
           <div>
-            <div className="apg-display text-[18px] font-semibold tracking-[0.05em] text-[var(--apg-aviation-navy)]">Giữ chỗ Nam Thanh</div>
+            <div className="apg-display text-[18px] font-semibold tracking-[0.05em] text-[var(--apg-aviation-navy)]">Nhập thông tin đặt vé</div>
             <div className="text-[11px] text-slate-500">
-              {splitRoundtrip ? 'Khác hãng: hệ thống sẽ tạo 2 PNR riêng.' : isRoundtrip ? 'Khứ hồi cùng hãng: giữ cả chiều đi và chiều về.' : 'Mặc định là kiểm tra thử, chưa tạo PNR thật.'}
+              {splitRoundtrip ? 'Khác hãng: hệ thống sẽ tạo 2 PNR riêng.' : isRoundtrip ? 'Khứ hồi cùng hãng: giữ cả chiều đi và chiều về.' : 'Hệ thống sẽ tạo PNR giữ chỗ thật sau khi gửi thông tin.'}
             </div>
           </div>
           <button className="apg-btn-secondary h-9 px-3 text-xs font-semibold" onClick={onClose}>Đóng</button>
@@ -1213,11 +1361,6 @@ export default function HoldBookingModal({
                     />
                   </label>
                 </div>
-
-                <label className="mt-3 flex items-start gap-2 rounded-[var(--apg-radius-md)] border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-700">
-                  <input type="checkbox" className="mt-0.5" checked={createRealHold} onChange={(e) => setCreateRealHold(e.target.checked)} />
-                  <span>Tôi xác nhận tạo PNR giữ chỗ thật. Nếu không tick, hệ thống chỉ kiểm tra thử payload.</span>
-                </label>
               </div>
 
               <div className="mt-3 space-y-3 lg:hidden">
@@ -1234,11 +1377,11 @@ export default function HoldBookingModal({
             Đóng
           </button>
           <button
-            className={`${createRealHold ? 'apg-btn-danger' : 'apg-btn-primary'} flex-1 text-sm font-bold text-white disabled:opacity-60`}
+            className="apg-btn-primary flex-1 text-sm font-bold text-white disabled:opacity-60"
             onClick={submitHold}
             disabled={loading}
           >
-            {loading ? 'Đang xử lý...' : createRealHold ? 'Tạo PNR thật' : 'Kiểm tra thử'}
+            {loading ? 'Đang giữ chỗ...' : 'Giữ Chỗ'}
           </button>
         </div>
       </div>

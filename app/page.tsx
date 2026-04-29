@@ -1,11 +1,12 @@
 ﻿"use client";
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo, useRef, useState, type Ref } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react';
 import { useRouter } from 'next/navigation';
+import { ArrowUpDown, CalendarDays, ChevronDown, Minus, Plane, Plus, Users } from 'lucide-react';
 import AirportInput from '@/components/AirportInput';
 import type { DateStripProps } from '@/components/search/DateStrip';
-import type { AirportSelection, Cabin, FlightResult, RoundtripPairOption, SearchResponse } from '@/lib/types';
-import { buildAirportSelection, legacyAirportCodeFromText, useAirports } from '@/lib/useAirports';
+import type { AirportOption, AirportSelection, Cabin, FlightResult, RoundtripPairOption, SearchResponse } from '@/lib/types';
+import { buildAirportSelection, filterAirports, legacyAirportCodeFromText, matchAirport, useAirports } from '@/lib/useAirports';
 import { fmtVND, toYmd, hhmm, durationText } from '@/lib/utils';
 import { getAirlineMeta } from '@/lib/airlines';
 import { buildFlightBadges, minFlightPrice, type FlightBadge } from '@/lib/flight-badges';
@@ -107,7 +108,9 @@ type FareBreakdown = { baseAmount:number; taxesFees:number; totalAmount:number; 
 type StopFilter = 'all'|'0'|'1'|'2+';
 type FilterState = { airlines:string[]; stops:StopFilter };
 type RoundtripViewMode = 'pair' | 'legs';
+type RoundtripMobileTab = 'outbound' | 'inbound';
 type SearchDateOverrides = { date?: string; returnDate?: string; keepResults?: boolean };
+const PREFERRED_ROUNDTRIP_PAIR_SOURCE = '1B';
 
 function pairSourceLabel(value?: string) {
   const source = String(value || '').trim().toUpperCase();
@@ -115,6 +118,12 @@ function pairSourceLabel(value?: string) {
   if (/^1[A-Z0-9]$/.test(source)) return source;
   const match = source.match(/(?:^|[^A-Z0-9])(1[A-Z0-9])$/);
   return match ? match[1] : source;
+}
+
+function preferredRoundtripPairSourceFilter(pairs: RoundtripPairOption[]) {
+  return pairs.some((pair) => pairSourceLabel(pair.source || pair.systemName) === PREFERRED_ROUNDTRIP_PAIR_SOURCE)
+    ? PREFERRED_ROUNDTRIP_PAIR_SOURCE
+    : 'all';
 }
 
 function pairOutboundSignature(flight?: FlightResult | null) {
@@ -518,6 +527,7 @@ function FloatingQuoteDock({
   infants,
   bottom,
   dockRef,
+  onClear,
   onContinue,
 }: {
   tripType: 'oneway' | 'roundtrip';
@@ -533,6 +543,7 @@ function FloatingQuoteDock({
   infants: number;
   bottom: number;
   dockRef: Ref<HTMLDivElement>;
+  onClear: () => void;
   onContinue: () => void;
 }) {
   const passengerSummary = buildPassengerSummary(adults, children, infants);
@@ -640,8 +651,18 @@ function FloatingQuoteDock({
                 <div className="apg-eyebrow">Tổng tạm tính</div>
                 <div className="mt-1 truncate text-[11px] text-slate-500">{passengerSummary}</div>
               </div>
-              <div className="rounded-full border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-1 text-[11px] font-semibold text-[var(--apg-text-secondary)]">
-                {tripType === 'oneway' ? 'Một chiều' : 'Khứ hồi'}
+              <div className="flex shrink-0 items-center gap-1.5">
+                <div className="rounded-full border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-1 text-[11px] font-semibold text-[var(--apg-text-secondary)]">
+                  {tripType === 'oneway' ? 'Một chiều' : 'Khứ hồi'}
+                </div>
+                <button
+                  aria-label="Đóng tổng tạm tính và bỏ chọn chuyến bay"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[var(--apg-border-default)] bg-white text-[12px] font-black text-[var(--apg-text-secondary)] shadow-sm transition hover:bg-[var(--apg-bg-surface-soft)] active:scale-95"
+                  onClick={onClear}
+                  type="button"
+                >
+                  X
+                </button>
               </div>
             </div>
           </div>
@@ -854,6 +875,178 @@ function normalizePassengerCounts(input: { adults: number; children: number; inf
   return { adults, children, infants };
 }
 
+function mobileAirportDisplay(value: AirportSelection | null, airports: AirportOption[]) {
+  if (!value?.code) return '';
+  const airport = airports.find((item) => item.code === value.code);
+  if (airport?.city) return `${airport.city}, VN`;
+  return value.label?.split('(')[0]?.trim() || value.code;
+}
+
+function MobileAirportPicker({
+  airports,
+  icon,
+  label,
+  onSelect,
+  placeholder,
+  value,
+}: {
+  airports: AirportOption[];
+  icon?: ReactNode;
+  label: string;
+  onSelect: (value: AirportSelection | null) => void;
+  placeholder: string;
+  value: AirportSelection | null;
+}) {
+  const [draft, setDraft] = useState(mobileAirportDisplay(value, airports));
+  const [focused, setFocused] = useState(false);
+  const [open, setOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!focused) setDraft(mobileAirportDisplay(value, airports));
+  }, [airports, focused, value]);
+
+  useEffect(() => {
+    const handler = (event: MouseEvent) => {
+      if (!ref.current || ref.current.contains(event.target as Node)) return;
+      setOpen(false);
+      setFocused(false);
+      setDraft(mobileAirportDisplay(value, airports));
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [airports, value]);
+
+  const list = useMemo(() => filterAirports(airports, draft, 7), [airports, draft]);
+
+  const commit = (selection: AirportSelection | null) => {
+    onSelect(selection);
+    setDraft(mobileAirportDisplay(selection, airports));
+    setOpen(false);
+    setFocused(false);
+  };
+
+  const selectAll = () => {
+    window.requestAnimationFrame(() => inputRef.current?.select());
+  };
+
+  const handleFocus = () => {
+    setFocused(true);
+    setOpen(true);
+    setDraft(value?.label || value?.code || '');
+    selectAll();
+  };
+
+  const handleBlur = () => {
+    window.setTimeout(() => {
+      const trimmed = draft.trim();
+      if (!trimmed) {
+        commit(null);
+        return;
+      }
+
+      const matched = matchAirport(airports, trimmed);
+      if (matched) {
+        commit({ code: matched.code, label: matched.label });
+        return;
+      }
+
+      setDraft(mobileAirportDisplay(value, airports));
+      setOpen(false);
+      setFocused(false);
+    }, 120);
+  };
+
+  return (
+    <div ref={ref} className="relative grid min-h-[72px] grid-cols-[28px_1fr] gap-3 border-b border-[var(--apg-border-default)] px-3 py-3 last:border-b-0">
+      <div className="flex pt-5 text-[var(--apg-text-muted)]">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <label className="block text-[12px] font-semibold text-[var(--apg-text-secondary)]">{label}</label>
+        <div className="mt-1 flex min-w-0 items-center gap-2">
+          <span className="apg-mono shrink-0 rounded-[var(--apg-radius-sm)] bg-[var(--apg-text-muted)] px-2 py-1 text-[11px] font-bold text-white">
+            {value?.code || '---'}
+          </span>
+          <input
+            ref={inputRef}
+            className="min-w-0 flex-1 bg-transparent text-[17px] font-extrabold text-[var(--apg-aviation-navy)] outline-none placeholder:text-slate-400"
+            onBlur={handleBlur}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setOpen(true);
+            }}
+            onClick={selectAll}
+            onFocus={handleFocus}
+            placeholder={placeholder}
+            value={draft}
+          />
+        </div>
+        {open && (
+          <div className="apg-dropdown absolute left-3 right-3 top-[calc(100%-4px)] z-50 max-h-[280px] overflow-auto">
+            {list.length === 0 ? (
+              <div className="px-3 py-3 text-xs text-[var(--apg-text-secondary)]">Không tìm thấy sân bay phù hợp.</div>
+            ) : list.map((airport) => (
+              <button
+                className="flex w-full items-center gap-2 border-b border-[var(--apg-border-default)] px-3 py-2.5 text-left last:border-b-0"
+                key={airport.code}
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  commit({ code: airport.code, label: airport.label });
+                }}
+                type="button"
+              >
+                <span className="apg-mono rounded-[var(--apg-radius-sm)] bg-[var(--apg-text-muted)] px-2 py-1 text-[10px] font-bold text-white">{airport.code}</span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-bold text-[var(--apg-text-primary)]">{airport.city}, {airport.country}</span>
+                  <span className="block truncate text-[11px] text-[var(--apg-text-muted)]">{airport.name}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MobilePassengerCounter({
+  icon,
+  label,
+  onDecrement,
+  onIncrement,
+  value,
+  decrementDisabled,
+  incrementDisabled,
+}: {
+  icon?: ReactNode;
+  label: ReactNode;
+  onDecrement: () => void;
+  onIncrement: () => void;
+  value: number;
+  decrementDisabled?: boolean;
+  incrementDisabled?: boolean;
+}) {
+  const controlClass = "flex h-9 w-9 items-center justify-center rounded-full text-[var(--apg-text-secondary)] transition disabled:text-slate-300";
+
+  return (
+    <div className="grid min-h-[54px] grid-cols-[28px_1fr_auto] items-center gap-3 px-3 py-2">
+      <div className="text-[var(--apg-text-muted)]">{icon}</div>
+      <div className="min-w-0 text-[15px] font-semibold text-slate-700">{label}</div>
+      <div className="grid grid-cols-[36px_36px_36px] items-center justify-items-center">
+        <button aria-label="Giảm" className={controlClass} disabled={decrementDisabled} onClick={onDecrement} type="button">
+          <Minus size={16} strokeWidth={2.3} />
+        </button>
+        <span className={`apg-tabular text-center text-lg font-black ${value > 0 ? 'text-[var(--apg-aviation-navy)]' : 'text-slate-300'}`}>{value}</span>
+        <button aria-label="Tăng" className={controlClass} disabled={incrementDisabled} onClick={onIncrement} type="button">
+          <Plus size={16} strokeWidth={2.3} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Main
 export default function HomePage() {
   const router = useRouter();
@@ -886,6 +1079,7 @@ export default function HomePage() {
   const [selectedOneway, setSelectedOneway]     = useState<FlightResult|null>(null);
   const [selectedPairId, setSelectedPairId] = useState('');
   const [roundtripViewMode, setRoundtripViewMode] = useState<RoundtripViewMode>('legs');
+  const [mobileRoundtripTab, setMobileRoundtripTab] = useState<RoundtripMobileTab>('outbound');
   const [pairSourceFilter, setPairSourceFilter] = useState('all');
   const [sortOneway, setSortOneway] = useState<'price'|'time'>('price');
   const [sortDepart, setSortDepart] = useState<'price'|'time'>('price');
@@ -895,6 +1089,7 @@ export default function HomePage() {
   const [loadingDots, setLoadingDots]       = useState('');
   const [hydrated, setHydrated] = useState(false);
   const [isDesktopViewport, setIsDesktopViewport] = useState<boolean | null>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState<boolean | null>(null);
   const [floatingQuoteDockBottom, setFloatingQuoteDockBottom] = useState(16);
   const [floatingQuoteDockHeight, setFloatingQuoteDockHeight] = useState(0);
   const emptyFilter: FilterState = {airlines:[],stops:'all'};
@@ -1067,13 +1262,21 @@ export default function HomePage() {
   }, [loading]);
 
   useEffect(() => {
-    const media = window.matchMedia('(min-width: 1024px)');
-    const syncViewport = () => setIsDesktopViewport(media.matches);
+    const desktopMedia = window.matchMedia('(min-width: 1024px)');
+    const mobileMedia = window.matchMedia('(max-width: 767px)');
+    const syncViewport = () => {
+      setIsDesktopViewport(desktopMedia.matches);
+      setIsMobileViewport(mobileMedia.matches);
+    };
 
     syncViewport();
-    media.addEventListener('change', syncViewport);
+    desktopMedia.addEventListener('change', syncViewport);
+    mobileMedia.addEventListener('change', syncViewport);
 
-    return () => media.removeEventListener('change', syncViewport);
+    return () => {
+      desktopMedia.removeEventListener('change', syncViewport);
+      mobileMedia.removeEventListener('change', syncViewport);
+    };
   }, []);
 
   function sortFlights(arr:FlightResult[], mode:'price'|'time'='price') {
@@ -1164,6 +1367,10 @@ export default function HomePage() {
     [inboundResults, pairOptions]
   );
   const minReturnDate = useMemo(() => (date && date > todayYmd ? date : todayYmd), [date, todayYmd]);
+  const defaultReturnDate = useMemo(() => {
+    const fallback = toYmd(10);
+    return fallback >= minReturnDate ? fallback : minReturnDate;
+  }, [minReturnDate]);
   const fromCode = fromSel?.code || '';
   const toCode = toSel?.code || '';
 
@@ -1258,8 +1465,8 @@ export default function HomePage() {
         } catch {/**/ }
       }
       if (!e.fareBreakdown) e={...e,fareBreakdown:{baseAmount:e.price.amount,taxesFees:0,totalAmount:e.price.amount,currency:'VND'}};
-      // Bỏ auto-navigate — user phải bấm thủ công "Tiếp tục báo giá"
-      if (dir==='outbound'){setOutboundResults(p=>p.map(f=>f.id===flight.id?e:f));setSelectedOutbound(e);}
+      // Bỏ auto-navigate sang báo giá — user vẫn bấm thủ công "Tiếp tục báo giá".
+      if (dir==='outbound'){setOutboundResults(p=>p.map(f=>f.id===flight.id?e:f));setSelectedOutbound(e);setMobileRoundtripTab('inbound');}
       else if(dir==='inbound'){setInboundResults(p=>p.map(f=>f.id===flight.id?e:f));setSelectedInbound(e);}
       else {setResults(p=>p.map(f=>f.id===flight.id?e:f));setSelectedOneway(e);}
     } catch(ex:unknown){setError(ex instanceof Error?ex.message:'Lỗi');}
@@ -1290,7 +1497,7 @@ export default function HomePage() {
     } else {
       setLoading(true);setError('');setResults([]);setMeta(null);
       setOutboundResults([]);setInboundResults([]);setPairOptions([]);
-      setSelectedOutbound(null);setSelectedInbound(null);setSelectedOneway(null);setSelectedPairId('');setPairSourceFilter('all');
+      setSelectedOutbound(null);setSelectedInbound(null);setSelectedOneway(null);setSelectedPairId('');setPairSourceFilter('all');setMobileRoundtripTab('outbound');
       setFilterOneway(emptyFilter);setFilterOutbound(emptyFilter);setFilterInbound(emptyFilter);
     }
     try {
@@ -1314,6 +1521,7 @@ export default function HomePage() {
           setInboundResults(returns);
           setPairOptions(pairs);
           setRoundtripViewMode(pairs.length > 0 ? 'pair' : 'legs');
+          if (!keepResults) setPairSourceFilter(preferredRoundtripPairSourceFilter(pairs));
           setMeta(rt.metadata ? { totalResults: rt.metadata.totalResults, searchTime: rt.metadata.searchTime } : null);
           // Validate selection cũ còn tồn tại trong data mới
           if (keepResults) {
@@ -1390,6 +1598,60 @@ export default function HomePage() {
     setReturnDate(nextDate);
     if (hasResults) void search({ returnDate: nextDate, keepResults: true });
   }
+
+  const mobileRoundtripLeg = mobileRoundtripTab === 'outbound'
+    ? {
+        label: 'Chiều đi',
+        shortLabel: 'Đi',
+        route: `${fromCode} → ${toCode}`,
+        dateLabel: date,
+        countLabel: routeMatchesResults ? `${sortedOutbound.length}/${outboundResults.length}` : '—/—',
+        flights: outboundResults,
+        sortedFlights: sortedOutbound,
+        filter: filterOutbound,
+        setFilter: setFilterOutbound,
+        sortMode: sortDepart,
+        setSortMode: setSortDepart,
+        selectedFlight: selectedOutbound,
+        clearSelected: () => setSelectedOutbound(null),
+        selectDir: 'outbound' as const,
+        btnColor: 'gold' as const,
+        dailyMinPrice: outboundDailyMinPrice,
+        gradient: 'linear-gradient(135deg, var(--apg-aviation-navy), var(--apg-aviation-navy-mid))',
+        dateStrip: {
+          destination: toCode,
+          direction: 'depart' as const,
+          origin: fromCode,
+          selectedDate: date,
+          onSelect: selectDepartDate,
+        },
+      }
+    : {
+        label: 'Chiều về',
+        shortLabel: 'Về',
+        route: `${toCode} → ${fromCode}`,
+        dateLabel: returnDate || toYmd(10),
+        countLabel: routeMatchesResults ? `${sortedInbound.length}/${inboundResults.length}` : '—/—',
+        flights: inboundResults,
+        sortedFlights: sortedInbound,
+        filter: filterInbound,
+        setFilter: setFilterInbound,
+        sortMode: sortReturn,
+        setSortMode: setSortReturn,
+        selectedFlight: selectedInbound,
+        clearSelected: () => setSelectedInbound(null),
+        selectDir: 'inbound' as const,
+        btnColor: 'blue' as const,
+        dailyMinPrice: inboundDailyMinPrice,
+        gradient: 'linear-gradient(135deg, var(--apg-aviation-navy), color-mix(in srgb, var(--apg-route-inbound) 72%, var(--apg-aviation-navy)))',
+        dateStrip: {
+          destination: fromCode,
+          direction: 'return' as const,
+          origin: toCode,
+          selectedDate: returnDate || toYmd(10),
+          onSelect: selectReturnDate,
+        },
+      };
 
   useEffect(() => {
     if (!showFloatingQuoteDock) {
@@ -1483,12 +1745,152 @@ export default function HomePage() {
         <div
           className="border border-t-0 border-[var(--apg-border-default)] bg-white px-3 py-3 shadow-sm lg:rounded-b-[var(--apg-radius-lg)] lg:px-5 lg:py-4"
         >
+          <div className="lg:hidden">
+            <div className="grid grid-cols-2 rounded-[var(--apg-radius-md)] border border-[var(--apg-aviation-navy)] bg-white p-0.5">
+              {(['oneway','roundtrip'] as const).map(t=>(
+                <button
+                  aria-pressed={tripType===t}
+                  key={t}
+                  onClick={()=>{
+                    setTripType(t);
+                    if (t === 'roundtrip' && !returnDate) setReturnDate(defaultReturnDate);
+                  }}
+                  className={`h-9 rounded-[var(--apg-radius-sm)] text-sm font-bold transition ${
+                    tripType===t
+                      ? 'bg-[var(--apg-aviation-navy)] text-white shadow-sm'
+                      : 'text-[var(--apg-text-secondary)]'
+                  }`}
+                  type="button"
+                >
+                  {t==='oneway'?'Một chiều':'Khứ hồi'}
+                </button>
+              ))}
+            </div>
 
+            <div className="relative mt-3 overflow-visible border-y border-[var(--apg-border-default)] bg-white">
+              <MobileAirportPicker
+                airports={airports}
+                icon={<Plane size={22} strokeWidth={2.4} />}
+                label="Khởi hành"
+                onSelect={setFromSel}
+                placeholder="Chọn điểm đi"
+                value={fromSel}
+              />
+              <button
+                aria-label="Đổi chiều hành trình"
+                className="absolute right-4 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--apg-border-default)] bg-white text-[var(--apg-aviation-navy)] shadow-[0_10px_24px_rgba(15,47,75,0.12)] transition active:scale-95"
+                onClick={()=>{const currentFrom = fromSel; setFromSel(toSel); setToSel(currentFrom);}}
+                type="button"
+              >
+                <ArrowUpDown size={20} strokeWidth={2.4} />
+              </button>
+              <MobileAirportPicker
+                airports={airports}
+                label="Điểm đến"
+                onSelect={setToSel}
+                placeholder="Chọn điểm đến"
+                value={toSel}
+              />
+            </div>
+
+            <div className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b border-[var(--apg-border-default)] px-3 py-3">
+              <CalendarDays className="text-[var(--apg-text-muted)]" size={21} strokeWidth={2.3} />
+              <div className="min-w-0">
+                <label className="block text-[12px] font-semibold text-[var(--apg-text-secondary)]">
+                  {tripType === 'roundtrip' ? 'Ngày khởi hành / ngày về' : 'Ngày khởi hành'}
+                </label>
+                <div className="mt-1 flex min-w-0 items-center gap-1.5">
+                  <input
+                    className="min-w-0 flex-1 bg-transparent text-[15px] font-extrabold text-[var(--apg-aviation-navy)] outline-none"
+                    min={todayYmd}
+                    onChange={e=>setDate(e.target.value)}
+                    onFocus={e=>{try{(e.target as HTMLInputElement).showPicker();}catch{/**/ }}}
+                    type="date"
+                    value={date}
+                  />
+                  {tripType === 'roundtrip' && (
+                    <>
+                      <span className="text-[var(--apg-text-muted)]">-</span>
+                      <input
+                        className="min-w-0 flex-1 bg-transparent text-[15px] font-extrabold text-[var(--apg-aviation-navy)] outline-none"
+                        min={minReturnDate}
+                        onChange={e=>setReturnDate(e.target.value)}
+                        onFocus={e=>{try{(e.target as HTMLInputElement).showPicker();}catch{/**/ }}}
+                        type="date"
+                        value={returnDate || defaultReturnDate}
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+              <ChevronDown className="text-[var(--apg-text-muted)]" size={20} strokeWidth={2.2} />
+            </div>
+
+            <div className="border-b border-[var(--apg-border-default)] py-1">
+              <MobilePassengerCounter
+                decrementDisabled={adults <= 1}
+                icon={<Users size={21} strokeWidth={2.3} />}
+                incrementDisabled={adults + children + infants >= 9}
+                label={<>Người lớn <span className="font-normal text-slate-400">(12 tuổi trở lên)</span></>}
+                onDecrement={()=>applyPassengerCounts({ adults: adults - 1, children, infants })}
+                onIncrement={()=>applyPassengerCounts({ adults: adults + 1, children, infants })}
+                value={adults}
+              />
+              <MobilePassengerCounter
+                decrementDisabled={children <= 0}
+                incrementDisabled={adults + children + infants >= 9}
+                label={<>Trẻ em <span className="font-normal text-slate-400">(2 đến dưới 12 tuổi)</span></>}
+                onDecrement={()=>applyPassengerCounts({ adults, children: children - 1, infants })}
+                onIncrement={()=>applyPassengerCounts({ adults, children: children + 1, infants })}
+                value={children}
+              />
+              <MobilePassengerCounter
+                decrementDisabled={infants <= 0}
+                incrementDisabled={infants >= adults || infants >= 4 || adults + children + infants >= 9}
+                label={<>Em bé <span className="font-normal text-slate-400">(Dưới 2 tuổi)</span></>}
+                onDecrement={()=>applyPassengerCounts({ adults, children, infants: infants - 1 })}
+                onIncrement={()=>applyPassengerCounts({ adults, children, infants: infants + 1 })}
+                value={infants}
+              />
+            </div>
+
+            <div className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b border-[var(--apg-border-default)] px-3 py-3">
+              <div />
+              <label className="text-[15px] font-semibold text-slate-700">Hạng vé</label>
+              <select
+                className="h-10 rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-white px-3 text-sm font-bold text-[var(--apg-aviation-navy)] outline-none"
+                onChange={e=>setCabin(e.target.value as Cabin)}
+                value={cabin}
+              >
+                <option value="economy">Phổ thông</option>
+                <option value="premium">Phổ thông đặc biệt</option>
+                <option value="business">Thương gia</option>
+                <option value="first">Hạng nhất</option>
+              </select>
+            </div>
+
+            <button
+              className="mt-4 h-12 w-full rounded-[var(--apg-radius-lg)] bg-[var(--apg-aviation-navy)] text-base font-extrabold text-white shadow-sm transition active:scale-[0.99] disabled:opacity-70"
+              disabled={loading||isReloading}
+              onClick={() => search()}
+              type="button"
+            >
+              {loading||isReloading?'Đang tìm':'Tìm chuyến bay'}
+            </button>
+          </div>
+
+          <div className="hidden lg:block">
           {/* Trip type — sort đã chuyển vào từng FilterBar theo lane */}
           <div className="mb-4 flex flex-col gap-3 border-b border-[var(--apg-border-default)] pb-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex gap-1.5">
               {(['oneway','roundtrip'] as const).map(t=>(
-                <button key={t} onClick={()=>setTripType(t)}
+                <button
+                  aria-pressed={tripType===t}
+                  key={t}
+                  onClick={()=>{
+                    setTripType(t);
+                    if (t === 'roundtrip' && !returnDate) setReturnDate(defaultReturnDate);
+                  }}
                   className={`apg-chip h-10 px-4 text-sm ${tripType===t?'apg-chip-active shadow-sm':''}`}>
                   {t==='oneway'?'Một chiều':'Khứ hồi'}
                 </button>
@@ -1555,6 +1957,7 @@ export default function HomePage() {
                 {from.code}-{to.code}
               </button>
             ))}
+          </div>
           </div>
 
           {loading && (
@@ -1760,8 +2163,126 @@ export default function HomePage() {
 
             {roundtripViewMode === 'legs' && (
               <>
-            {/* 2-column flight lists */}
-            <div className="grid grid-cols-2 gap-0 bg-white lg:hidden" style={{border:'1px solid var(--apg-border-default)'}}>
+            {/* Mobile tabs */}
+            <div className="overflow-hidden bg-white shadow-sm md:hidden" style={{border:'1px solid var(--apg-border-default)'}}>
+              <div className="border-b border-[var(--apg-border-default)] bg-white p-2">
+                <div className="grid grid-cols-2 gap-1 rounded-[var(--apg-radius-md)] bg-[var(--apg-bg-surface-soft)] p-1">
+                  {([
+                    {
+                      value: 'outbound' as const,
+                      label: 'Chiều đi',
+                      route: `${fromCode} → ${toCode}`,
+                      count: routeMatchesResults ? `${sortedOutbound.length}/${outboundResults.length}` : '—/—',
+                      selected: !!selectedOutbound,
+                      gradient: 'linear-gradient(135deg, var(--apg-aviation-navy), var(--apg-aviation-navy-mid))',
+                    },
+                    {
+                      value: 'inbound' as const,
+                      label: 'Chiều về',
+                      route: `${toCode} → ${fromCode}`,
+                      count: routeMatchesResults ? `${sortedInbound.length}/${inboundResults.length}` : '—/—',
+                      selected: !!selectedInbound,
+                      gradient: 'linear-gradient(135deg, var(--apg-aviation-navy), color-mix(in srgb, var(--apg-route-inbound) 72%, var(--apg-aviation-navy)))',
+                    },
+                  ] satisfies Array<{
+                    count: string;
+                    gradient: string;
+                    label: string;
+                    route: string;
+                    selected: boolean;
+                    value: RoundtripMobileTab;
+                  }>).map((tab) => {
+                    const active = mobileRoundtripTab === tab.value;
+                    return (
+                      <button
+                        aria-selected={active}
+                        className={`min-w-0 rounded-[var(--apg-radius-sm)] px-2.5 py-2 text-left transition-all ${
+                          active
+                            ? 'text-white shadow-sm'
+                            : 'text-[var(--apg-text-secondary)] hover:bg-white'
+                        }`}
+                        key={tab.value}
+                        onClick={() => setMobileRoundtripTab(tab.value)}
+                        role="tab"
+                        style={active ? { background: tab.gradient } : undefined}
+                        type="button"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="apg-display truncate text-[11px] font-semibold uppercase tracking-[0.16em]">
+                            {tab.label}
+                          </span>
+                          <span
+                            aria-hidden="true"
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                              tab.selected ? 'bg-emerald-400' : active ? 'bg-white/55' : 'bg-slate-300'
+                            }`}
+                          />
+                        </div>
+                        <div className={`mt-1 truncate text-[11px] font-semibold ${active ? 'text-white/90' : 'text-[#1a1a1a]'}`}>
+                          {tab.route}
+                        </div>
+                        <div className={`mt-0.5 apg-tabular text-[10px] ${active ? 'text-white/70' : 'text-slate-400'}`}>
+                          {tab.count}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="px-3 py-2 text-xs font-bold text-white" style={{background: mobileRoundtripLeg.gradient}}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate">
+                    {mobileRoundtripLeg.shortLabel}: {mobileRoundtripLeg.route}
+                  </span>
+                  <span className="apg-tabular shrink-0 text-white/70">{mobileRoundtripLeg.countLabel}</span>
+                </div>
+                <div className="mt-0.5 text-[10px] font-normal text-white/78">{mobileRoundtripLeg.dateLabel}</div>
+              </div>
+              {isReloading && <div className="apg-reload-bar" aria-hidden="true" />}
+              {isMobileViewport === true && (
+                <DateStrip
+                  className="rounded-none border-x-0 border-t-0 shadow-none"
+                  destination={mobileRoundtripLeg.dateStrip.destination}
+                  direction={mobileRoundtripLeg.dateStrip.direction}
+                  origin={mobileRoundtripLeg.dateStrip.origin}
+                  selectedDate={mobileRoundtripLeg.dateStrip.selectedDate}
+                  onSelect={mobileRoundtripLeg.dateStrip.onSelect}
+                />
+              )}
+              {routeMatchesResults ? (
+                <>
+                  <FilterBar
+                    flights={mobileRoundtripLeg.flights}
+                    filter={mobileRoundtripLeg.filter}
+                    onChange={mobileRoundtripLeg.setFilter}
+                    sortMode={mobileRoundtripLeg.sortMode}
+                    onSortChange={mobileRoundtripLeg.setSortMode}
+                  />
+                  <div className="max-h-[60vh] overflow-auto">
+                    {mobileRoundtripLeg.sortedFlights.length>0 ? mobileRoundtripLeg.sortedFlights.map((f,i)=>(
+                      <div key={`${resultsGen}-${f.id}`} className="apg-row-in" style={{animationDelay:`${Math.min(i,8)*35}ms`}}>
+                        <FlightRow f={f} selected={mobileRoundtripLeg.selectedFlight?.id===f.id}
+                          onSelect={()=>selectFlight(f,mobileRoundtripLeg.selectDir)}
+                          onDeselect={mobileRoundtripLeg.selectedFlight?.id===f.id?mobileRoundtripLeg.clearSelected:undefined}
+                          dailyMinPrice={mobileRoundtripLeg.dailyMinPrice}
+                          btnColor={mobileRoundtripLeg.btnColor}/>
+                      </div>
+                    )) : <div className="p-3 text-center text-xs text-slate-500">Không có chuyến phù hợp.</div>}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <RouteMismatchNotice />
+                  <div className="max-h-[60vh] overflow-auto">
+                    {Array.from({length:5}).map((_,i)=>(<FlightRowSkeleton key={i}/>))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Tablet 2-column flight lists */}
+            <div className="hidden grid-cols-2 gap-0 bg-white md:grid lg:hidden" style={{border:'1px solid var(--apg-border-default)'}}>
               {/* Outbound */}
               <div style={{borderRight:'1px solid var(--apg-border-default)'}}>
                 <div className="px-1.5 py-2 text-center text-[10px] font-bold text-white" style={{background:'linear-gradient(135deg, var(--apg-aviation-navy), var(--apg-aviation-navy-mid))'}}>
@@ -1772,7 +2293,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 {isReloading && <div className="apg-reload-bar" aria-hidden="true" />}
-                {isDesktopViewport === false && (
+                {isMobileViewport === false && isDesktopViewport === false && (
                   <DateStrip
                     className="rounded-none border-x-0 border-t-0 shadow-none"
                     destination={toCode}
@@ -1817,7 +2338,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 {isReloading && <div className="apg-reload-bar" aria-hidden="true" />}
-                {isDesktopViewport === false && (
+                {isMobileViewport === false && isDesktopViewport === false && (
                   <DateStrip
                     className="rounded-none border-x-0 border-t-0 shadow-none"
                     destination={fromCode}
@@ -1979,6 +2500,13 @@ export default function HomePage() {
             infants={infants}
             bottom={floatingQuoteDockBottom}
             dockRef={floatingQuoteDockRef}
+            onClear={() => {
+              setSelectedOneway(null);
+              setSelectedOutbound(null);
+              setSelectedInbound(null);
+              setSelectedPairId('');
+              setMobileRoundtripTab('outbound');
+            }}
             onContinue={() => {
               if (tripType === 'oneway' && selectedOneway) {
                 goQuote(selectedOneway);
@@ -2003,8 +2531,44 @@ export default function HomePage() {
           className="overflow-hidden border border-t-0 border-[var(--apg-aviation-navy)] text-white shadow-sm lg:rounded-b-[var(--apg-radius-lg)]"
           style={{ background: 'linear-gradient(135deg, var(--apg-aviation-navy-deep), var(--apg-aviation-navy-mid) 62%, var(--apg-aviation-navy-light))' }}
         >
+          {/* Mobile compact footer */}
+          <div className="border-b border-white/10 px-4 py-3 md:hidden">
+            <div className="flex items-start gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] border border-white/12 bg-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                <img
+                  src="/assets/tanphu-apg-logo.jpg"
+                  alt="Logo"
+                  className="h-7 w-7 rounded-[6px] object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+              </div>
+              <div className="min-w-0 flex-1 text-[10px] leading-relaxed text-white/78">
+                <div className="apg-display text-[11px] font-semibold tracking-[0.08em] text-white">TAN PHU APG</div>
+                <div className="truncate text-[9px] text-white/62">A member of Tan Phu Auto Transport Cooperative</div>
+                <div className="mt-2 grid gap-1.5">
+                  <a href="tel:0918752686" className="inline-flex min-w-0 items-center gap-1.5 text-white/82">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="shrink-0 text-white/55">
+                      <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.28-.28.67-.36 1.02-.25 1.12.37 2.32.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" />
+                    </svg>
+                    <span className="uppercase tracking-[0.12em] text-white/50">Hotline</span>
+                    <span className="apg-mono font-semibold text-white">0918.752.686</span>
+                  </a>
+                  <div className="flex min-w-0 items-start gap-1.5">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="mt-[3px] shrink-0 text-white/55">
+                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                    </svg>
+                    <div className="min-w-0">
+                      <span className="uppercase tracking-[0.12em] text-white/50">Trụ sở chính</span>
+                      <span className="text-white/82"> · Thái Nguyên · Tổ 9, Phường Tích Lương</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Tier 1: Brand + Hotline */}
-          <div className="flex flex-col gap-4 border-b border-white/10 px-4 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-6 lg:py-6">
+          <div className="hidden flex-col gap-4 border-b border-white/10 px-4 py-5 md:flex lg:flex-row lg:items-center lg:justify-between lg:px-6 lg:py-6">
             <div className="flex items-center gap-3 lg:gap-4">
               <div className="flex h-[44px] w-[44px] items-center justify-center rounded-[10px] border border-white/12 bg-white/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] lg:h-[52px] lg:w-[52px]">
                 <img
@@ -2034,7 +2598,7 @@ export default function HomePage() {
           </div>
 
           {/* Tier 2: Offices */}
-          <div className="grid gap-3 px-4 py-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4 lg:px-6 lg:py-6">
+          <div className="hidden gap-3 px-4 py-5 md:grid md:grid-cols-2 lg:grid-cols-4 lg:gap-4 lg:px-6 lg:py-6">
             {([
               { eyebrow: 'Trụ sở chính', city: 'Thái Nguyên', address: 'Tổ 9, Phường Tích Lương, Tỉnh Thái Nguyên' },
               { eyebrow: 'Chi nhánh', city: 'Hà Nội', address: '323 Xuân Đỉnh, TP Hà Nội' },

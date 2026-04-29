@@ -26,11 +26,18 @@ const FIXED_NOW = "2026-04-25T12:00:00+07:00";
 
 function installFixedDate() {
   class FixedDate extends RealDate {
-    constructor(...args: ConstructorParameters<DateConstructor>) {
+    constructor(
+      ...args:
+        | []
+        | [value: string | number | Date]
+        | [year: number, monthIndex: number, date?: number, hours?: number, minutes?: number, seconds?: number, ms?: number]
+    ) {
       if (args.length === 0) {
         super(FIXED_NOW);
+      } else if (args.length === 1) {
+        super(args[0]);
       } else {
-        super(...args);
+        super(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
       }
     }
 
