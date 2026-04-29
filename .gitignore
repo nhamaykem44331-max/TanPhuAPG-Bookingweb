@@ -9,3 +9,5 @@ logs
 debug
 .claude
 .kilo
+
+.vercel
