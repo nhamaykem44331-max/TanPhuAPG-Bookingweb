@@ -42,6 +42,23 @@ type HoldProgressStep = {
   durationMs: number;
   text: string;
 };
+type HoldErrorState = {
+  errorCode: string;
+  userMessage: string;
+  retryable: boolean;
+  retryDelayMs?: number;
+};
+type SubmitHoldOptions = {
+  autoRetry?: boolean;
+  allowAutoRetry?: boolean;
+};
+
+const HOLD_ERROR_TITLES: Record<string, string> = {
+  BACKEND_TIMEOUT: 'Hệ thống phản hồi chậm',
+  SESSION_EXPIRED: 'Phiên Nam Thanh hết hạn',
+  BACKEND_DOWN: 'Backend tạm không phản hồi',
+  BACKEND_AUTH: 'Lỗi xác thực hệ thống (admin xử lý)',
+};
 
 function airportCodeLabel(airports: AirportList, code?: string) {
   const normalized = String(code || '').trim().toUpperCase();
@@ -198,6 +215,30 @@ function holdErrorText(data: unknown) {
     flatErrors.join(' | '),
   ]);
   return parts.join(' | ') || 'Lỗi giữ chỗ';
+}
+
+function holdErrorTitle(errorCode: string) {
+  return HOLD_ERROR_TITLES[errorCode] || 'Lỗi không xác định';
+}
+
+function holdFailureFromResponse(data: unknown): HoldErrorState {
+  const body = recordOf(data);
+  const retryDelayMs = Number(body.retryDelayMs);
+  return {
+    errorCode: normalizeMessageText(body.error) || 'UPSTREAM_UNAVAILABLE',
+    userMessage: normalizeMessageText(body.userMessage) || holdErrorText(data),
+    retryable: body.retryable === true,
+    retryDelayMs: Number.isFinite(retryDelayMs) && retryDelayMs > 0 ? retryDelayMs : undefined,
+  };
+}
+
+function timeoutHoldError(): HoldErrorState {
+  return {
+    errorCode: 'BACKEND_TIMEOUT',
+    userMessage: 'Hệ thống Nam Thanh phản hồi quá chậm. Mã đặt chỗ có thể đã tạo, hệ thống sẽ thử lại bằng cùng mã yêu cầu.',
+    retryable: true,
+    retryDelayMs: 3000,
+  };
 }
 
 function compactUpper(value: string) {
@@ -411,6 +452,10 @@ export default function HoldBookingModal({
   const createRealHold = true;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [backendReady, setBackendReady] = useState(true);
+  const [warmupChecking, setWarmupChecking] = useState(false);
+  const [holdError, setHoldError] = useState<HoldErrorState | null>(null);
+  const [retrying, setRetrying] = useState(false);
   // Khi split-roundtrip outbound thành công nhưng inbound fail → lưu PNR mồ côi để hiển thị
   const [partialHold, setPartialHold] = useState<{
     orphanPnrs: Array<{ airline?: string; pnr: string; status?: string; from?: string; to?: string }>;
@@ -430,6 +475,14 @@ export default function HoldBookingModal({
   const [skipBaggage, setSkipBaggage] = useState(false);       // user chọn "tiếp tục không kèm hành lý"
   const [copiedResult, setCopiedResult] = useState(false);
   const resultRef = useRef<HoldBookingResponse | null>(null);
+  const retryTimeoutRef = useRef<number | null>(null);
+
+  function clearRetryTimeout() {
+    if (retryTimeoutRef.current !== null) {
+      window.clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
+  }
 
   const isRoundtrip = tripType === 'roundtrip' && !!inbound;
   const splitRoundtrip = isRoundtrip &&
@@ -443,7 +496,8 @@ export default function HoldBookingModal({
   const unresolvedPricingPnrs = pricing?.unresolvedPnrs || [];
   const hasVerifiedPricing = pricing?.verified === true && typeof result?.totalAmount === 'number';
   const shouldShowPricingPending = !!result && !result.dryRun && !hasVerifiedPricing;
-  const showHoldProgress = createRealHold && (loading || (!!result && result.dryRun === false));
+  const holdActionBusy = loading || retrying;
+  const showHoldProgress = createRealHold && (loading || retrying || (!!result && result.dryRun === false));
   const showHoldSlowHint = createRealHold && loading && holdProgressElapsedMs > 12_000;
 
   const idempotencyKey = useMemo(() => {
@@ -481,12 +535,48 @@ export default function HoldBookingModal({
     if (!open) return;
     setPassengers((prev) => reconcilePassengers(prev, adults, children, infants));
     setError('');
+    setHoldError(null);
     setHoldTimedOut(false);
     setResult(null);
     setHoldProgressPct(0);
     setHoldProgressText('');
     setHoldProgressElapsedMs(0);
   }, [open, adults, children, infants]);
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+
+    const checkWarmup = async () => {
+      setWarmupChecking(true);
+      setBackendReady(false);
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const response = await fetch('/api/warmup', { cache: 'no-store' });
+          const data = await response.json();
+          if (!alive) return;
+          if (data.ready === true || data.warming !== true) {
+            setBackendReady(true);
+            return;
+          }
+          if (attempt < 2) {
+            await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          }
+        } catch {
+          if (alive) setBackendReady(true);
+          return;
+        }
+      }
+
+      if (alive) setBackendReady(true);
+    };
+
+    void checkWarmup().finally(() => {
+      if (alive) setWarmupChecking(false);
+    });
+    return () => { alive = false; };
+  }, [open]);
 
   useEffect(() => {
     resultRef.current = result;
@@ -565,9 +655,14 @@ export default function HoldBookingModal({
   // Reset state khi modal đóng để lần mở sau bắt đầu sạch
   useEffect(() => {
     if (open) return;
+    clearRetryTimeout();
+    setRetrying(false);
+    setHoldError(null);
     setSkipBaggage(false);
     setAncillaryAttempt(0);
     setPartialHold(null);
+    setBackendReady(true);
+    setWarmupChecking(false);
   }, [open]);
 
   if (!open || !flight) return null;
@@ -611,11 +706,31 @@ export default function HoldBookingModal({
     }));
   };
 
-  async function submitHold() {
+  function scheduleHoldRetry(nextError: HoldErrorState) {
+    clearRetryTimeout();
+    setHoldError(nextError);
+    setError('');
+    setRetrying(true);
+    setHoldProgressPct((prev) => Math.max(prev, 35));
+    setHoldProgressText('Đang thử lại...');
+    retryTimeoutRef.current = window.setTimeout(() => {
+      retryTimeoutRef.current = null;
+      void submitHold({ autoRetry: true, allowAutoRetry: false });
+    }, nextError.retryDelayMs ?? 3000);
+  }
+
+  async function submitHold(options: SubmitHoldOptions = {}) {
     if (!flight) return;
+    const isAutoRetry = options.autoRetry === true;
+    const allowAutoRetry = options.allowAutoRetry !== false;
+    if (!isAutoRetry) {
+      clearRetryTimeout();
+      setRetrying(false);
+    }
     let timeoutId: number | null = null;
     setLoading(true);
     setError('');
+    setHoldError(null);
     setPartialHold(null);
     setHoldTimedOut(false);
     setResult(null);
@@ -651,6 +766,7 @@ export default function HoldBookingModal({
         setHoldProgressPct((prev) => Math.max(prev, 18));
         setHoldProgressText('Đang gửi yêu cầu tạo PNR...');
       }
+      await fetch('/api/warmup', { cache: 'no-store' }).catch(() => {});
       const controller = new AbortController();
       timeoutId = window.setTimeout(() => controller.abort(), 180000);
       const res = await fetch('/api/booking/hold', {
@@ -688,7 +804,12 @@ export default function HoldBookingModal({
         setHoldProgressPct((prev) => Math.max(prev, 85));
         setHoldProgressText('Đang đồng bộ giá chuẩn từ ticket-info-by-id...');
       }
-      const data = await res.json();
+      const data = await res.json().catch(() => ({
+        error: 'UPSTREAM_UNAVAILABLE',
+        userMessage: 'Không đọc được phản hồi từ hệ thống Nam Thanh.',
+        retryable: true,
+        retryDelayMs: 3000,
+      }));
       if (!res.ok || data.success === false) {
         // Phát hiện PARTIAL_HOLD (orphan PNR) → lưu riêng để hiển thị block đỏ rõ ràng
         const errorBody = recordOf(data);
@@ -702,7 +823,14 @@ export default function HoldBookingModal({
           setError(holdErrorText(data));
           return;
         }
-        throw new Error(holdErrorText(data));
+        const nextHoldError = holdFailureFromResponse(data);
+        if (nextHoldError.retryable && allowAutoRetry) {
+          scheduleHoldRetry(nextHoldError);
+          return;
+        }
+        setHoldError(nextHoldError);
+        setError(nextHoldError.userMessage);
+        return;
       }
       setResult(data);
       if (createRealHold) {
@@ -711,14 +839,21 @@ export default function HoldBookingModal({
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') {
+        const nextHoldError = timeoutHoldError();
         setHoldTimedOut(true);
-        setError('Hệ thống Nam Thanh phản hồi quá chậm (>3 phút). Mã đặt chỗ có thể đã tạo — vui lòng kiểm tra trong lịch sử đặt chỗ.');
+        if (nextHoldError.retryable && allowAutoRetry) {
+          scheduleHoldRetry(nextHoldError);
+          return;
+        }
+        setHoldError(nextHoldError);
+        setError(nextHoldError.userMessage);
       } else {
         setError(err instanceof Error ? err.message : String(err));
       }
     } finally {
       if (timeoutId !== null) window.clearTimeout(timeoutId);
       setLoading(false);
+      if (isAutoRetry) setRetrying(false);
     }
   }
 
@@ -886,6 +1021,12 @@ export default function HoldBookingModal({
     </div>
   ) : null;
 
+  const warmupBlock = (warmupChecking || !backendReady) ? (
+    <div className="rounded-[var(--apg-radius-md)] border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+      Đang chuẩn bị hệ thống Nam Thanh...
+    </div>
+  ) : null;
+
   const partialHoldBlock = partialHold ? (
     <div className="rounded-[var(--apg-radius-md)] border-2 border-amber-300 bg-amber-50 px-4 py-3 text-xs">
       <div className="mb-2 flex items-start gap-2">
@@ -975,13 +1116,36 @@ export default function HoldBookingModal({
     </div>
   ) : null;
 
-  const errorBlock = (error || partialHold) ? (
+  const errorBlock = (error || partialHold || holdError) ? (
     <div className="space-y-2">
       {partialHoldBlock}
-      {error && !partialHold && (
+      {holdError && !partialHold && !retrying && (
+        <div className="rounded-[var(--apg-radius-md)] border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-800">
+          <div className="font-bold">{holdErrorTitle(holdError.errorCode)}</div>
+          <div className="mt-1 leading-relaxed">{holdError.userMessage}</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {holdError.errorCode !== 'BACKEND_AUTH' && (
+              <button
+                type="button"
+                className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-700 hover:border-red-400 hover:bg-red-50"
+                onClick={() => void submitHold()}
+              >
+                ↺ Thử lại
+              </button>
+            )}
+            <a
+              href="tel:0918752686"
+              className="rounded-md border border-red-300 bg-red-100 px-3 py-1.5 text-[11px] font-semibold text-red-800 hover:bg-red-200"
+            >
+              📞 Liên hệ CSKH
+            </a>
+          </div>
+        </div>
+      )}
+      {error && !partialHold && !holdError && (
         <div className="rounded-[var(--apg-radius-md)] border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-700">{error}</div>
       )}
-      {holdTimedOut && (
+      {holdTimedOut && !retrying && (
         <button
           type="button"
           className="apg-btn-secondary h-10 px-3 text-xs font-semibold text-[var(--apg-aviation-navy)]"
@@ -1085,6 +1249,7 @@ export default function HoldBookingModal({
             <aside className="hidden lg:block">
               <div className="sticky top-3 space-y-3">
                 {summaryBlock}
+                {warmupBlock}
                 {progressBlock}
                 {errorBlock}
                 {resultBlock}
@@ -1364,6 +1529,7 @@ export default function HoldBookingModal({
               </div>
 
               <div className="mt-3 space-y-3 lg:hidden">
+                {warmupBlock}
                 {progressBlock}
                 {errorBlock}
                 {resultBlock}
@@ -1378,10 +1544,10 @@ export default function HoldBookingModal({
           </button>
           <button
             className="apg-btn-primary flex-1 text-sm font-bold text-white disabled:opacity-60"
-            onClick={submitHold}
-            disabled={loading}
+            onClick={() => void submitHold()}
+            disabled={holdActionBusy || !backendReady || warmupChecking}
           >
-            {loading ? 'Đang giữ chỗ...' : 'Giữ Chỗ'}
+            {retrying ? 'Đang thử lại...' : loading ? 'Đang giữ chỗ...' : 'Giữ Chỗ'}
           </button>
         </div>
       </div>

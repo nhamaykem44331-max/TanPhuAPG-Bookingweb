@@ -286,7 +286,7 @@ function RouteMismatchNotice({ dense = false }: { dense?: boolean }) {
       <svg aria-hidden="true" fill="currentColor" height="11" viewBox="0 0 24 24" width="11">
         <path d="M12 2 1 21h22L12 2zm1 14h-2v-2h2v2zm0-4h-2V8h2v4z" />
       </svg>
-      <span>Đã đổi chặng — bấm "Tìm vé" để cập nhật</span>
+      <span>Đã đổi chặng — bấm &quot;Tìm vé&quot; để cập nhật</span>
     </div>
   );
 }

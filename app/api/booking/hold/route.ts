@@ -545,6 +545,71 @@ function responseFromExistingBooking(booking: ExistingBookingRecord) {
   };
 }
 
+type UpstreamClassification = {
+  errorCode: "BACKEND_TIMEOUT" | "SESSION_EXPIRED" | "BACKEND_DOWN"
+            | "BACKEND_AUTH" | "BACKEND_COLD_START" | "UPSTREAM_UNAVAILABLE";
+  httpStatus: number;
+  userMessage: string;
+  retryable: boolean;
+  retryDelayMs?: number;
+};
+
+function classifyUpstreamError(error: NamThanhApiError): UpstreamClassification {
+  const text = `${error.message} ${JSON.stringify(error.details ?? {})}`.toLowerCase();
+
+  if (error.status === 504 || text.includes("timeout") || text.includes("abort")) {
+    return {
+      errorCode: "BACKEND_TIMEOUT",
+      httpStatus: 504,
+      userMessage: "Hệ thống Nam Thanh phản hồi chậm. Vui lòng thử lại sau vài giây.",
+      retryable: true,
+      retryDelayMs: 3000,
+    };
+  }
+
+  if (text.includes("session time out") || text.includes("session expired") || text.includes("login required")) {
+    return {
+      errorCode: "SESSION_EXPIRED",
+      httpStatus: 503,
+      userMessage: "Phiên Nam Thanh đã hết hạn. Hệ thống sẽ thử đăng nhập lại, vui lòng thử lại sau ít giây.",
+      retryable: true,
+      retryDelayMs: 2000,
+    };
+  }
+
+  if (error.status === 401 || error.status === 403 || text.includes("unauthorized") || text.includes("api key")) {
+    return {
+      errorCode: "BACKEND_AUTH",
+      httpStatus: 502,
+      userMessage: "Lỗi xác thực giữa frontend và backend. Vui lòng liên hệ CSKH để admin xử lý.",
+      retryable: false,
+    };
+  }
+
+  if (
+    error.status === 502 ||
+    error.status === 503 ||
+    text.includes("econnrefused") ||
+    text.includes("render.com") ||
+    text.includes("unavailable")
+  ) {
+    return {
+      errorCode: "BACKEND_DOWN",
+      httpStatus: 503,
+      userMessage: "Backend Nam Thanh đang khởi động hoặc tạm không phản hồi. Vui lòng thử lại sau vài giây.",
+      retryable: true,
+      retryDelayMs: 5000,
+    };
+  }
+
+  return {
+    errorCode: "UPSTREAM_UNAVAILABLE",
+    httpStatus: 502,
+    userMessage: "Hệ thống Nam Thanh tạm thời không xử lý được yêu cầu. Vui lòng liên hệ CSKH nếu lỗi tiếp diễn.",
+    retryable: false,
+  };
+}
+
 function quoteErrorResponse(error: unknown): NextResponse | null {
   if (error instanceof QuoteExpiredError) {
     return NextResponse.json({ error: "QUOTE_EXPIRED" }, { status: 409 });
@@ -585,12 +650,16 @@ function quoteErrorResponse(error: unknown): NextResponse | null {
       return NextResponse.json({ error: "SOLD_OUT" }, { status: 409 });
     }
 
+    const classification = classifyUpstreamError(error);
     return NextResponse.json(
       {
-        error: "UPSTREAM_UNAVAILABLE",
+        error: classification.errorCode,
         detail: error.message,
+        userMessage: classification.userMessage,
+        retryable: classification.retryable,
+        retryDelayMs: classification.retryDelayMs,
       },
-      { status: 502 },
+      { status: classification.httpStatus },
     );
   }
 
