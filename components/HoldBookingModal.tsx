@@ -546,13 +546,35 @@ export default function HoldBookingModal({
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    setWarmupChecking(true);
-    setBackendReady(false);
-    fetch('/api/warmup', { cache: 'no-store' })
-      .then(r => r.json())
-      .then(d => { if (alive) setBackendReady(d.ready === true || d.warming !== true); })
-      .catch(() => { if (alive) setBackendReady(true); })
-      .finally(() => { if (alive) setWarmupChecking(false); });
+
+    const checkWarmup = async () => {
+      setWarmupChecking(true);
+      setBackendReady(false);
+
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const response = await fetch('/api/warmup', { cache: 'no-store' });
+          const data = await response.json();
+          if (!alive) return;
+          if (data.ready === true || data.warming !== true) {
+            setBackendReady(true);
+            return;
+          }
+          if (attempt < 2) {
+            await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          }
+        } catch {
+          if (alive) setBackendReady(true);
+          return;
+        }
+      }
+
+      if (alive) setBackendReady(true);
+    };
+
+    void checkWarmup().finally(() => {
+      if (alive) setWarmupChecking(false);
+    });
     return () => { alive = false; };
   }, [open]);
 
