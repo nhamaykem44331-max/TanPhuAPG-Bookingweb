@@ -105,7 +105,7 @@ export async function getNamThanhLowestFare(params: {
   return namThanhFetch<NamThanhLowestFareResponse>(url.toString(), { method: 'GET' }, 30_000);
 }
 
-function normalizeFlight(flight: FlightResult, searchId?: string, rate?: number): FlightResult {
+export function normalizeFlight(flight: FlightResult, searchId?: string, rate?: number): FlightResult {
   const airlineResolved = resolveHybridAirlineInfo(flight);
   const fareTotal = flight.fareBreakdown?.totalAmount ?? flight.price?.amount ?? 0;
   const usdRate = rate && Number.isFinite(rate) && rate > 0 ? rate : getCachedVndUsdRate();
@@ -766,6 +766,89 @@ export async function searchNamThanhFlights(payload: SearchPayload): Promise<Sea
       airlineErrors: data.metadata?.airlineErrors,
     },
   };
+}
+
+// ─── Streaming search (SSE) ──────────────────────────────────────────────────
+
+export interface StreamSearchEvent {
+  type: 'session' | 'airline_result' | 'airline_error' | 'done'
+  airline?: string
+  results?: FlightResult[]
+  departureResults?: FlightResult[]
+  returnResults?: FlightResult[]
+  completedCount?: number
+  totalCount?: number
+  airlines?: string[]
+  error?: string
+}
+
+export async function* streamNamThanhSearch(
+  payload: SearchPayload,
+  timeoutMs = 55_000,
+): AsyncGenerator<StreamSearchEvent> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const res = await fetch(`${backendUrl()}/flights/search/stream`, {
+      method: 'POST',
+      headers: backendHeaders(),
+      body: JSON.stringify({
+        from: payload.from,
+        to: payload.to,
+        date: payload.date,
+        returnDate: payload.returnDate,
+        tripType: payload.tripType,
+        adults: payload.adults,
+        children: payload.children,
+        infants: payload.infants,
+        cabin: payload.cabin,
+      }),
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+
+    if (!res.ok || !res.body) {
+      throw new NamThanhApiError(
+        `Nam Thanh stream error ${res.status}`,
+        res.status,
+      )
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const blocks = buffer.split('\n\n')
+      buffer = blocks.pop() ?? ''
+
+      for (const block of blocks) {
+        const dataLine = block.split('\n').find((l) => l.startsWith('data:'))
+        if (!dataLine) continue
+        const raw = dataLine.slice(5).trim()
+        if (!raw) continue
+        try {
+          const event = JSON.parse(raw) as StreamSearchEvent
+          yield event
+        } catch {
+          // skip malformed events
+        }
+      }
+    }
+  } catch (err) {
+    if (err instanceof NamThanhApiError) throw err
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new NamThanhApiError('Nam Thanh stream timeout', 504)
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 export async function priceNamThanhFlight(body: {

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import React, { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 
 import ContactModal from "@/components/ContactModal";
 import FilterSidebar from "@/components/FilterSidebar";
@@ -11,7 +11,7 @@ import LoadingSkeleton from "@/components/LoadingSkeleton";
 import SortBar from "@/components/SortBar";
 import type { DateStripProps } from "@/components/search/DateStrip";
 import { toISO } from "@/lib/date";
-import type { Cabin, FlightResult, SearchPayload, SearchResponse } from "@/lib/types";
+import type { Cabin, FlightResult, RoundtripPairOption, SearchPayload, SearchResponse } from "@/lib/types";
 
 interface SearchParamsLike {
   get(name: string): string | null;
@@ -160,6 +160,186 @@ function RouteHeaderCard({
   );
 }
 
+// ─── Streaming search hook ────────────────────────────────────────────────────
+
+interface StreamProgress {
+  completed: number;
+  total: number;
+}
+
+interface UseStreamingSearchResult {
+  data: SearchResponse | null;
+  loading: boolean;
+  streamDone: boolean;
+  streamProgress: StreamProgress;
+  error: string;
+}
+
+function mergeFlights(existing: FlightResult[], incoming: FlightResult[]): FlightResult[] {
+  const seen = new Set(existing.map((f) => f.id));
+  const added = incoming.filter((f) => !seen.has(f.id));
+  return added.length ? [...existing, ...added].sort((a, b) => a.price.amount - b.price.amount) : existing;
+}
+
+function mergePairs(existing: RoundtripPairOption[], incoming: RoundtripPairOption[]): RoundtripPairOption[] {
+  const seen = new Set(existing.map((p) => p.id));
+  const added = incoming.filter((p) => !seen.has(p.id));
+  return added.length ? [...existing, ...added].sort((a, b) => a.totalAmount - b.totalAmount) : existing;
+}
+
+function useStreamingSearch(payload: SearchPayload, payloadKey: string): UseStreamingSearchResult {
+  const [data, setData] = useState<SearchResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [streamDone, setStreamDone] = useState(false);
+  const [streamProgress, setStreamProgress] = useState<StreamProgress>({ completed: 0, total: 0 });
+  const [error, setError] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
+
+  const runStream = useCallback(async (p: SearchPayload, signal: AbortSignal) => {
+    setLoading(true);
+    setError("");
+    setStreamDone(false);
+    setStreamProgress({ completed: 0, total: 0 });
+    setData(null);
+
+    try {
+      const res = await fetch("/api/search/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(p),
+        signal,
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error(`Lỗi tìm kiếm: ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let streamNotSupported = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
+
+        for (const block of blocks) {
+          const eventLine = block.split("\n").find((l) => l.startsWith("event:"));
+          const dataLine = block.split("\n").find((l) => l.startsWith("data:"));
+          if (!dataLine) continue;
+
+          try {
+            const event = JSON.parse(dataLine.slice(5).trim());
+
+            // Error event from server
+            if (eventLine?.includes("error") || event.error) {
+              if (event.error === "STREAM_NOT_SUPPORTED") {
+                streamNotSupported = true;
+              } else {
+                throw new Error(event.error || "Lỗi streaming");
+              }
+              break;
+            }
+
+            if (event.type === "session") {
+              setStreamProgress({ completed: 0, total: event.airlines?.length ?? 0 });
+              continue;
+            }
+
+            if (event.type === "airline_result") {
+              setStreamProgress({ completed: event.completedCount ?? 0, total: event.totalCount ?? 0 });
+              setLoading(false);
+
+              const incoming = (event.results ?? []) as FlightResult[];
+              const incomingDep = (event.departureResults ?? []) as FlightResult[];
+              const incomingRet = (event.returnResults ?? []) as FlightResult[];
+
+              setData((prev) => {
+                const base = prev ?? {
+                  searchId: `stream_${Date.now()}`,
+                  results: [],
+                  departureResults: [],
+                  returnResults: [],
+                  pairOptions: [],
+                  metadata: { totalResults: 0, departureCount: 0, returnCount: 0, pairCount: 0, cached: false, sourceUsed: "namthanh" as const },
+                };
+                const results = mergeFlights(base.results, incoming);
+                const departureResults = mergeFlights(base.departureResults ?? [], incomingDep);
+                const returnResults = mergeFlights(base.returnResults ?? [], incomingRet);
+                return {
+                  ...base,
+                  results,
+                  departureResults,
+                  returnResults,
+                  metadata: {
+                    ...base.metadata,
+                    totalResults: results.length,
+                    departureCount: departureResults.length,
+                    returnCount: returnResults.length,
+                  },
+                };
+              });
+              continue;
+            }
+
+            if (event.type === "airline_error") {
+              setStreamProgress({ completed: event.completedCount ?? 0, total: event.totalCount ?? 0 });
+              continue;
+            }
+
+            if (event.type === "done") {
+              setStreamDone(true);
+              setLoading(false);
+              break;
+            }
+          } catch (parseErr) {
+            if (parseErr instanceof Error && parseErr.message !== "Lỗi streaming") continue;
+            throw parseErr;
+          }
+        }
+
+        if (streamNotSupported) break;
+      }
+
+      // Fallback: streaming endpoint not deployed → use regular search
+      if (streamNotSupported) {
+        const fallback = await fetch("/api/search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(p),
+          signal,
+        });
+        const json = await fallback.json();
+        if (!fallback.ok) throw new Error(json.error || "Lỗi tìm kiếm");
+        setData(json);
+        setStreamDone(true);
+        setLoading(false);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") return;
+      setError(err instanceof Error ? err.message : "Đã có lỗi");
+      setLoading(false);
+      setStreamDone(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    runStream(payload, controller.signal);
+    return () => controller.abort();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payloadKey]);
+
+  return { data, loading, streamDone, streamProgress, error };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function SearchResultsContent({
   searchParams,
   replace,
@@ -167,52 +347,23 @@ export function SearchResultsContent({
 }: SearchResultsContentProps) {
   const searchParamsKey = searchParams.toString();
   const payload = useMemo(() => buildPayload(searchParams), [searchParamsKey, searchParams]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [data, setData] = useState<SearchResponse | null>(null);
   const [sort, setSort] = useState("price");
   const [stopFilter, setStopFilter] = useState(new Set<string>(["nonstop", "one"]));
   const [airlineFilter, setAirlineFilter] = useState(new Set<string>());
   const [openContact, setOpenContact] = useState(false);
 
+  const { data, loading, streamDone, streamProgress, error } = useStreamingSearch(payload, searchParamsKey);
+
+  // Auto-populate airline filter as results stream in
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      setLoading(true);
-      setError("");
-
-      try {
-        const response = await fetch("/api/search", {
-          body: JSON.stringify(payload),
-          headers: { "Content-Type": "application/json" },
-          method: "POST",
-        });
-        const json = await response.json();
-
-        if (!response.ok) {
-          throw new Error(json.error || "Lỗi tìm kiếm");
-        }
-
-        if (!cancelled) {
-          setData(json);
-          setAirlineFilter(new Set(json.results.map((flight: FlightResult) => flight.airline)));
-        }
-      } catch (fetchError: unknown) {
-        if (!cancelled) {
-          setError(fetchError instanceof Error ? fetchError.message : "Đã có lỗi");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [payload, searchParamsKey]);
+    if (data?.results && data.results.length > 0) {
+      setAirlineFilter((prev) => {
+        const next = new Set(prev);
+        data.results.forEach((f) => next.add(f.airline));
+        return next;
+      });
+    }
+  }, [data?.results?.length]);
 
   const filtered = useMemo(() => {
     const base = data?.results || [];
@@ -222,7 +373,9 @@ export function SearchResultsContent({
       if (flight.stops >= 2 && stopFilter.has("two")) return true;
       return false;
     });
-    const byAirline = byStop.filter((flight) => airlineFilter.has(flight.airline));
+    const byAirline = airlineFilter.size > 0
+      ? byStop.filter((flight) => airlineFilter.has(flight.airline))
+      : byStop;
 
     return sortFlights(byAirline, sort);
   }, [airlineFilter, data, sort, stopFilter]);
@@ -253,7 +406,42 @@ export function SearchResultsContent({
         </div>
       </div>
 
-      {loading && <LoadingSkeleton />}
+      {/* Loading skeleton — only when no results yet */}
+      {loading && !data && <LoadingSkeleton />}
+
+      {/* Streaming progress bar — shown while loading and results are coming in */}
+      {!streamDone && streamProgress.total > 0 && (
+        <div className="mb-4 rounded-2xl border border-[var(--apg-border-default)] bg-white p-4">
+          <div className="mb-2 flex items-center justify-between text-sm text-[var(--apg-text-secondary)]">
+            <span>
+              Đang tìm kiếm{" "}
+              <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">
+                {payload.from} → {payload.to}
+              </span>
+              …
+            </span>
+            <span className="font-mono text-xs">
+              {streamProgress.completed}/{streamProgress.total} hãng
+            </span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+            <div
+              className="h-full rounded-full bg-brand transition-all duration-500"
+              style={{
+                width: streamProgress.total > 0
+                  ? `${Math.round((streamProgress.completed / streamProgress.total) * 100)}%`
+                  : "0%",
+              }}
+            />
+          </div>
+          {data && data.results.length > 0 && (
+            <p className="mt-1 text-xs text-[var(--apg-text-secondary)]">
+              Đã tìm được {data.results.length} chuyến bay, đang tải thêm…
+            </p>
+          )}
+        </div>
+      )}
+
       {error && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">
           {error}{" "}
@@ -263,7 +451,8 @@ export function SearchResultsContent({
         </div>
       )}
 
-      {!loading && !error && data && (
+      {/* Show results as soon as first flights arrive, don't wait for streamDone */}
+      {!error && data && (
         <div className="space-y-4">
           <RouteHeaderCard
             date={payload.date}
@@ -313,9 +502,13 @@ export function SearchResultsContent({
               <SortBar setSort={setSort} sort={sort} />
               <div className="space-y-3">
                 {filtered.length === 0 ? (
-                  <div className="rounded-2xl border bg-white p-4">
-                    Không có kết quả phù hợp. Hãy đổi ngày hoặc điểm đến.
-                  </div>
+                  streamDone ? (
+                    <div className="rounded-2xl border bg-white p-4">
+                      Không có kết quả phù hợp. Hãy đổi ngày hoặc điểm đến.
+                    </div>
+                  ) : (
+                    <LoadingSkeleton />
+                  )
                 ) : (
                   filtered.map((flight) => <FlightCard f={flight} key={flight.id} onContact={() => setOpenContact(true)} />)
                 )}
