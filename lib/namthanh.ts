@@ -59,6 +59,15 @@ function backendHeaders(extra?: HeadersInit): HeadersInit {
   return { ...headers, ...extra };
 }
 
+function envNumber(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+const SEARCH_FLIGHT_PRESENTATION_LIMIT = envNumber('SEARCH_FLIGHT_PRESENTATION_LIMIT', 120);
+const SEARCH_PAIR_PRESENTATION_LIMIT = envNumber('SEARCH_PAIR_PRESENTATION_LIMIT', 140);
+const SEARCH_PAIR_SOURCE_LIMIT = envNumber('SEARCH_PAIR_SOURCE_LIMIT', 70);
+
 async function namThanhFetch<T>(path: string, init: RequestInit = {}, timeoutMs = 180_000): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -161,6 +170,43 @@ function normalizePairOption(
     inboundFlightId: pair.inboundFlightId || inbound.id,
     inboundFareId: pair.inboundFareId || inbound.fareId,
   };
+}
+
+function trimFlightsForSearch(flights: FlightResult[]) {
+  return flights.slice(0, SEARCH_FLIGHT_PRESENTATION_LIMIT);
+}
+
+function pairPresentationSource(pair: RoundtripPairOption) {
+  return normalizePairSource(pair.source || pair.systemName || '') || 'unknown';
+}
+
+function trimPairsForSearch(pairs: RoundtripPairOption[]) {
+  if (pairs.length <= SEARCH_PAIR_PRESENTATION_LIMIT) return pairs;
+
+  const sourceCounts = new Map<string, number>();
+  const selected: RoundtripPairOption[] = [];
+  const selectedIds = new Set<string>();
+
+  for (const pair of pairs) {
+    const source = pairPresentationSource(pair);
+    const count = sourceCounts.get(source) || 0;
+    if (count >= SEARCH_PAIR_SOURCE_LIMIT) continue;
+
+    selected.push(pair);
+    selectedIds.add(pair.id);
+    sourceCounts.set(source, count + 1);
+    if (selected.length >= SEARCH_PAIR_PRESENTATION_LIMIT) break;
+  }
+
+  if (selected.length < SEARCH_PAIR_PRESENTATION_LIMIT) {
+    for (const pair of pairs) {
+      if (selectedIds.has(pair.id)) continue;
+      selected.push(pair);
+      if (selected.length >= SEARCH_PAIR_PRESENTATION_LIMIT) break;
+    }
+  }
+
+  return selected.sort((a, b) => a.totalAmount - b.totalAmount);
 }
 
 type LooseRecord = Record<string, unknown>;
@@ -754,22 +800,27 @@ export async function searchNamThanhFlights(payload: SearchPayload): Promise<Sea
     getVndUsdRate(),
   ]);
 
-  const results = (data.results || [])
+  const allResults = (data.results || [])
     .map((flight) => normalizeFlight(flight, data.searchId, rate))
     .filter((flight) => flight.price.amount > 0)
     .sort((a, b) => a.price.amount - b.price.amount);
-  const departureResults = (data.departureResults || [])
+  const allDepartureResults = (data.departureResults || [])
     .map((flight) => normalizeFlight(flight, data.searchId, rate))
     .filter((flight) => flight.price.amount > 0)
     .sort((a, b) => a.price.amount - b.price.amount);
-  const returnResults = (data.returnResults || [])
+  const allReturnResults = (data.returnResults || [])
     .map((flight) => normalizeFlight(flight, data.searchId, rate))
     .filter((flight) => flight.price.amount > 0)
     .sort((a, b) => a.price.amount - b.price.amount);
-  const pairOptions = (data.pairOptions || [])
+  const allPairOptions = (data.pairOptions || [])
     .map((pair) => normalizePairOption(pair, data.searchId, rate))
     .filter((pair) => pair.totalAmount > 0)
     .sort((a, b) => a.totalAmount - b.totalAmount);
+
+  const results = trimFlightsForSearch(allResults);
+  const departureResults = trimFlightsForSearch(allDepartureResults);
+  const returnResults = trimFlightsForSearch(allReturnResults);
+  const pairOptions = trimPairsForSearch(allPairOptions);
 
   return {
     searchId: data.searchId,
@@ -778,10 +829,14 @@ export async function searchNamThanhFlights(payload: SearchPayload): Promise<Sea
     returnResults,
     pairOptions,
     metadata: {
-      totalResults: data.metadata?.totalResults ?? (pairOptions.length || results.length),
-      departureCount: data.metadata?.departureCount ?? departureResults.length,
-      returnCount: data.metadata?.returnCount ?? returnResults.length,
-      pairCount: data.metadata?.pairCount ?? pairOptions.length,
+      totalResults: data.metadata?.totalResults ?? (allPairOptions.length || allResults.length),
+      departureCount: data.metadata?.departureCount ?? allDepartureResults.length,
+      returnCount: data.metadata?.returnCount ?? allReturnResults.length,
+      pairCount: data.metadata?.pairCount ?? allPairOptions.length,
+      displayedResultCount: results.length,
+      displayedDepartureCount: departureResults.length,
+      displayedReturnCount: returnResults.length,
+      displayedPairCount: pairOptions.length,
       journeyType: data.metadata?.journeyType,
       searchTime: data.metadata?.searchTime ?? Number(((Date.now() - started) / 1000).toFixed(2)),
       cached: data.metadata?.cached || false,

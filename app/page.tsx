@@ -110,7 +110,6 @@ type FilterState = { airlines:string[]; stops:StopFilter };
 type RoundtripViewMode = 'pair' | 'legs';
 type RoundtripMobileTab = 'outbound' | 'inbound';
 type SearchDateOverrides = { date?: string; returnDate?: string; keepResults?: boolean };
-const PREFERRED_ROUNDTRIP_PAIR_SOURCE = '1B';
 
 function pairSourceLabel(value?: string) {
   const source = String(value || '').trim().toUpperCase();
@@ -120,10 +119,8 @@ function pairSourceLabel(value?: string) {
   return match ? match[1] : source;
 }
 
-function preferredRoundtripPairSourceFilter(pairs: RoundtripPairOption[]) {
-  return pairs.some((pair) => pairSourceLabel(pair.source || pair.systemName) === PREFERRED_ROUNDTRIP_PAIR_SOURCE)
-    ? PREFERRED_ROUNDTRIP_PAIR_SOURCE
-    : 'all';
+function preferredRoundtripPairSourceFilter(_pairs: RoundtripPairOption[]) {
+  return 'all';
 }
 
 function pairOutboundSignature(flight?: FlightResult | null) {
@@ -1070,7 +1067,7 @@ export default function HomePage() {
   const searchAbortRef = useRef<AbortController | null>(null);
   const [error, setError]       = useState('');
   const [results, setResults]   = useState<FlightResult[]>([]);
-  const [meta, setMeta]         = useState<{totalResults:number;searchTime:number}|null>(null);
+  const [meta, setMeta]         = useState<SearchResponse['metadata']|null>(null);
   const [outboundResults, setOutboundResults] = useState<FlightResult[]>([]);
   const [inboundResults, setInboundResults]   = useState<FlightResult[]>([]);
   const [pairOptions, setPairOptions] = useState<RoundtripPairOption[]>([]);
@@ -1355,6 +1352,8 @@ export default function HomePage() {
     if (roundtripViewMode === 'pair' && pairOptions.length > 0) return visiblePairOptions.length;
     return outboundResults.length + inboundResults.length;
   }, [tripType, roundtripViewMode, pairOptions.length, visiblePairOptions.length, outboundResults.length, inboundResults.length, meta?.totalResults, results.length]);
+  const totalPairCount = meta?.pairCount ?? pairOptions.length;
+  const pairLoadedNotice = totalPairCount > pairOptions.length ? ` · tổng ${totalPairCount} cặp` : '';
   const totalRoundtrip = useMemo(()=>(selectedOutbound?.fareBreakdown?.totalAmount??selectedOutbound?.price.amount??0)+(selectedInbound?.fareBreakdown?.totalAmount??selectedInbound?.price.amount??0),[selectedOutbound,selectedInbound]);
   const totalOneway = useMemo(()=>selectedOneway?.fareBreakdown?.totalAmount??selectedOneway?.price.amount??0,[selectedOneway]);
   const onewayDailyMinPrice = useMemo(() => minFlightPrice(results), [results]);
@@ -1522,7 +1521,7 @@ export default function HomePage() {
           setPairOptions(pairs);
           setRoundtripViewMode(pairs.length > 0 ? 'pair' : 'legs');
           if (!keepResults) setPairSourceFilter(preferredRoundtripPairSourceFilter(pairs));
-          setMeta(rt.metadata ? { totalResults: rt.metadata.totalResults, searchTime: rt.metadata.searchTime } : null);
+          setMeta(rt.metadata || null);
           // Validate selection cũ còn tồn tại trong data mới
           if (keepResults) {
             setSelectedOutbound(prev => prev && departure.find(f => f.id === prev.id) ? prev : null);
@@ -1537,7 +1536,12 @@ export default function HomePage() {
           const goResults = go.results||[];
           const backResults = back.results||[];
           setOutboundResults(goResults);setInboundResults(backResults);
-          setMeta({totalResults:goResults.length+backResults.length,searchTime:+(((go.metadata?.searchTime||0)+(back.metadata?.searchTime||0))).toFixed(1)});
+          setMeta({
+            totalResults: goResults.length + backResults.length,
+            departureCount: goResults.length,
+            returnCount: backResults.length,
+            searchTime: +(((go.metadata?.searchTime || 0) + (back.metadata?.searchTime || 0))).toFixed(1),
+          });
           setRoundtripViewMode('legs');
           if (keepResults) {
             setSelectedOutbound(prev => prev && goResults.find(f => f.id === prev.id) ? prev : null);
@@ -1548,7 +1552,7 @@ export default function HomePage() {
         const one=await callSearch({...base,from:fromCode,to:toCode,date:searchDate,tripType:'oneway'}, controller.signal);
         if (controller.signal.aborted) return;
         const oneResults = one.results||[];
-        setResults(oneResults);setMeta(one.metadata?{totalResults:one.metadata.totalResults,searchTime:one.metadata.searchTime}:null);
+        setResults(oneResults);setMeta(one.metadata || null);
         if (keepResults) {
           setSelectedOneway(prev => prev && oneResults.find(f => f.id === prev.id) ? prev : null);
         }
@@ -2118,7 +2122,7 @@ export default function HomePage() {
                       </div>
                       <div className="mt-1 text-sm text-slate-500">
                         {routeMatchesResults
-                          ? `${visiblePairOptions.length}/${sourceScopedPairOptions.length || pairOptions.length} cặp · ${date} - ${returnDate || toYmd(10)}`
+                          ? `${visiblePairOptions.length}/${sourceScopedPairOptions.length || pairOptions.length} cặp hiển thị${pairLoadedNotice} · ${date} - ${returnDate || toYmd(10)}`
                           : `Bấm "Tìm vé" để cập nhật cặp khứ hồi cho chặng mới`}
                       </div>
                       {routeMatchesResults && pairAnchorFlight && (
