@@ -265,7 +265,7 @@ function useStreamingSearch(payload: SearchPayload, payloadKey: string): UseStre
                   departureResults: [],
                   returnResults: [],
                   pairOptions: [],
-                  metadata: { totalResults: 0, departureCount: 0, returnCount: 0, pairCount: 0, cached: false, sourceUsed: "namthanh" as const },
+                  metadata: { totalResults: 0, departureCount: 0, returnCount: 0, pairCount: 0, searchTime: 0, cached: false, sourceUsed: "namthanh" as const },
                 };
                 const results = mergeFlights(base.results, incoming);
                 const departureResults = mergeFlights(base.departureResults ?? [], incomingDep);
