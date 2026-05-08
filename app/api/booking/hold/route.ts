@@ -10,7 +10,7 @@ import type { HoldInput, HoldPassengerInput } from "@/lib/bookings/schemas";
 import { generateUniqueOrderCode } from "@/lib/bookings/orderManagement";
 import { holdInputSchema } from "@/lib/bookings/schemas";
 import { holdNamThanhBooking, NamThanhApiError } from "@/lib/namthanh";
-import { notify } from "@/lib/notifications";
+import { notifyNow } from "@/lib/notifications";
 import { createSepayIntentForBooking, SepayError } from "@/lib/payments/sepayService";
 import { QuoteExpiredError, QuoteUnavailableError } from "@/lib/pricing/errors";
 import { quoteBooking, type QuoteServiceResult } from "@/lib/pricing/quoteService";
@@ -924,18 +924,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (paymentIntentResult?.intent) {
-      void notify({
-        type: "BOOKING_HOLD_CREATED",
-        bookingId: booking.id,
-        paymentIntentId: paymentIntentResult.intent.id,
-        reused: paymentIntentResult.reused,
-      });
-    } else {
-      void notify({
-        type: "BOOKING_HOLD_CREATED",
-        bookingId: booking.id,
-      });
+    try {
+      if (paymentIntentResult?.intent) {
+        await notifyNow({
+          type: "BOOKING_HOLD_CREATED",
+          bookingId: booking.id,
+          paymentIntentId: paymentIntentResult.intent.id,
+          reused: paymentIntentResult.reused,
+        });
+      } else {
+        await notifyNow({
+          type: "BOOKING_HOLD_CREATED",
+          bookingId: booking.id,
+        });
+      }
+    } catch (error) {
+      console.error("booking hold telegram notification failed", error);
     }
 
     return NextResponse.json({

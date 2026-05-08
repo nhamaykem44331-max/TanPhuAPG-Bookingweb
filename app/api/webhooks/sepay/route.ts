@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { notify } from "@/lib/notifications";
+import { notifyNow, type NotificationEvent } from "@/lib/notifications";
 import {
   extractClientIp,
   isSepayIpAllowed,
@@ -11,6 +11,14 @@ import { handleSepayWebhook } from "@/lib/payments/sepayService";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+
+async function notifyWebhookEvent(event: NotificationEvent): Promise<void> {
+  try {
+    await notifyNow(event);
+  } catch (error) {
+    console.error("[sepay/webhook] notification failed", error);
+  }
+}
 
 /**
  * Webhook biến động số dư từ SePay.
@@ -68,7 +76,7 @@ export async function POST(request: Request) {
 
     if (result.kind === "matched") {
       if (result.bookingId && !(result.remainingAmount && result.remainingAmount > 0)) {
-        void notify({
+        await notifyWebhookEvent({
           type: "SEPAY_PAYMENT_MATCHED",
           bookingId: result.bookingId,
           paymentIntentId: result.paymentIntent?.id ?? null,
@@ -78,7 +86,7 @@ export async function POST(request: Request) {
           remainingAmount: result.remainingAmount ?? null,
         });
       } else {
-        void notify({
+        await notifyWebhookEvent({
           type: "SEPAY_PAYMENT_REVIEW",
           bookingId: result.bookingId ?? null,
           paymentIntentId: result.paymentIntent?.id ?? null,
@@ -90,7 +98,7 @@ export async function POST(request: Request) {
         });
       }
     } else if (result.kind === "manual_review") {
-      void notify({
+      await notifyWebhookEvent({
         type: "SEPAY_PAYMENT_REVIEW",
         bookingId: result.bookingId ?? null,
         paymentIntentId: result.paymentIntent?.id ?? null,

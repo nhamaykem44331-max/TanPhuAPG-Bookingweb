@@ -317,3 +317,7 @@ async function processNotification(event: NotificationEvent): Promise<void> {
 export async function notify(event: NotificationEvent): Promise<void> {
   enqueueNotification(() => processNotification(event));
 }
+
+export async function notifyNow(event: NotificationEvent): Promise<void> {
+  await processNotification(event);
+}
