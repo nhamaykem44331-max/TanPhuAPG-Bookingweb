@@ -150,6 +150,7 @@ export interface SearchResponse {
     displayedDepartureCount?: number;
     displayedReturnCount?: number;
     displayedPairCount?: number;
+    loadedPairCount?: number;
     journeyType?: 'OW' | 'RT';
     searchTime: number;
     cached?: boolean;

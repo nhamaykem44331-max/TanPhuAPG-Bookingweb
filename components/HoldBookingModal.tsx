@@ -1064,6 +1064,42 @@ export default function HoldBookingModal({
 
       {result.splitRoundtrip && <div className="mt-2 text-[11px]">Khác hãng: đã tách thành 2 mã giữ chỗ/PNR riêng.</div>}
       {result.protectionVerified && <div className="mt-1 text-[11px]">Đã xử lý xác thực Nam Thanh trước khi tạo PNR.</div>}
+
+      {result.bookingId && (
+        <div className="mt-3 rounded-[var(--apg-radius-md)] border border-emerald-300 bg-gradient-to-br from-emerald-50 to-emerald-100 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Bước tiếp theo</div>
+              <div className="mt-0.5 text-xs text-emerald-900/85">Tạo QR thanh toán SePay để đối soát tự động.</div>
+            </div>
+            <span className="rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+              SePay · BIDV
+            </span>
+          </div>
+          <a
+            href={`/booking/payment/${result.bookingId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex w-full items-center justify-center gap-2 rounded-[var(--apg-radius-sm)] bg-emerald-600 px-3 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.98]"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <path d="M14 14h3v3M20 17v4M14 20h3" strokeLinecap="round" />
+            </svg>
+            Thanh toán ngay
+            {typeof result.totalAmount === 'number' && (
+              <span className="apg-tabular ml-1 rounded-full bg-emerald-700/30 px-2 py-0.5 text-[11px]">
+                {fmtVND(result.totalAmount)}
+              </span>
+            )}
+          </a>
+          <div className="mt-1.5 text-center text-[10px] text-emerald-700/75">
+            Mở tab mới · QR + thông tin TK + countdown
+          </div>
+        </div>
+      )}
     </div>
   ) : null;
 

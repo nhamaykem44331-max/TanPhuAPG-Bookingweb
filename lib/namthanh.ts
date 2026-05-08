@@ -135,7 +135,7 @@ export function normalizeFlight(flight: FlightResult, searchId?: string, rate?: 
   };
 }
 
-function normalizePairOption(
+export function normalizePairOption(
   pair: RoundtripPairOption,
   searchId?: string,
   rate?: number
@@ -828,9 +828,11 @@ export async function searchNamThanhFlights(payload: SearchPayload): Promise<Sea
 export interface StreamSearchEvent {
   type: 'session' | 'airline_result' | 'airline_error' | 'done'
   airline?: string
+  searchId?: string
   results?: FlightResult[]
   departureResults?: FlightResult[]
   returnResults?: FlightResult[]
+  pairOptions?: RoundtripPairOption[]
   completedCount?: number
   totalCount?: number
   airlines?: string[]

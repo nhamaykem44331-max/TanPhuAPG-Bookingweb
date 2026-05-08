@@ -110,6 +110,27 @@ type FilterState = { airlines:string[]; stops:StopFilter };
 type RoundtripViewMode = 'pair' | 'legs';
 type RoundtripMobileTab = 'outbound' | 'inbound';
 type SearchDateOverrides = { date?: string; returnDate?: string; keepResults?: boolean };
+type StreamState = {
+  active: boolean;
+  done: boolean;
+  completed: number;
+  total: number;
+  timedOut: boolean;
+  errors: Record<string, string>;
+};
+
+const INITIAL_PAIR_DISPLAY_LIMIT = 20;
+const PAIR_LOAD_MORE_STEP = 20;
+const STREAM_PAIR_BATCH_SIZE = 4;
+const STREAM_PAIR_FLUSH_MS = 180;
+const EMPTY_STREAM_STATE: StreamState = {
+  active: false,
+  done: false,
+  completed: 0,
+  total: 0,
+  timedOut: false,
+  errors: {},
+};
 
 function pairSourceLabel(value?: string) {
   const source = String(value || '').trim().toUpperCase();
@@ -137,6 +158,74 @@ function pairOutboundSignature(flight?: FlightResult | null) {
     .join('|');
 }
 
+function pairDedupKey(pair: RoundtripPairOption) {
+  return [
+    pairSourceLabel(pair.source || pair.systemName),
+    pair.outbound?.flightNumber,
+    pair.outbound?.departure?.airport,
+    pair.outbound?.arrival?.airport,
+    pair.outbound?.departure?.time,
+    pair.outbound?.arrival?.time,
+    pair.outboundFareId || pair.outbound?.fareId,
+    pair.inbound?.flightNumber,
+    pair.inbound?.departure?.airport,
+    pair.inbound?.arrival?.airport,
+    pair.inbound?.departure?.time,
+    pair.inbound?.arrival?.time,
+    pair.inboundFareId || pair.inbound?.fareId,
+    pair.totalAmount,
+  ]
+    .map((value) => String(value || '').trim().toUpperCase())
+    .join('|');
+}
+
+function comparePairsByPrice(a: RoundtripPairOption, b: RoundtripPairOption) {
+  if (a.totalAmount !== b.totalAmount) return a.totalAmount - b.totalAmount;
+  const sourceCompare = pairSourceLabel(a.source || a.systemName).localeCompare(pairSourceLabel(b.source || b.systemName));
+  if (sourceCompare !== 0) return sourceCompare;
+  const outboundTimeCompare = +new Date(a.outbound.departure.time) - +new Date(b.outbound.departure.time);
+  if (outboundTimeCompare !== 0) return outboundTimeCompare;
+  return String(a.id).localeCompare(String(b.id));
+}
+
+function mergeFlightsById(existing: FlightResult[], incoming: FlightResult[]) {
+  if (!incoming.length) return existing;
+  const byId = new Map(existing.map((flight) => [flight.id, flight]));
+  incoming.forEach((flight) => {
+    if (!byId.has(flight.id)) byId.set(flight.id, flight);
+  });
+  return [...byId.values()].sort((a, b) => a.price.amount - b.price.amount);
+}
+
+function mergeRoundtripPairs(existing: RoundtripPairOption[], incoming: RoundtripPairOption[]) {
+  if (!incoming.length) return existing;
+  const byKey = new Map(existing.map((pair) => [pairDedupKey(pair), pair]));
+  incoming.forEach((pair) => {
+    const key = pairDedupKey(pair);
+    const prev = byKey.get(key);
+    if (!prev || pair.totalAmount < prev.totalAmount) byKey.set(key, pair);
+  });
+  return [...byKey.values()].sort(comparePairsByPrice);
+}
+
+function isBookablePair(pair: RoundtripPairOption) {
+  return Boolean(
+    pair.outbound?.searchId &&
+    pair.inbound?.searchId &&
+    pair.outboundFlightId &&
+    pair.inboundFlightId &&
+    (pair.outboundFareId || pair.outbound?.fareId) &&
+    (pair.inboundFareId || pair.inbound?.fareId),
+  );
+}
+
+function useAirportLabel(code: string, fallbackName: string) {
+  const { airports } = useAirports();
+  const found = airports.find(a => a.code === code);
+  if (found) return { city: found.city, name: found.name };
+  return { city: fallbackName || code, name: fallbackName || code };
+}
+
 // Compact Flight Row (mobile-first, Abay style)
 function FlightRow({ f, selected, onSelect, onDeselect, btnColor='gold', dense = false, dailyMinPrice }: {
   f: FlightResult; selected: boolean;
@@ -145,85 +234,144 @@ function FlightRow({ f, selected, onSelect, onDeselect, btnColor='gold', dense =
   dense?: boolean;
   dailyMinPrice?: number | null;
 }) {
-  // Cả 2 chiều dùng cùng vàng amber: outbound = #f59e0b (amber-500),
-  // inbound = #d97706 (amber-600) hơi đậm hơn để vẫn có cue phân biệt nhẹ.
-  // Pair tốt với navy lạnh, không đụng emerald của sort switch.
+  const depApt = useAirportLabel(f.departure.airport, f.departure.airportName);
+  const arrApt = useAirportLabel(f.arrival.airport, f.arrival.airportName);
   const btnClass = btnColor === 'gold'
     ? 'bg-gradient-to-br from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 ring-1 ring-amber-600/30 shadow-[0_1px_2px_rgba(245,158,11,0.35)]'
     : 'bg-gradient-to-br from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 ring-1 ring-amber-700/30 shadow-[0_1px_2px_rgba(217,119,6,0.4)]';
-  const isLoading = false;
   const selectedBadges = selected ? buildFlightBadges(f, dailyMinPrice) : [];
+  const price = Number(f.fareBreakdown?.totalAmount ?? f.price.amount);
+
+  const PriceBlock = ({ size = 'md' }: { size?: 'sm' | 'md' }) => (
+    <div className="text-right">
+      <div className="flex items-baseline justify-end gap-0.5">
+        <span className={`apg-mono font-bold tabular-nums tracking-tight text-[#1a1a1a] ${size === 'md' ? 'text-[15px] lg:text-[16px]' : 'text-[11px]'}`}>
+          {price.toLocaleString('vi-VN')}
+        </span>
+        <span className={`font-medium text-slate-400 ${size === 'md' ? 'text-[11px]' : 'text-[9px]'}`}>₫</span>
+      </div>
+      {size === 'md' && <div className="mt-0.5 text-[10px] font-medium text-slate-400">≈ ${f.priceUSD}</div>}
+    </div>
+  );
+
+  const SelectOrCheck = ({ compact = false }: { compact?: boolean }) =>
+    selected ? (
+      <div className="flex items-center gap-0.5">
+        <div className={`rounded-md bg-green-600 font-bold text-white ${compact ? 'px-1.5 py-0.5 text-[9px]' : 'px-2 py-1 text-[10px]'}`}>✓</div>
+        {onDeselect && (
+          <button onClick={onDeselect}
+            className={`flex items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-500 transition-transform active:scale-95 ${compact ? 'h-5 w-5 text-[8px]' : 'h-6 w-6 text-[9px]'}`}>✕</button>
+        )}
+      </div>
+    ) : (
+      <button onClick={onSelect}
+        className={`rounded-[var(--apg-radius-sm)] font-bold text-white transition-all duration-150 active:scale-95 active:shadow-inner ${btnClass} ${compact ? 'min-w-[46px] px-2 py-1 text-[10px]' : 'px-3 py-1.5 text-xs'}`}>
+        Chọn
+      </button>
+    );
+
   return (
-    <div className={`border-b border-[var(--apg-border-default)] px-2.5 py-2 transition-colors lg:px-4 lg:py-3 ${selected?'bg-[var(--apg-brand-gold-soft)]':'hover:bg-[var(--apg-bg-surface-soft)]'}`}>
-      <div className={`flex ${dense ? 'items-start gap-1' : 'items-center gap-2'}`}>
-        {/* Logo */}
-        <AirlineLogo code={f.airlineCode} airline={f.airline} logo={f.airlineLogo} size={dense ? 24 : 28} />
-        {/* Times + info */}
-        <div className="min-w-0 flex-1">
-          {dense ? (
+    <div className={`border-b border-[var(--apg-border-default)] px-2.5 py-2 transition-colors lg:px-4 lg:py-3 ${selected ? 'bg-[var(--apg-brand-gold-soft)]' : 'hover:bg-[var(--apg-bg-surface-soft)]'}`}>
+
+      {/* ── Dense mode (compact roundtrip cards) ── */}
+      {dense && (
+        <div className="flex items-start gap-1">
+          <AirlineLogo code={f.airlineCode} airline={f.airline} logo={f.airlineLogo} size={24} />
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className="text-[11px] font-bold leading-none text-[var(--apg-aviation-navy)]">{hhmm(f.departure.time)}</span>
               <span className="truncate text-[8px] text-slate-400">{f.flightNumber}</span>
             </div>
-          ) : (
-            <div className="flex flex-wrap items-baseline gap-1">
-              <span className="text-sm font-bold text-[var(--apg-aviation-navy)] lg:text-base">{hhmm(f.departure.time)}</span>
-              <span className="text-[10px] text-[var(--apg-brand-gold)]">→</span>
-              <span className="text-sm font-bold text-[var(--apg-aviation-navy)] lg:text-base">{hhmm(f.arrival.time)}</span>
-              <span className="text-[10px] text-slate-400 lg:text-[11px]">{durationText(f.duration)}</span>
-            </div>
-          )}
-          <div className={`${dense ? 'mt-0.5 text-[8px]' : 'text-[10px] lg:text-[11px]'} truncate text-slate-400`}>{f.stops===0?'Bay thẳng':`${f.stops} điểm dừng`}</div>
-          {dense && !selected && (
-            <div className="mt-0.5 flex items-center justify-between gap-1">
-              <div className="min-w-0 truncate text-[11px] font-semibold leading-none text-[var(--apg-text-secondary)]">{Math.round(Number(f.fareBreakdown?.totalAmount??f.price.amount)/1000)}K</div>
-              <button
-                onClick={onSelect}
-                className={`min-w-[46px] rounded-md px-2 py-1 text-[10px] font-bold text-white transition-all duration-150 active:scale-95 active:shadow-inner ${btnClass}`}
-              >
-                Chọn
-              </button>
+            <div className="mt-0.5 truncate text-[8px] text-slate-400">{f.stops === 0 ? 'Bay thẳng' : `${f.stops} điểm dừng`}</div>
+            {!selected && (
+              <div className="mt-0.5 flex items-center justify-between gap-1">
+                <div className="min-w-0 truncate text-[11px] font-semibold leading-none text-[var(--apg-text-secondary)]">{Math.round(price / 1000)}K</div>
+                <SelectOrCheck compact />
+              </div>
+            )}
+          </div>
+          {selected && (
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <div className="text-right text-[11px] font-semibold leading-none text-[var(--apg-text-secondary)]">{Math.round(price / 1000)}K</div>
+              <SelectOrCheck compact />
             </div>
           )}
         </div>
-        {/* Price + button */}
-        {!dense && (
-          <div className="flex shrink-0 items-center gap-1.5">
-            <div className="text-right">
-              <div className="flex items-baseline justify-end gap-0.5">
-                <span className="apg-mono text-[15px] font-bold tabular-nums tracking-tight text-[#1a1a1a] lg:text-[16px]">
-                  {Number(f.fareBreakdown?.totalAmount??f.price.amount).toLocaleString('vi-VN')}
+      )}
+
+      {/* ── Normal mode ── */}
+      {!dense && (
+        <>
+          {/* Mobile: flex layout (unchanged) */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <AirlineLogo code={f.airlineCode} airline={f.airline} logo={f.airlineLogo} size={28} />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-1">
+                <span className="text-sm font-bold text-[var(--apg-aviation-navy)]">{hhmm(f.departure.time)}</span>
+                <span className="text-[10px] text-[var(--apg-brand-gold)]">→</span>
+                <span className="text-sm font-bold text-[var(--apg-aviation-navy)]">{hhmm(f.arrival.time)}</span>
+                <span className="text-[10px] text-slate-400">{durationText(f.duration)}</span>
+              </div>
+              <div className="truncate text-[10px] text-slate-400">{f.stops === 0 ? 'Bay thẳng' : `${f.stops} điểm dừng`}</div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <PriceBlock />
+              <SelectOrCheck />
+            </div>
+          </div>
+
+          {/* Desktop: 4-column grid — times=auto, airports=1fr fills gap */}
+          <div className="hidden lg:grid lg:grid-cols-[32px_auto_1fr_auto] lg:items-center lg:gap-4">
+            {/* Col 1: Logo */}
+            <AirlineLogo code={f.airlineCode} airline={f.airline} logo={f.airlineLogo} size={28} />
+
+            {/* Col 2: Giờ bay + số hiệu + hãng — fixed width để các hàng thẳng cột */}
+            <div className="w-[260px] shrink-0 pr-4">
+              <div className="flex items-baseline gap-2">
+                <span className="text-base font-extrabold text-[var(--apg-aviation-navy)]">{hhmm(f.departure.time)}</span>
+                <span className="text-sm text-[var(--apg-brand-gold)]">→</span>
+                <span className="text-base font-extrabold text-[var(--apg-aviation-navy)]">{hhmm(f.arrival.time)}</span>
+                <span className="text-[11px] text-slate-400">{durationText(f.duration)}</span>
+              </div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span className="shrink-0">{f.stops === 0 ? 'Bay thẳng' : `${f.stops} điểm dừng`}</span>
+                <span className="shrink-0">·</span>
+                <span className="shrink-0 font-medium">{f.flightNumber}</span>
+                <span className="shrink-0">·</span>
+                <span className="truncate">{f.airline}</span>
+              </div>
+            </div>
+
+            {/* Col 3: Sân bay đầy đủ — căn giữa trong cell 1fr */}
+            <div className="justify-self-center text-center">
+              <div className="flex items-center justify-center gap-1.5">
+                <span className="text-sm font-bold text-[var(--apg-aviation-navy)]">
+                  {depApt.city} ({f.departure.airport})
                 </span>
-                <span className="text-[11px] font-medium text-slate-400">₫</span>
+                <span className="shrink-0 text-[11px] text-[var(--apg-brand-gold)]">→</span>
+                <span className="text-sm font-bold text-[var(--apg-aviation-navy)]">
+                  {arrApt.city} ({f.arrival.airport})
+                </span>
               </div>
-              <div className="mt-0.5 text-[10px] font-medium text-slate-400">≈ ${f.priceUSD}</div>
+              <div className="mt-0.5 flex items-center justify-center gap-1 text-[11px] text-slate-400">
+                <span>{depApt.name}</span>
+                <span>→</span>
+                <span>{arrApt.name}</span>
+              </div>
             </div>
-            {selected ? (
-              <div className="flex items-center gap-0.5">
-                <div className="rounded-md bg-green-600 px-2 py-1 text-[10px] font-bold text-white">✓</div>
-                {onDeselect && <button onClick={onDeselect} className="flex h-6 w-6 items-center justify-center rounded-md border border-red-200 bg-red-50 text-[9px] text-red-500 transition-transform duration-150 active:scale-95">✕</button>}
-              </div>
-            ) : (
-              <button onClick={onSelect} className={`rounded-[var(--apg-radius-sm)] px-3 py-1.5 text-xs font-bold text-white transition-all duration-150 active:scale-95 active:shadow-inner ${btnClass}`}>
-                Chọn
-              </button>
-            )}
-          </div>
-        )}
-        {dense && selected && (
-          <div className="flex shrink-0 flex-col items-end gap-1">
-            <div className="text-right text-[11px] font-semibold leading-none text-[var(--apg-text-secondary)]">{Math.round(Number(f.fareBreakdown?.totalAmount??f.price.amount)/1000)}K</div>
-            <div className="flex items-center gap-0.5">
-              <div className="rounded-md bg-green-600 px-2 py-1 text-[9px] font-bold text-white">✓</div>
-              {onDeselect && <button onClick={onDeselect} className="flex h-5 w-5 items-center justify-center rounded-md border border-red-200 bg-red-50 text-[8px] text-red-500 transition-transform duration-150 active:scale-95">✕</button>}
+
+            {/* Col 4: Giá + nút Chọn */}
+            <div className="flex items-center gap-2">
+              <PriceBlock />
+              <SelectOrCheck />
             </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
+
       {selected && <FlightBadgePills badges={selectedBadges} className="mt-2" />}
-      {/* Breakdown when selected */}
       {selected && f.fareBreakdown && (
-          <div className="mt-1.5 rounded border border-[var(--apg-border-default)] bg-white px-2 py-1.5 text-[10px]">
+        <div className="mt-1.5 rounded border border-[var(--apg-border-default)] bg-white px-2 py-1.5 text-[10px]">
           <div className="flex justify-between text-slate-500"><span>Cơ bản</span><span className="font-medium">{fmtVND(f.fareBreakdown.baseAmount)}</span></div>
           <div className="flex justify-between text-slate-500"><span>Thuế + phí</span><span className="font-medium">{fmtVND(f.fareBreakdown.taxesFees)}</span></div>
           <div className="mt-0.5 flex justify-between border-t border-[var(--apg-border-default)] pt-0.5 font-semibold"><span>Tổng</span><span>{fmtVND(f.fareBreakdown.totalAmount)}</span></div>
@@ -760,10 +908,12 @@ function RoundtripPairSourceBar({
 function RoundtripPairCard({
   pair,
   selected,
+  disabled = false,
   onSelect,
 }: {
   pair: RoundtripPairOption;
   selected: boolean;
+  disabled?: boolean;
   onSelect: () => void;
 }) {
   const outboundTotal = pair.outbound.fareBreakdown?.totalAmount ?? pair.outbound.price.amount;
@@ -827,8 +977,13 @@ function RoundtripPairCard({
         <div className="text-xs text-slate-500">
           {pair.airlines.join(' · ')} · {pair.stops === 0 ? 'Bay thẳng' : `${pair.stops} điểm dừng toàn hành trình`}
         </div>
-        <button type="button" onClick={onSelect} className="apg-btn-primary h-10 px-4 text-sm font-bold text-white">
-          Chọn cặp này
+        <button
+          type="button"
+          onClick={onSelect}
+          disabled={disabled}
+          className="apg-btn-primary h-10 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {disabled ? 'Đang hoàn tất dữ liệu' : 'Chọn cặp này'}
         </button>
       </div>
     </div>
@@ -1065,12 +1220,17 @@ export default function HomePage() {
   const [resultsGen, setResultsGen]   = useState(0);
   const [searchedRoute, setSearchedRoute] = useState<{from:string;to:string;tripType:'oneway'|'roundtrip'}|null>(null);
   const searchAbortRef = useRef<AbortController | null>(null);
+  const streamPairQueueRef = useRef<RoundtripPairOption[]>([]);
+  const streamPairTimerRef = useRef<number | null>(null);
+  const streamPairKeysRef = useRef<Set<string>>(new Set());
   const [error, setError]       = useState('');
   const [results, setResults]   = useState<FlightResult[]>([]);
   const [meta, setMeta]         = useState<SearchResponse['metadata']|null>(null);
   const [outboundResults, setOutboundResults] = useState<FlightResult[]>([]);
   const [inboundResults, setInboundResults]   = useState<FlightResult[]>([]);
   const [pairOptions, setPairOptions] = useState<RoundtripPairOption[]>([]);
+  const [pairDisplayLimit, setPairDisplayLimit] = useState(INITIAL_PAIR_DISPLAY_LIMIT);
+  const [streamState, setStreamState] = useState<StreamState>(EMPTY_STREAM_STATE);
   const [selectedOutbound, setSelectedOutbound] = useState<FlightResult|null>(null);
   const [selectedInbound, setSelectedInbound]   = useState<FlightResult|null>(null);
   const [selectedOneway, setSelectedOneway]     = useState<FlightResult|null>(null);
@@ -1258,6 +1418,55 @@ export default function HomePage() {
     return ()=>{ clearInterval(dot); clearInterval(hint); };
   }, [loading]);
 
+  function clearStreamPairQueue(resetKeys = false) {
+    streamPairQueueRef.current = [];
+    if (streamPairTimerRef.current !== null) {
+      window.clearInterval(streamPairTimerRef.current);
+      streamPairTimerRef.current = null;
+    }
+    if (resetKeys) streamPairKeysRef.current = new Set();
+  }
+
+  function flushQueuedStreamPairs() {
+    const batch = streamPairQueueRef.current.splice(0, STREAM_PAIR_BATCH_SIZE);
+    if (batch.length) {
+      setPairOptions((prev) => mergeRoundtripPairs(prev, batch));
+    }
+    if (!streamPairQueueRef.current.length && streamPairTimerRef.current !== null) {
+      window.clearInterval(streamPairTimerRef.current);
+      streamPairTimerRef.current = null;
+    }
+  }
+
+  function enqueueStreamPairs(pairs: RoundtripPairOption[]) {
+    if (!pairs.length) return;
+    const next = [...pairs].sort(comparePairsByPrice).filter((pair) => {
+      const key = pairDedupKey(pair);
+      if (streamPairKeysRef.current.has(key)) return false;
+      streamPairKeysRef.current.add(key);
+      return true;
+    });
+    if (!next.length) return;
+    streamPairQueueRef.current.push(...next);
+    flushQueuedStreamPairs();
+    if (streamPairQueueRef.current.length && streamPairTimerRef.current === null) {
+      streamPairTimerRef.current = window.setInterval(flushQueuedStreamPairs, STREAM_PAIR_FLUSH_MS);
+    }
+  }
+
+  useEffect(() => () => clearStreamPairQueue(true), []);
+
+  useEffect(() => {
+    if (!meta) return;
+    setMeta((prev) => prev ? {
+      ...prev,
+      totalResults: Math.max(Number(prev.totalResults || 0), pairOptions.length || results.length),
+      pairCount: Math.max(Number(prev.pairCount || 0), pairOptions.length),
+      loadedPairCount: pairOptions.length,
+      displayedPairCount: Math.min(pairOptions.length, pairDisplayLimit),
+    } : prev);
+  }, [pairOptions.length, pairDisplayLimit, results.length]);
+
   useEffect(() => {
     const desktopMedia = window.matchMedia('(min-width: 1024px)');
     const mobileMedia = window.matchMedia('(max-width: 767px)');
@@ -1286,7 +1495,7 @@ export default function HomePage() {
   function sortPairResults(arr: RoundtripPairOption[], mode:'price'|'time'='price') {
     const copy = [...arr];
     if (mode === 'time') copy.sort((a, b) => +new Date(a.outbound.departure.time) - +new Date(b.outbound.departure.time));
-    else copy.sort((a, b) => a.totalAmount - b.totalAmount);
+    else copy.sort(comparePairsByPrice);
     return copy;
   }
 
@@ -1337,7 +1546,7 @@ export default function HomePage() {
     if (!pairAnchorSignature) return null;
     return sourceScopedPairOptions.find((pair) => pairOutboundSignature(pair.outbound) === pairAnchorSignature)?.outbound || null;
   }, [sourceScopedPairOptions, pairAnchorSignature]);
-  const visiblePairOptions = useMemo(() => {
+  const displayablePairOptions = useMemo(() => {
     if (tripType !== 'roundtrip' || pairOptions.length === 0) return [];
     let filtered = sourceScopedPairOptions;
     if (pairAnchorSignature) {
@@ -1347,6 +1556,11 @@ export default function HomePage() {
     // Pair view neo theo chiều đi nên dùng sort của chiều đi.
     return sortPairResults(filtered, sortDepart);
   }, [tripType, pairOptions, sourceScopedPairOptions, pairAnchorSignature, sortDepart]);
+  const visiblePairOptions = useMemo(
+    () => displayablePairOptions.slice(0, pairDisplayLimit),
+    [displayablePairOptions, pairDisplayLimit]
+  );
+  const hasMorePairOptions = displayablePairOptions.length > visiblePairOptions.length;
   const visibleResultCount = useMemo(() => {
     if (tripType === 'oneway') return meta?.totalResults ?? results.length;
     if (roundtripViewMode === 'pair' && pairOptions.length > 0) return visiblePairOptions.length;
@@ -1354,6 +1568,17 @@ export default function HomePage() {
   }, [tripType, roundtripViewMode, pairOptions.length, visiblePairOptions.length, outboundResults.length, inboundResults.length, meta?.totalResults, results.length]);
   const totalPairCount = meta?.pairCount ?? pairOptions.length;
   const pairLoadedNotice = totalPairCount > pairOptions.length ? ` · tổng ${totalPairCount} cặp` : '';
+  const streamErrorCount = Object.keys(streamState.errors).length;
+  const streamProgressLabel = streamState.total > 0
+    ? `${Math.min(streamState.completed, streamState.total)}/${streamState.total} nguồn`
+    : 'đang kết nối nguồn';
+  const streamStatusLabel = streamState.active
+    ? `Đã có ${pairOptions.length} cặp · đang tải thêm (${streamProgressLabel})`
+    : streamState.timedOut
+      ? `Đã tải phần khả dụng · ${pairOptions.length} cặp`
+      : streamState.done && pairOptions.length > 0
+        ? `Đã tải xong ${pairOptions.length} cặp`
+        : '';
   const totalRoundtrip = useMemo(()=>(selectedOutbound?.fareBreakdown?.totalAmount??selectedOutbound?.price.amount??0)+(selectedInbound?.fareBreakdown?.totalAmount??selectedInbound?.price.amount??0),[selectedOutbound,selectedInbound]);
   const totalOneway = useMemo(()=>selectedOneway?.fareBreakdown?.totalAmount??selectedOneway?.price.amount??0,[selectedOneway]);
   const onewayDailyMinPrice = useMemo(() => minFlightPrice(results), [results]);
@@ -1387,6 +1612,10 @@ export default function HomePage() {
       setPairSourceFilter('all');
     }
   }, [pairSourceFilter, pairSources]);
+
+  useEffect(() => {
+    setPairDisplayLimit(INITIAL_PAIR_DISPLAY_LIMIT);
+  }, [pairSourceFilter, sortDepart, roundtripViewMode]);
 
   const applyPassengerCounts = (next: { adults: number; children: number; infants: number }) => {
     const normalized = normalizePassengerCounts(next);
@@ -1445,6 +1674,11 @@ export default function HomePage() {
   }
 
   function selectRoundtripPair(pair: RoundtripPairOption) {
+    if (!isBookablePair(pair)) {
+      setError('Cặp này đang hoàn tất dữ liệu đặt chỗ, vui lòng chọn cặp khác hoặc chờ thêm một chút.');
+      return;
+    }
+    setError('');
     setSelectedPairId(pair.id);
     setSelectedOutbound(pair.outbound);
     setSelectedInbound(pair.inbound);
@@ -1479,6 +1713,166 @@ export default function HomePage() {
     return j as SearchResponse;
   }
 
+  async function callSearchStream(payload: Record<string, unknown>, signal?: AbortSignal): Promise<boolean> {
+    const startedAt = Date.now();
+    let receivedAnyPayload = false;
+    let streamNotSupported = false;
+
+    const res = await fetch('/api/search/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal,
+    });
+
+    if (!res.ok || !res.body) {
+      setStreamState(EMPTY_STREAM_STATE);
+      return false;
+    }
+
+    setStreamState({ ...EMPTY_STREAM_STATE, active: true });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    const baseMeta = (): SearchResponse['metadata'] => ({
+      totalResults: 0,
+      departureCount: 0,
+      returnCount: 0,
+      pairCount: 0,
+      displayedResultCount: 0,
+      displayedDepartureCount: 0,
+      displayedReturnCount: 0,
+      displayedPairCount: 0,
+      loadedPairCount: 0,
+      journeyType: 'RT',
+      searchTime: Number(((Date.now() - startedAt) / 1000).toFixed(2)),
+      cached: false,
+      sourceUsed: 'namthanh',
+      engine: 'MuadiDirectStream',
+    });
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split('\n\n');
+      buffer = blocks.pop() ?? '';
+
+      for (const block of blocks) {
+        const eventLine = block.split('\n').find((line) => line.startsWith('event:'));
+        const dataLine = block.split('\n').find((line) => line.startsWith('data:'));
+        if (!dataLine) continue;
+
+        let event: {
+          type?: string;
+          airline?: string;
+          searchId?: string;
+          results?: FlightResult[];
+          departureResults?: FlightResult[];
+          returnResults?: FlightResult[];
+          pairOptions?: RoundtripPairOption[];
+          completedCount?: number;
+          totalCount?: number;
+          airlines?: string[];
+          error?: string;
+        };
+        try {
+          event = JSON.parse(dataLine.slice(5).trim());
+        } catch {
+          continue;
+        }
+
+        if (eventLine?.includes('error') || event.error) {
+          if (event.error === 'STREAM_NOT_SUPPORTED') {
+            streamNotSupported = true;
+            break;
+          }
+          if (receivedAnyPayload) {
+            setStreamState((prev) => ({ ...prev, active: false, done: true, timedOut: true }));
+            return true;
+          }
+          throw new Error(event.error || 'Lỗi streaming');
+        }
+
+        if (event.type === 'session') {
+          setStreamState((prev) => ({
+            ...prev,
+            active: true,
+            done: false,
+            completed: 0,
+            total: event.airlines?.length ?? 0,
+          }));
+          setMeta((prev) => prev || baseMeta());
+          continue;
+        }
+
+        if (event.type === 'airline_result') {
+          receivedAnyPayload = true;
+          const incomingResults = event.results || [];
+          const incomingDeparture = event.departureResults || [];
+          const incomingReturn = event.returnResults || [];
+          const incomingPairs = event.pairOptions || [];
+
+          setResults((prev) => mergeFlightsById(prev, incomingResults));
+          setOutboundResults((prev) => mergeFlightsById(prev, incomingDeparture));
+          setInboundResults((prev) => mergeFlightsById(prev, incomingReturn));
+          if (incomingPairs.length) {
+            setRoundtripViewMode('pair');
+            enqueueStreamPairs(incomingPairs);
+          }
+
+          setStreamState((prev) => ({
+            ...prev,
+            active: true,
+            done: false,
+            completed: event.completedCount ?? prev.completed,
+            total: event.totalCount ?? prev.total,
+          }));
+          setMeta((prev) => ({
+            ...(prev || baseMeta()),
+            searchTime: Number(((Date.now() - startedAt) / 1000).toFixed(2)),
+          }));
+          continue;
+        }
+
+        if (event.type === 'airline_error') {
+          setStreamState((prev) => ({
+            ...prev,
+            active: true,
+            completed: event.completedCount ?? prev.completed,
+            total: event.totalCount ?? prev.total,
+            errors: {
+              ...prev.errors,
+              [event.airline || `source-${Object.keys(prev.errors).length + 1}`]: event.error || 'Lỗi nguồn',
+            },
+          }));
+          continue;
+        }
+
+        if (event.type === 'done') {
+          setStreamState((prev) => ({
+            ...prev,
+            active: false,
+            done: true,
+            completed: event.completedCount ?? prev.completed,
+            total: event.totalCount ?? prev.total,
+          }));
+          return true;
+        }
+      }
+
+      if (streamNotSupported) {
+        setStreamState(EMPTY_STREAM_STATE);
+        return false;
+      }
+    }
+
+    setStreamState((prev) => ({ ...prev, active: false, done: true }));
+    return receivedAnyPayload;
+  }
+
   async function search(overrides: SearchDateOverrides = {}) {
     const searchDate = overrides.date ?? date;
     const searchReturnDate = overrides.returnDate ?? returnDate;
@@ -1493,11 +1887,17 @@ export default function HomePage() {
       // Stale-while-revalidate: KHÔNG clear list cũ, chỉ bật cờ reloading
       setIsReloading(true);
       setError('');
+      clearStreamPairQueue();
+      streamPairKeysRef.current = new Set(pairOptions.map(pairDedupKey));
+      setStreamState(EMPTY_STREAM_STATE);
     } else {
       setLoading(true);setError('');setResults([]);setMeta(null);
       setOutboundResults([]);setInboundResults([]);setPairOptions([]);
       setSelectedOutbound(null);setSelectedInbound(null);setSelectedOneway(null);setSelectedPairId('');setPairSourceFilter('all');setMobileRoundtripTab('outbound');
       setFilterOneway(emptyFilter);setFilterOutbound(emptyFilter);setFilterInbound(emptyFilter);
+      setPairDisplayLimit(INITIAL_PAIR_DISPLAY_LIMIT);
+      setStreamState(EMPTY_STREAM_STATE);
+      clearStreamPairQueue(true);
     }
     try {
       if (!fromCode || !toCode) throw new Error('Vui lòng chọn sân bay đi và sân bay đến hợp lệ.');
@@ -1506,46 +1906,52 @@ export default function HomePage() {
       if (infants > adults) throw new Error('Số em bé không được vượt quá số người lớn.');
       if (adults + children + infants > 9) throw new Error('Tổng số hành khách tối đa 9.');
       const base={adults,children,infants,cabin};
+      setSearchedRoute({ from: fromCode, to: toCode, tripType });
       if (tripType==='roundtrip') {
         const eff=searchReturnDate||toYmd(10);
         if (eff < searchDate) throw new Error('Ngày về phải từ ngày đi trở đi.');
-        const rt=await callSearch({...base,from:fromCode,to:toCode,date:searchDate,returnDate:eff,tripType:'roundtrip'}, controller.signal);
+        const searchPayload = {...base,from:fromCode,to:toCode,date:searchDate,returnDate:eff,tripType:'roundtrip'};
+        const streamed = await callSearchStream(searchPayload, controller.signal);
         if (controller.signal.aborted) return;
-        const hasRoundtripShape = Array.isArray(rt.departureResults) || Array.isArray(rt.returnResults) || Array.isArray(rt.pairOptions);
-        if (hasRoundtripShape) {
-          const departure = Array.isArray(rt.departureResults) ? rt.departureResults : rt.results || [];
-          const returns = Array.isArray(rt.returnResults) ? rt.returnResults : [];
-          const pairs = Array.isArray(rt.pairOptions) ? rt.pairOptions : [];
-          setOutboundResults(departure);
-          setInboundResults(returns);
-          setPairOptions(pairs);
-          setRoundtripViewMode(pairs.length > 0 ? 'pair' : 'legs');
-          if (!keepResults) setPairSourceFilter(preferredRoundtripPairSourceFilter(pairs));
-          setMeta(rt.metadata || null);
-          // Validate selection cũ còn tồn tại trong data mới
-          if (keepResults) {
-            setSelectedOutbound(prev => prev && departure.find(f => f.id === prev.id) ? prev : null);
-            setSelectedInbound(prev => prev && returns.find(f => f.id === prev.id) ? prev : null);
-            if (pairs.length === 0) setSelectedPairId('');
-          }
-        } else {
-          const go=await callSearch({...base,from:fromCode,to:toCode,date:searchDate,tripType:'oneway'}, controller.signal);
+        if (!streamed) {
+          const rt=await callSearch(searchPayload, controller.signal);
           if (controller.signal.aborted) return;
-          const back=await callSearch({...base,from:toCode,to:fromCode,date:eff,tripType:'oneway'}, controller.signal);
-          if (controller.signal.aborted) return;
-          const goResults = go.results||[];
-          const backResults = back.results||[];
-          setOutboundResults(goResults);setInboundResults(backResults);
-          setMeta({
-            totalResults: goResults.length + backResults.length,
-            departureCount: goResults.length,
-            returnCount: backResults.length,
-            searchTime: +(((go.metadata?.searchTime || 0) + (back.metadata?.searchTime || 0))).toFixed(1),
-          });
-          setRoundtripViewMode('legs');
-          if (keepResults) {
-            setSelectedOutbound(prev => prev && goResults.find(f => f.id === prev.id) ? prev : null);
-            setSelectedInbound(prev => prev && backResults.find(f => f.id === prev.id) ? prev : null);
+          const hasRoundtripShape = Array.isArray(rt.departureResults) || Array.isArray(rt.returnResults) || Array.isArray(rt.pairOptions);
+          if (hasRoundtripShape) {
+            const departure = Array.isArray(rt.departureResults) ? rt.departureResults : rt.results || [];
+            const returns = Array.isArray(rt.returnResults) ? rt.returnResults : [];
+            const pairs = Array.isArray(rt.pairOptions) ? rt.pairOptions : [];
+            setOutboundResults(departure);
+            setInboundResults(returns);
+            setPairOptions(mergeRoundtripPairs([], pairs));
+            setRoundtripViewMode(pairs.length > 0 ? 'pair' : 'legs');
+            if (!keepResults) setPairSourceFilter(preferredRoundtripPairSourceFilter(pairs));
+            setMeta(rt.metadata || null);
+            // Validate selection cũ còn tồn tại trong data mới
+            if (keepResults) {
+              setSelectedOutbound(prev => prev && departure.find(f => f.id === prev.id) ? prev : null);
+              setSelectedInbound(prev => prev && returns.find(f => f.id === prev.id) ? prev : null);
+              if (pairs.length === 0) setSelectedPairId('');
+            }
+          } else {
+            const go=await callSearch({...base,from:fromCode,to:toCode,date:searchDate,tripType:'oneway'}, controller.signal);
+            if (controller.signal.aborted) return;
+            const back=await callSearch({...base,from:toCode,to:fromCode,date:eff,tripType:'oneway'}, controller.signal);
+            if (controller.signal.aborted) return;
+            const goResults = go.results||[];
+            const backResults = back.results||[];
+            setOutboundResults(goResults);setInboundResults(backResults);
+            setMeta({
+              totalResults: goResults.length + backResults.length,
+              departureCount: goResults.length,
+              returnCount: backResults.length,
+              searchTime: +(((go.metadata?.searchTime || 0) + (back.metadata?.searchTime || 0))).toFixed(1),
+            });
+            setRoundtripViewMode('legs');
+            if (keepResults) {
+              setSelectedOutbound(prev => prev && goResults.find(f => f.id === prev.id) ? prev : null);
+              setSelectedInbound(prev => prev && backResults.find(f => f.id === prev.id) ? prev : null);
+            }
           }
         }
       } else {
@@ -1923,44 +2329,86 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Passengers + Cabin + Search */}
-          <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-1.5 lg:grid-cols-[140px_180px_180px_auto] lg:gap-3">
-            <div>
-              <label className="apg-field-label mb-0.5">NL</label>
-              <input className="apg-field apg-tabular px-2 text-center text-sm" type="number" min={1} max={9} value={adults} onChange={e=>applyPassengerCounts({ adults: Number(e.target.value || 1), children, infants })}/>
-            </div>
-            <div>
-              <label className="apg-field-label mb-0.5">TE + EB</label>
-              <div className="grid h-[44px] grid-cols-2 gap-1 rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] p-1 lg:h-12">
-                <input className="h-full w-full rounded-[var(--apg-radius-sm)] border border-[var(--apg-border-default)] bg-white px-1 py-1.5 text-center text-sm text-[var(--apg-text-primary)] focus:outline-none focus:ring-2 focus:ring-[rgba(94,114,136,0.12)]" type="number" min={0} max={9} value={children} onChange={e=>applyPassengerCounts({ adults, children: Number(e.target.value || 0), infants })} placeholder="TE"/>
-                <input className="h-full w-full rounded-[var(--apg-radius-sm)] border border-[var(--apg-border-default)] bg-white px-1 py-1.5 text-center text-sm text-[var(--apg-text-primary)] focus:outline-none focus:ring-2 focus:ring-[rgba(94,114,136,0.12)]" type="number" min={0} max={4} value={infants} onChange={e=>applyPassengerCounts({ adults, children, infants: Number(e.target.value || 0) })} placeholder="EB"/>
+          {/* Passengers + Cabin — 4 columns in one row */}
+          <div className="grid grid-cols-4 divide-x divide-[var(--apg-border-default)] overflow-hidden rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)]">
+            {([
+              { key: 'adults',   label: 'Người lớn', sub: '12 tuổi+',      icon: <Users size={15} strokeWidth={2.3}/>, val: adults,   decDisabled: adults <= 1,   incDisabled: adults + children + infants >= 9,                               onDec: ()=>applyPassengerCounts({adults:adults-1,children,infants}),   onInc: ()=>applyPassengerCounts({adults:adults+1,children,infants}) },
+              { key: 'children', label: 'Trẻ em',    sub: '2–11 tuổi',     icon: null,                                 val: children, decDisabled: children <= 0, incDisabled: adults + children + infants >= 9,                               onDec: ()=>applyPassengerCounts({adults,children:children-1,infants}), onInc: ()=>applyPassengerCounts({adults,children:children+1,infants}) },
+              { key: 'infants',  label: 'Em bé',     sub: 'Dưới 2 tuổi',   icon: null,                                 val: infants,  decDisabled: infants <= 0,  incDisabled: infants >= adults || infants >= 4 || adults+children+infants >= 9, onDec: ()=>applyPassengerCounts({adults,children,infants:infants-1}), onInc: ()=>applyPassengerCounts({adults,children,infants:infants+1}) },
+            ] as const).map(({ key, label, sub, icon, val, decDisabled, incDisabled, onDec, onInc }) => (
+              <div key={key} className="flex items-center justify-between px-3 py-2.5">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    {icon && <span className="text-[var(--apg-text-muted)]">{icon}</span>}
+                    <span className="text-[13px] font-semibold text-slate-700">{label}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-400">{sub}</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <button aria-label="Giảm" type="button" disabled={decDisabled} onClick={onDec}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--apg-text-secondary)] transition disabled:text-slate-300 hover:bg-slate-100">
+                    <Minus size={14} strokeWidth={2.3}/>
+                  </button>
+                  <span className={`apg-tabular w-6 text-center text-base font-black ${val > 0 ? 'text-[var(--apg-aviation-navy)]' : 'text-slate-300'}`}>{val}</span>
+                  <button aria-label="Tăng" type="button" disabled={incDisabled} onClick={onInc}
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--apg-text-secondary)] transition disabled:text-slate-300 hover:bg-slate-100">
+                    <Plus size={14} strokeWidth={2.3}/>
+                  </button>
+                </div>
               </div>
-            </div>
-            <div>
-              <label className="apg-field-label mb-0.5">Hạng</label>
-              <select className="apg-field px-3 text-sm" value={cabin} onChange={e=>setCabin(e.target.value as Cabin)}>
-                <option value="economy">PT</option>
-                <option value="premium">PT+</option>
-                <option value="business">TG</option>
-                <option value="first">HN</option>
+            ))}
+            {/* Hạng vé — cột thứ 4 */}
+            <div className="flex items-center justify-between px-3 py-2.5">
+              <div className="min-w-0">
+                <div className="text-[13px] font-semibold text-slate-700">Hạng vé</div>
+                <div className="text-[11px] text-slate-400">Cabin class</div>
+              </div>
+              <select
+                className="rounded-[var(--apg-radius-sm)] border border-[var(--apg-border-default)] bg-white px-2 py-1 text-[12px] font-bold text-[var(--apg-aviation-navy)] focus:outline-none focus:ring-2 focus:ring-[rgba(94,114,136,0.15)]"
+                value={cabin}
+                onChange={e=>setCabin(e.target.value as Cabin)}
+              >
+                <option value="economy">Phổ thông</option>
+                <option value="premium">PT đặc biệt</option>
+                <option value="business">Thương gia</option>
+                <option value="first">Hạng nhất</option>
               </select>
-            </div>
-            <div className="flex items-end">
-              <button className="apg-btn-primary h-[44px] w-full text-base font-extrabold shadow-sm lg:h-12"
-                style={{minWidth:'96px'}} onClick={() => search()} disabled={loading||isReloading}>
-                {loading||isReloading?'Đang tìm':'Tìm vé'}
-              </button>
             </div>
           </div>
 
-          {/* Quick routes */}
-          <div className="mt-2 flex flex-wrap gap-1">
-            {quickRoutes.map(({ from, to })=>(
-              <button key={`${from.code}-${to.code}`} onClick={()=>{setFromSel(from);setToSel(to);}}
-                className="apg-chip h-7 gap-1 px-2.5 text-[10px]">
-                {from.code}-{to.code}
-              </button>
-            ))}
+          {/* Quick routes + Tìm vé — căn đúng 4 cột với hàng trên */}
+          <div className="mt-2 grid grid-cols-4">
+            <div className="col-span-3 flex flex-wrap items-center gap-1 pr-3">
+              {quickRoutes.map(({ from, to })=>(
+                <button key={`${from.code}-${to.code}`} type="button" onClick={()=>{setFromSel(from);setToSel(to);}}
+                  className="apg-chip h-7 gap-1 px-2.5 text-[10px]">
+                  {from.code}-{to.code}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              aria-label={`Tìm chuyến bay từ ${fromSel?.code ?? ''} đến ${toSel?.code ?? ''} ngày ${date}`}
+              disabled={loading || isReloading}
+              onClick={() => search()}
+              className="col-span-1 flex w-full items-center justify-center gap-2 rounded-[var(--apg-radius-md)] py-2 text-sm font-extrabold text-white shadow-[0_6px_18px_rgba(31,95,68,0.32)] transition hover:brightness-110 active:scale-[0.98] disabled:opacity-70"
+              style={{ background: 'linear-gradient(135deg, #1f5f44, var(--apg-success) 55%, #3a9067)' }}
+            >
+              {loading || isReloading ? (
+                <>
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
+                  </svg>
+                  Đang tìm chuyến bay...
+                </>
+              ) : (
+                <>
+                  <Plane size={15} strokeWidth={2.3} aria-hidden="true" />
+                  Tìm chuyến bay
+                </>
+              )}
+            </button>
           </div>
           </div>
 
@@ -2141,6 +2589,22 @@ export default function HomePage() {
                       onChange={setPairSourceFilter}
                     />
                   </div>
+                  {routeMatchesResults && streamStatusLabel && (
+                    <div className="mt-3 rounded-xl border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--apg-text-secondary)]">
+                        <span className="font-semibold text-[var(--apg-aviation-navy)]">{streamStatusLabel}</span>
+                        {streamErrorCount > 0 && <span>{streamErrorCount} nguồn lỗi</span>}
+                      </div>
+                      {streamState.active && streamState.total > 0 && (
+                        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
+                          <div
+                            className="h-full rounded-full bg-[var(--apg-aviation-navy)] transition-all duration-300"
+                            style={{ width: `${Math.max(6, Math.min(100, Math.round((streamState.completed / streamState.total) * 100)))}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {isReloading && <div className="apg-reload-bar" aria-hidden="true" />}
@@ -2152,6 +2616,7 @@ export default function HomePage() {
                     <div key={`${resultsGen}-${pair.id}`} className="apg-row-in" style={{animationDelay:`${Math.min(i,8)*35}ms`}}>
                       <RoundtripPairCard
                         pair={pair}
+                        disabled={!isBookablePair(pair)}
                         selected={selectedPairId === pair.id}
                         onSelect={() => selectRoundtripPair(pair)}
                       />
@@ -2159,6 +2624,17 @@ export default function HomePage() {
                   )) : (
                     <div className="rounded-2xl border border-[var(--apg-border-default)] bg-white px-6 py-10 text-center text-sm text-slate-500 shadow-sm">
                       Không có cặp khứ hồi phù hợp với bộ lọc nguồn hiện tại.
+                    </div>
+                  )}
+                  {routeMatchesResults && hasMorePairOptions && (
+                    <div className="flex justify-center">
+                      <button
+                        type="button"
+                        className="apg-btn-secondary h-11 px-5 text-sm font-bold"
+                        onClick={() => setPairDisplayLimit((value) => value + PAIR_LOAD_MORE_STEP)}
+                      >
+                        Tải thêm {Math.min(PAIR_LOAD_MORE_STEP, displayablePairOptions.length - visiblePairOptions.length)} cặp
+                      </button>
                     </div>
                   )}
                 </div>

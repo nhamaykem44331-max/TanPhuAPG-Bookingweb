@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import {
   normalizeFlight,
+  normalizePairOption,
   streamNamThanhSearch,
   NamThanhApiError,
 } from '@/lib/namthanh';
@@ -87,7 +88,7 @@ export async function POST(req: NextRequest) {
           Promise.resolve(getCachedVndUsdRate()),
         ]);
 
-        const searchId = `stream_${Date.now()}`;
+        const fallbackSearchId = `stream_${Date.now()}`;
 
         for await (const event of streamNamThanhSearch(body)) {
           if (event.type === 'session') {
@@ -96,6 +97,7 @@ export async function POST(req: NextRequest) {
           }
 
           if (event.type === 'airline_result') {
+            const searchId = event.searchId || fallbackSearchId;
             // Normalize then apply markup per-airline chunk
             const rawResults = (event.results ?? []).map((f: FlightResult) =>
               normalizeFlight(f, searchId, exchangeRate),
@@ -106,19 +108,27 @@ export async function POST(req: NextRequest) {
             const rawReturn = (event.returnResults ?? []).map((f: FlightResult) =>
               normalizeFlight(f, searchId, exchangeRate),
             );
+            const rawPairs = (event.pairOptions ?? []).map((pair: RoundtripPairOption) =>
+              normalizePairOption(pair, searchId, exchangeRate),
+            );
 
-            const [results, departureResults, returnResults] = await Promise.all([
+            const [results, departureResults, returnResults, pairOptions] = await Promise.all([
               applyMarkupToFlights(rawResults, ctx, tripType, exchangeRate),
               applyMarkupToFlights(rawDeparture, ctx, tripType, exchangeRate),
               applyMarkupToFlights(rawReturn, ctx, tripType, exchangeRate),
+              applyMarkupToPairs(rawPairs, ctx, exchangeRate),
             ]);
 
             push({
               type: 'airline_result',
               airline: event.airline,
+              searchId,
               results: results.filter((f) => f.price.amount > 0),
               departureResults: departureResults.filter((f) => f.price.amount > 0),
               returnResults: returnResults.filter((f) => f.price.amount > 0),
+              pairOptions: pairOptions
+                .filter((pair) => pair.totalAmount > 0)
+                .sort((a, b) => a.totalAmount - b.totalAmount),
               completedCount: event.completedCount,
               totalCount: event.totalCount,
             });

@@ -1,5 +1,10 @@
 import type { Prisma } from "@prisma/client";
-import { BankTransactionStatus, NotificationJobStatus, PaymentIntentStatus } from "@prisma/client";
+import {
+  BankTransactionStatus,
+  NotificationJobStatus,
+  PaymentIntentProvider,
+  PaymentIntentStatus,
+} from "@prisma/client";
 import { z } from "zod";
 
 import type { OwnershipContext } from "@/lib/auth/ownership";
@@ -9,6 +14,7 @@ import { prisma } from "@/lib/db";
 export const adminPaymentOpsQuerySchema = z.object({
   pnr: z.string().trim().optional(),
   scope: z.enum(["manual_review", "active", "matched", "all"]).default("manual_review"),
+  provider: z.enum(["all", "PAYOS", "SEPAY"]).default("all"),
   limit: z.coerce.number().int().min(1).max(100).default(25),
   offset: z.coerce.number().int().min(0).default(0),
 });
@@ -28,12 +34,14 @@ export interface AdminPaymentOpsIntent {
   orderCode: string;
   pnr: string | null;
   customerName: string | null;
+  provider: string;
   status: string;
   amount: number;
   currency: string;
   providerOrderCode: string;
   paymentLinkId: string | null;
   checkoutUrl: string | null;
+  qrCode: string | null;
   expiresAt: string | null;
   createdAt: string;
   createdByEmail: string | null;
@@ -47,6 +55,7 @@ export interface AdminPaymentOpsTransaction {
   orderCode: string | null;
   pnr: string | null;
   customerName: string | null;
+  provider: string;
   status: string;
   amount: number;
   currency: string;
@@ -97,8 +106,16 @@ function buildIntentWhere(
         ? PaymentIntentStatus.MANUAL_REVIEW
         : undefined;
 
+  const providerFilter =
+    query.provider === "PAYOS"
+      ? PaymentIntentProvider.PAYOS
+      : query.provider === "SEPAY"
+        ? PaymentIntentProvider.SEPAY
+        : undefined;
+
   return {
     ...(statusFilter ? { status: statusFilter } : {}),
+    ...(providerFilter ? { provider: providerFilter } : {}),
     booking: bookingWhere,
   };
 }
@@ -114,8 +131,16 @@ function buildTransactionWhere(
         ? BankTransactionStatus.MANUAL_REVIEW
         : undefined;
 
+  const providerFilter =
+    query.provider === "PAYOS"
+      ? PaymentIntentProvider.PAYOS
+      : query.provider === "SEPAY"
+        ? PaymentIntentProvider.SEPAY
+        : undefined;
+
   return {
     ...(statusFilter ? { status: statusFilter } : {}),
+    ...(providerFilter ? { provider: providerFilter } : {}),
     paymentIntent: {
       is: {
         booking: bookingWhere,
@@ -247,12 +272,14 @@ export async function listAdminPaymentOps(
       orderCode: intent.booking.orderCode,
       pnr: intent.booking.pnr,
       customerName: intent.booking.customer?.fullName ?? null,
+      provider: intent.provider,
       status: intent.status,
       amount: intent.amount,
       currency: intent.currency,
       providerOrderCode: intent.providerOrderCode,
       paymentLinkId: intent.paymentLinkId,
       checkoutUrl: intent.checkoutUrl,
+      qrCode: intent.qrCode,
       expiresAt: intent.expiresAt?.toISOString() ?? null,
       createdAt: intent.createdAt.toISOString(),
       createdByEmail: intent.createdBy?.email ?? null,
@@ -265,6 +292,7 @@ export async function listAdminPaymentOps(
       orderCode: transaction.paymentIntent?.booking.orderCode ?? null,
       pnr: transaction.paymentIntent?.booking.pnr ?? null,
       customerName: transaction.paymentIntent?.booking.customer?.fullName ?? null,
+      provider: transaction.provider,
       status: transaction.status,
       amount: transaction.amount,
       currency: transaction.currency,
