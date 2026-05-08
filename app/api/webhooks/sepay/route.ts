@@ -66,35 +66,39 @@ export async function POST(request: Request) {
   try {
     const result = await handleSepayWebhook(payload);
 
-    const baseContext = {
-      bookingId: result.bookingId ?? null,
-      orderCode: result.orderCode ?? null,
-      pnr: result.pnr ?? null,
-      reason: result.reason ?? null,
-      sepayTxnId: payload.id,
-      bankTransactionId: result.bankTransaction?.id ?? null,
-      paymentIntentId: result.paymentIntent?.id ?? null,
-      paymentId: result.payment?.id ?? null,
-      transferredAmount: result.transferredAmount ?? null,
-      remainingAmount: result.remainingAmount ?? null,
-    };
-
     if (result.kind === "matched") {
-      void notify({
-        type: "INTERNAL_ALERT",
-        severity: result.remainingAmount && result.remainingAmount > 0 ? "warn" : "info",
-        message:
-          result.remainingAmount && result.remainingAmount > 0
-            ? `SePay ghi nhận thanh toán một phần cho ${result.orderCode ?? result.pnr ?? result.bookingId ?? "booking"}`
-            : `SePay đã match thanh toán cho ${result.orderCode ?? result.pnr ?? result.bookingId ?? "booking"}`,
-        context: baseContext,
-      });
+      if (result.bookingId && !(result.remainingAmount && result.remainingAmount > 0)) {
+        void notify({
+          type: "SEPAY_PAYMENT_MATCHED",
+          bookingId: result.bookingId,
+          paymentIntentId: result.paymentIntent?.id ?? null,
+          paymentId: result.payment?.id ?? null,
+          bankTransactionId: result.bankTransaction?.id ?? null,
+          transferredAmount: result.transferredAmount ?? null,
+          remainingAmount: result.remainingAmount ?? null,
+        });
+      } else {
+        void notify({
+          type: "SEPAY_PAYMENT_REVIEW",
+          bookingId: result.bookingId ?? null,
+          paymentIntentId: result.paymentIntent?.id ?? null,
+          paymentId: result.payment?.id ?? null,
+          bankTransactionId: result.bankTransaction?.id ?? null,
+          reason: result.reason ?? "PARTIAL_PAYMENT",
+          transferredAmount: result.transferredAmount ?? null,
+          remainingAmount: result.remainingAmount ?? null,
+        });
+      }
     } else if (result.kind === "manual_review") {
       void notify({
-        type: "INTERNAL_ALERT",
-        severity: "warn",
-        message: `SePay cần manual review cho ${result.orderCode ?? result.pnr ?? result.bookingId ?? "giao dịch chưa rõ booking"} (${result.reason ?? "unknown"})`,
-        context: baseContext,
+        type: "SEPAY_PAYMENT_REVIEW",
+        bookingId: result.bookingId ?? null,
+        paymentIntentId: result.paymentIntent?.id ?? null,
+        paymentId: result.payment?.id ?? null,
+        bankTransactionId: result.bankTransaction?.id ?? null,
+        reason: result.reason ?? null,
+        transferredAmount: result.transferredAmount ?? null,
+        remainingAmount: result.remainingAmount ?? null,
       });
     }
 

@@ -78,8 +78,52 @@ function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
-function buildSepayDescription(orderCode: string): string {
-  return `APG${orderCode}`;
+function normalizePnrCode(value: string | null | undefined): string | null {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+
+  if (!normalized || normalized.startsWith("PENDING")) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function uniquePnrCodes(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    const normalized = normalizePnrCode(value);
+
+    if (normalized && !seen.has(normalized)) {
+      seen.add(normalized);
+      result.push(normalized);
+    }
+  }
+
+  return result;
+}
+
+function buildSepayDescription(orderCode: string, pnrCodes: string[] = []): string {
+  const base = `APG${orderCode}`;
+  const parts = [base];
+
+  for (const pnr of pnrCodes) {
+    const candidate = [...parts, pnr].join(" ");
+
+    // Bank transfer descriptions are often truncated by banking apps.
+    // Keep APG<code> first for matching, then include as many PNRs as fit.
+    if (candidate.length > 70) {
+      break;
+    }
+
+    parts.push(pnr);
+  }
+
+  return parts.join(" ");
 }
 
 function mapIntentStatus(decision: "PAID" | "PARTIAL" | "MANUAL_REVIEW"): PaymentIntentStatus {
@@ -189,6 +233,10 @@ export async function createSepayIntentForBooking(
     where: { id: bookingId },
     include: {
       customer: true,
+      pnrs: {
+        orderBy: { createdAt: "asc" },
+        select: { pnr: true },
+      },
       payments: { select: { amount: true, status: true } },
       paymentIntents: {
         where: {
@@ -212,6 +260,7 @@ export async function createSepayIntentForBooking(
   }
 
   const summary = calculatePaymentSummary(booking.payments, booking.saleAmount);
+  const pnrCodes = uniquePnrCodes([booking.pnr, ...booking.pnrs.map((pnr) => pnr.pnr)]);
 
   if (summary.balance <= 0) {
     throw new SepayError(422, "NO_BALANCE_DUE", "Booking đã đủ tiền, không cần tạo QR thanh toán.");
@@ -221,6 +270,28 @@ export async function createSepayIntentForBooking(
   const reusable = active.find((intent) => isReusablePaymentIntent(intent, summary.balance));
 
   if (reusable) {
+    const expectedDescription = buildSepayDescription(reusable.providerOrderCode, pnrCodes);
+
+    if (reusable.transferContent !== expectedDescription) {
+      const qr = buildSepayQrUrl({
+        transferContent: expectedDescription,
+        amount: reusable.amount,
+      });
+      const updatedReusable = await prisma.paymentIntent.update({
+        where: { id: reusable.id },
+        data: {
+          description: expectedDescription,
+          transferContent: expectedDescription,
+          qrCode: qr.qrUrl,
+          accountNumber: qr.accountNumber,
+          accountName: qr.accountName,
+          bin: qr.bankCode,
+        },
+      });
+
+      return { intent: updatedReusable, reused: true };
+    }
+
     return { intent: reusable, reused: true };
   }
 
@@ -235,7 +306,7 @@ export async function createSepayIntentForBooking(
   }
 
   const providerOrderCode = await generateProviderOrderCode();
-  const description = buildSepayDescription(providerOrderCode);
+  const description = buildSepayDescription(providerOrderCode, pnrCodes);
   const expiresAt = booking.ttlExpiresAt ?? null;
 
   const qr = buildSepayQrUrl({
@@ -260,7 +331,12 @@ export async function createSepayIntentForBooking(
         expiresAt,
         createdById: actorId,
         status: PaymentIntentStatus.PENDING,
-        rawJson: toJsonValue({ qrTemplate: process.env.SEPAY_QR_TEMPLATE || "compact" }),
+        rawJson: toJsonValue({
+          qrTemplate: process.env.SEPAY_QR_TEMPLATE || "compact",
+          orderCode: booking.orderCode,
+          pnrs: pnrCodes,
+          transferContentVersion: 2,
+        }),
       },
     });
 

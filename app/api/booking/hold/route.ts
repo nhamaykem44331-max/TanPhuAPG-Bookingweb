@@ -11,7 +11,7 @@ import { generateUniqueOrderCode } from "@/lib/bookings/orderManagement";
 import { holdInputSchema } from "@/lib/bookings/schemas";
 import { holdNamThanhBooking, NamThanhApiError } from "@/lib/namthanh";
 import { notify } from "@/lib/notifications";
-import { createPaymentIntentForBooking, PaymentIntentError } from "@/lib/payments/paymentIntentService";
+import { createSepayIntentForBooking, SepayError } from "@/lib/payments/sepayService";
 import { QuoteExpiredError, QuoteUnavailableError } from "@/lib/pricing/errors";
 import { quoteBooking, type QuoteServiceResult } from "@/lib/pricing/quoteService";
 import type { FlightResult, HoldBookingPassenger, HoldBookingResponse } from "@/lib/types";
@@ -908,45 +908,33 @@ export async function POST(request: NextRequest) {
       return createdBooking;
     });
 
-    let paymentIntentResult: Awaited<ReturnType<typeof createPaymentIntentForBooking>> | null = null;
+    let paymentIntentResult: Awaited<ReturnType<typeof createSepayIntentForBooking>> | null = null;
 
     try {
-      paymentIntentResult = await createPaymentIntentForBooking(booking.id, actorId);
+      paymentIntentResult = await createSepayIntentForBooking(booking.id, actorId);
     } catch (error) {
-      if (error instanceof PaymentIntentError) {
-        console.error("create payment intent after hold failed", {
+      if (error instanceof SepayError) {
+        console.error("create sepay intent after hold failed", {
           bookingId: booking.id,
           code: error.code,
           message: error.message,
         });
       } else {
-        console.error("create payment intent after hold failed", error);
+        console.error("create sepay intent after hold failed", error);
       }
     }
 
     if (paymentIntentResult?.intent) {
       void notify({
-        type: "INTERNAL_ALERT",
-        severity: "info",
-        message: `Hold thành công và đã tạo QR payOS cho ${firstActualPnr ?? booking.id}`,
-        context: {
-          bookingId: booking.id,
-          pnr: firstActualPnr,
-          paymentIntentId: paymentIntentResult.intent.id,
-          amount: paymentIntentResult.intent.amount,
-          reused: paymentIntentResult.reused,
-        },
+        type: "BOOKING_HOLD_CREATED",
+        bookingId: booking.id,
+        paymentIntentId: paymentIntentResult.intent.id,
+        reused: paymentIntentResult.reused,
       });
     } else {
-      void notify({ type: "BOOKING_HOLD", bookingId: booking.id });
       void notify({
-        type: "INTERNAL_ALERT",
-        severity: "warn",
-        message: `Hold thành công nhưng chưa tạo được QR payOS cho ${firstActualPnr ?? booking.id}`,
-        context: {
-          bookingId: booking.id,
-          pnr: firstActualPnr,
-        },
+        type: "BOOKING_HOLD_CREATED",
+        bookingId: booking.id,
       });
     }
 
@@ -972,7 +960,9 @@ export async function POST(request: NextRequest) {
             status: paymentIntentResult.intent.status,
             amount: paymentIntentResult.intent.amount,
             checkoutUrl: paymentIntentResult.intent.checkoutUrl,
+            qrCode: paymentIntentResult.intent.qrCode,
             transferContent: paymentIntentResult.intent.transferContent,
+            provider: paymentIntentResult.intent.provider,
             expiresAt: paymentIntentResult.intent.expiresAt?.toISOString() ?? null,
             reused: paymentIntentResult.reused,
           }
