@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "test": "tsx --test \"lib/**/*.test.ts\" \"app/**/*.test.ts\" \"components/**/*.test.tsx\"",
     "test:ci": "npm run test",
