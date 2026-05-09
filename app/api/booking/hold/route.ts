@@ -61,6 +61,71 @@ function cleanKey(value: string): string {
     .toUpperCase();
 }
 
+type SelectedBaggageService = NonNullable<HoldPassengerInput["listLuggage"]>[number];
+type HoldFlightSelection = HoldInput["outbound"];
+
+function cleanRouteCode(value: unknown): string {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+}
+
+function cleanAirlineCode(value: unknown): string {
+  return String(value || "")
+    .trim()
+    .toUpperCase();
+}
+
+function routeCodesFromFlight(flight?: HoldFlightSelection): Set<string> {
+  const routes = new Set<string>();
+
+  if (!flight) {
+    return routes;
+  }
+
+  const direct = cleanRouteCode(`${flight.departure?.airport || ""}${flight.arrival?.airport || ""}`);
+  if (direct) {
+    routes.add(direct);
+  }
+
+  return routes;
+}
+
+function baggageMatchesFlight(item: SelectedBaggageService, flight?: HoldFlightSelection): boolean {
+  if (!flight) {
+    return false;
+  }
+
+  const itemAirline = cleanAirlineCode(item.airline);
+  const flightAirline = cleanAirlineCode(flight.airlineCode);
+
+  if (itemAirline && flightAirline && itemAirline !== flightAirline) {
+    return false;
+  }
+
+  const itemRoute = cleanRouteCode(item.route);
+  const flightRoutes = routeCodesFromFlight(flight);
+
+  if (!itemRoute || flightRoutes.size === 0) {
+    return true;
+  }
+
+  return flightRoutes.has(itemRoute);
+}
+
+function baggageMatchesItinerary(item: SelectedBaggageService, input: Pick<HoldInput, "outbound" | "inbound">): boolean {
+  return [input.outbound, input.inbound].some((flight) => baggageMatchesFlight(item, flight));
+}
+
+function calculateValidatedBaggageTotal(input: HoldInput): number {
+  return input.passengers.reduce((sum, passenger) => {
+    const items = Array.isArray(passenger.listLuggage) ? passenger.listLuggage : [];
+    return sum + items
+      .filter((item) => baggageMatchesItinerary(item, input))
+      .reduce((itemSum, item) => itemSum + Number(item?.price ?? 0), 0);
+  }, 0);
+}
+
 function stableHash(value: string): string {
   let hash = 5381;
 
@@ -557,6 +622,20 @@ function quoteErrorResponse(error: unknown): NextResponse | null {
   if (error instanceof NamThanhApiError) {
     const text = `${error.message} ${JSON.stringify(error.details ?? {})}`.toLowerCase();
     const details = recordOf(error.details);
+    const retryable =
+      error.status === 408 ||
+      error.status === 429 ||
+      error.status >= 500 ||
+      text.includes("timeout") ||
+      text.includes("time out") ||
+      text.includes("upstream");
+
+    console.error("[booking/hold] Nam Thanh upstream error", {
+      status: error.status,
+      message: error.message,
+      retryable,
+      details: error.details,
+    });
 
     // Trường hợp PNR mồ côi (split roundtrip: outbound thành công, inbound fail)
     // → Phải forward orphanPnrs về frontend để user thấy mã đặt chỗ đã tạo
@@ -589,6 +668,8 @@ function quoteErrorResponse(error: unknown): NextResponse | null {
       {
         error: "UPSTREAM_UNAVAILABLE",
         detail: error.message,
+        upstreamStatus: error.status,
+        retryable,
       },
       { status: 502 },
     );
@@ -723,11 +804,9 @@ export async function POST(request: NextRequest) {
     const quote = await quoteBooking(input, channel);
     const priceDelta = toPriceDeltaPayload(comparePrices(input.displayedNetPrice, quote.totalNetPrice));
     const markupRuleApplied = firstMarkupRule(quote);
-    // Phụ phí hành lý ký gửi: pass-through (không markup), cộng vào net & sale + mọi totalAmount trả về.
-    const baggageTotal = input.passengers.reduce((sum, passenger) => {
-      const items = Array.isArray(passenger.listLuggage) ? passenger.listLuggage : [];
-      return sum + items.reduce((s, item) => s + Number(item?.price ?? 0), 0);
-    }, 0);
+    // Phụ phí hành lý ký gửi: pass-through (không markup).
+    // Chỉ tính các gói khớp route/airline của itinerary để tránh charge nhầm ancillary của hãng khác.
+    const baggageTotal = calculateValidatedBaggageTotal(input);
 
     if (input.dryRun) {
       return NextResponse.json({
@@ -1005,6 +1084,7 @@ export async function POST(request: NextRequest) {
     }
 
     const message = error instanceof Error ? error.message : String(error);
+    console.error("[booking/hold] unexpected error", error);
 
     return NextResponse.json(
       {

@@ -181,7 +181,10 @@ function holdErrorText(data: unknown) {
   const nestedErrors = recordOf(nested.errors);
   const detailErrors = recordOf(details.errors);
   const bodyErrors = recordOf(body.errors);
-  const topMessage = normalizeMessageText(body.error);
+  const errorCode = normalizeMessageText(body.error);
+  const topMessage = errorCode === 'UPSTREAM_UNAVAILABLE'
+    ? 'Chưa giữ được chỗ do hệ thống hãng/Nam Thanh phản hồi không ổn định'
+    : errorCode;
   const fieldErrors = fieldErrorsText(body.fieldErrors);
   const flatErrors = [nestedErrors, detailErrors, bodyErrors]
     .flatMap((source) => Object.entries(source))
@@ -189,6 +192,7 @@ function holdErrorText(data: unknown) {
     .filter(Boolean);
   const parts = uniqueMessageParts([
     topMessage,
+    normalizeMessageText(body.detail),
     nested.code ? `code ${String(nested.code)}` : '',
     normalizeMessageText(nested.message).toLowerCase() !== topMessage.toLowerCase()
       ? normalizeMessageText(nested.message)
@@ -675,13 +679,19 @@ export default function HoldBookingModal({
     index: number,
     routeCode: string,
     segmentId: number,
+    airlineCode: string | undefined,
     selectedKey: string,
     available: BookingAncillaryService[]
   ) => {
+    const normalizedAirline = compactUpper(airlineCode || '');
     setPassengers((prev) => prev.map((item, i) => {
       if (i !== index) return item;
       const kept = item.listLuggage.filter(
-        (luggage) => !(luggage.route === routeCode && Number(luggage.segmentId || 0) === segmentId)
+        (luggage) => !(
+          luggage.route === routeCode &&
+          Number(luggage.segmentId || 0) === segmentId &&
+          compactUpper(luggage.airline || '') === normalizedAirline
+        )
       );
       if (!selectedKey) return { ...item, listLuggage: kept };
       const picked = available.find((option) => option.key === selectedKey);
@@ -1531,11 +1541,15 @@ export default function HoldBookingModal({
                           {!ancillaryLoading && !ancillaryError && !skipBaggage && routeOptions.length > 0 && (
                             <div className="grid gap-2 lg:grid-cols-2">
                               {routeOptions.map((route) => {
+                                const routeAirline = compactUpper(route.airline || '');
                                 const selected = passenger.listLuggage.find(
-                                  (item) => item.route === route.route && Number(item.segmentId || 0) === Number(route.segmentId || 0)
+                                  (item) =>
+                                    item.route === route.route &&
+                                    Number(item.segmentId || 0) === Number(route.segmentId || 0) &&
+                                    compactUpper(item.airline || '') === routeAirline
                                 );
                                 return (
-                                  <label key={`${route.route}-${route.segmentId}`} className="block text-[11px] font-medium text-slate-700">
+                                  <label key={`${route.route}-${route.segmentId}-${route.airline || 'ANY'}`} className="block text-[11px] font-medium text-slate-700">
                                     {routeCodeLabel(airports, route.route)} {route.airline ? `(${route.airline})` : ''}
                                     <select
                                       className="mt-1 h-10 w-full rounded-md border border-[var(--apg-border-default)] bg-white px-2.5 text-sm focus:border-[var(--apg-aviation-navy)] focus:outline-none"
@@ -1544,6 +1558,7 @@ export default function HoldBookingModal({
                                         index,
                                         route.route,
                                         Number(route.segmentId || 0),
+                                        route.airline,
                                         e.target.value,
                                         route.options
                                       )}

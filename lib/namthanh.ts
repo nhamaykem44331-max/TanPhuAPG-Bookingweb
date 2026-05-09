@@ -352,6 +352,12 @@ function cleanRouteCode(value: string): string {
     .replace(/[^A-Z]/g, '');
 }
 
+function cleanAirlineCode(value: string | null | undefined): string {
+  return String(value || '')
+    .trim()
+    .toUpperCase();
+}
+
 function routeCodesFromFlight(flight?: FlightResult): Set<string> {
   const codes = new Set<string>();
   if (!flight) return codes;
@@ -367,14 +373,27 @@ function routeCodesFromFlight(flight?: FlightResult): Set<string> {
 function keepServicesForFlight(passengers: HoldBookingPassenger[] | undefined, flight?: FlightResult) {
   if (!passengers || passengers.length === 0) return passengers;
   const acceptedRoutes = routeCodesFromFlight(flight);
-  if (acceptedRoutes.size === 0) return passengers;
+  const flightAirline = cleanAirlineCode(flight?.airlineCode || flight?.namthanh?.source);
+  if (acceptedRoutes.size === 0 && !flightAirline) return passengers;
 
-  const keepByRoute = (route: string) => acceptedRoutes.has(cleanRouteCode(route));
+  const keepByFlight = (item: { route?: string; airline?: string }) => {
+    const itemAirline = cleanAirlineCode(item.airline);
+    if (itemAirline && flightAirline && itemAirline !== flightAirline) {
+      return false;
+    }
+
+    const route = cleanRouteCode(item.route || '');
+    if (!route || acceptedRoutes.size === 0) {
+      return true;
+    }
+
+    return acceptedRoutes.has(route);
+  };
 
   return passengers.map((passenger) => ({
     ...passenger,
-    listLuggage: (passenger.listLuggage || []).filter((item) => keepByRoute(item.route)),
-    ancillaryServices: (passenger.ancillaryServices || []).filter((item) => keepByRoute(item.route || '')),
+    listLuggage: (passenger.listLuggage || []).filter((item) => keepByFlight(item)),
+    ancillaryServices: (passenger.ancillaryServices || []).filter((item) => keepByFlight(item)),
   }));
 }
 
@@ -651,6 +670,26 @@ async function postHoldForFlightWithRetry(
       await new Promise<void>((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
     }
   }
+  throw lastError instanceof Error ? lastError : new Error('Hold failed without error info');
+}
+
+async function postHoldPayloadWithRetry(
+  payload: Record<string, unknown>,
+  idempotencyKey?: string,
+  maxAttempts = 3,
+): Promise<HoldBookingResponse> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await postHold(payload, idempotencyKey);
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableHoldError(error) || attempt === maxAttempts - 1) throw error;
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000 * 2 ** attempt));
+    }
+  }
+
   throw lastError instanceof Error ? lastError : new Error('Hold failed without error info');
 }
 
@@ -1035,7 +1074,7 @@ export async function holdNamThanhBooking(
   }
 
   if (!isRoundtrip && flight) {
-    return postHoldForFlight(body, flight, idempotencyKey);
+    return postHoldForFlightWithRetry(body, flight, idempotencyKey);
   }
 
   const payload = isRoundtrip
@@ -1048,5 +1087,5 @@ export async function holdNamThanhBooking(
       passengers: keepServicesForFlight(body.passengers, flight),
     };
 
-  return postHold(payload, idempotencyKey);
+  return postHoldPayloadWithRetry(payload, idempotencyKey);
 }
