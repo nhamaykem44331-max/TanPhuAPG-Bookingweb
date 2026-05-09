@@ -1072,8 +1072,12 @@ export default function HoldBookingModal({
               <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Bước tiếp theo</div>
               <div className="mt-0.5 text-xs text-emerald-900/85">Tạo QR thanh toán SePay để đối soát tự động.</div>
             </div>
-            <span className="rounded-full border border-emerald-300 bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-              SePay · BIDV
+            <span className="flex h-11 w-[96px] shrink-0 items-center justify-center rounded-full border border-emerald-300 bg-white px-3 py-1">
+              <img
+                src="/assets/sepay-logo.jpg"
+                alt="SePay"
+                className="h-6 w-auto max-w-full object-contain"
+              />
             </span>
           </div>
           <a
