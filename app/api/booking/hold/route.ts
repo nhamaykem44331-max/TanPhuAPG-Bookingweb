@@ -610,6 +610,71 @@ function responseFromExistingBooking(booking: ExistingBookingRecord) {
   };
 }
 
+function normalizePnrCode(value: unknown): string {
+  return compactText(value).replace(/[^A-Z0-9]/g, "");
+}
+
+function pnrLookupKey(value: { airline?: string | null; pnr?: string | null }) {
+  const pnr = normalizePnrCode(value.pnr);
+
+  if (!pnr || pnr.startsWith("PENDING")) {
+    return null;
+  }
+
+  return {
+    airline: compactText(value.airline || "") || null,
+    pnr,
+  };
+}
+
+function dedupePnrKeys(keys: Array<NonNullable<ReturnType<typeof pnrLookupKey>>>) {
+  const seen = new Set<string>();
+  const result: Array<NonNullable<ReturnType<typeof pnrLookupKey>>> = [];
+
+  for (const key of keys) {
+    const token = `${key.airline || ""}|${key.pnr}`;
+
+    if (!seen.has(token)) {
+      seen.add(token);
+      result.push(key);
+    }
+  }
+
+  return result;
+}
+
+async function findExistingBookingByHoldPnrs(holdResult: HoldBookingResponse): Promise<ExistingBookingRecord | null> {
+  const keys = dedupePnrKeys((holdResult.pnrs || []).map(pnrLookupKey).filter(Boolean) as Array<NonNullable<ReturnType<typeof pnrLookupKey>>>);
+
+  if (keys.length === 0) {
+    return null;
+  }
+
+  const existingPnr = await prisma.bookingPnr.findFirst({
+    where: {
+      OR: keys.map((key) => (key.airline ? { airline: key.airline, pnr: key.pnr } : { pnr: key.pnr })),
+    },
+    include: {
+      booking: {
+        include: {
+          appliedMarkupRule: {
+            select: {
+              id: true,
+              scope: true,
+            },
+          },
+          pnrs: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return existingPnr?.booking ?? null;
+}
+
 function quoteErrorResponse(error: unknown): NextResponse | null {
   if (error instanceof QuoteExpiredError) {
     return NextResponse.json({ error: "QUOTE_EXPIRED" }, { status: 409 });
@@ -760,7 +825,34 @@ function buildHoldPnrRecords(
   });
 }
 
+type HoldPnrCreateInput = ReturnType<typeof buildHoldPnrRecords>[number];
+
+function dedupeHoldPnrRecords(records: HoldPnrCreateInput[]): HoldPnrCreateInput[] {
+  const seen = new Set<string>();
+  const result: HoldPnrCreateInput[] = [];
+
+  for (const record of records) {
+    const key = `${compactText(record.airline || "")}|${normalizePnrCode(record.pnr)}`;
+
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(record);
+    }
+  }
+
+  return result;
+}
+
+function isBookingPnrUniqueError(error: unknown): boolean {
+  const value = recordOf(error);
+  const metaText = JSON.stringify(value.meta ?? {});
+
+  return value.code === "P2002" && metaText.includes("BookingPnr");
+}
+
 export async function POST(request: NextRequest) {
+  let holdResultForRecovery: HoldBookingResponse | null = null;
+
   try {
     const rawBody = await request.json().catch(() => null);
     const normalized = normalizeHoldBody(rawBody, request);
@@ -858,6 +950,18 @@ export async function POST(request: NextRequest) {
       idempotencyKey: input.idempotencyKey,
     } satisfies Parameters<typeof holdNamThanhBooking>[0];
     const holdResult = await holdNamThanhBooking(holdPayload, input.idempotencyKey);
+    holdResultForRecovery = holdResult;
+    const existingBookingByPnr = await findExistingBookingByHoldPnrs(holdResult);
+
+    if (existingBookingByPnr) {
+      console.warn("[booking/hold] recovered existing booking from returned PNR", {
+        bookingId: existingBookingByPnr.id,
+        orderCode: existingBookingByPnr.orderCode,
+        pnrs: holdResult.pnrs,
+      });
+      return NextResponse.json(responseFromExistingBooking(existingBookingByPnr));
+    }
+
     const holdExpiresAt = deriveHoldExpiresAt(quote, holdResult);
     const firstActualPnr = (holdResult.pnrs || []).find((pnr) => pnr.pnr)?.pnr ?? null;
     const firstRuleId = quote.legs.length > 0 && quote.legs.every((leg) => leg.markupRule?.id === quote.legs[0]?.markupRule?.id)
@@ -947,7 +1051,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      const pnrItems = buildHoldPnrRecords(input, quote, holdResult, createdBooking.id, holdExpiresAt);
+      const pnrItems = dedupeHoldPnrRecords(buildHoldPnrRecords(input, quote, holdResult, createdBooking.id, holdExpiresAt));
 
       await tx.bookingPnr.createMany({
         data: pnrItems,
@@ -1081,6 +1185,19 @@ export async function POST(request: NextRequest) {
 
     if (quoteError) {
       return quoteError;
+    }
+
+    if (isBookingPnrUniqueError(error) && holdResultForRecovery) {
+      const existingBookingByPnr = await findExistingBookingByHoldPnrs(holdResultForRecovery);
+
+      if (existingBookingByPnr) {
+        console.warn("[booking/hold] recovered existing booking after PNR unique conflict", {
+          bookingId: existingBookingByPnr.id,
+          orderCode: existingBookingByPnr.orderCode,
+          pnrs: holdResultForRecovery.pnrs,
+        });
+        return NextResponse.json(responseFromExistingBooking(existingBookingByPnr));
+      }
     }
 
     const message = error instanceof Error ? error.message : String(error);

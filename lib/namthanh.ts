@@ -430,6 +430,42 @@ function isSearchCacheMissError(error: unknown) {
   return false;
 }
 
+function plainVietnameseText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+}
+
+function namThanhErrorSearchText(error: NamThanhApiError): string {
+  return `${error.message} ${JSON.stringify(error.details || {})}`.toLowerCase();
+}
+
+export function isOptionalAncillaryUnavailable(error: unknown): boolean {
+  if (!(error instanceof NamThanhApiError)) return false;
+
+  const text = namThanhErrorSearchText(error);
+  const asciiText = plainVietnameseText(text);
+
+  return (
+    asciiText.includes('khong lay duoc dich vu ancillary') ||
+    asciiText.includes('khong co dich vu ancillary') ||
+    asciiText.includes('ancillary voi hanh trinh nay') ||
+    (text.includes('muadiapierror') && text.includes('status') && text.includes('200'))
+  );
+}
+
+function emptyAncillaryUnavailableResponse(message?: string): BookingAncillaryResponse {
+  return {
+    success: true,
+    warning: 'ANCILLARY_UNAVAILABLE',
+    message: message || 'Hãng này hiện chưa trả dữ liệu hành lý ký gửi. Bạn vẫn có thể giữ chỗ không kèm hành lý.',
+    routes: [],
+  };
+}
+
 function oneWayRoutePayloadFromFlight(flight: FlightResult, body: HoldBookingRequest, idempotencyKey?: string) {
   const passengers = keepServicesForFlight(body.passengers, flight);
   return {
@@ -1017,19 +1053,43 @@ export async function listNamThanhAncillaries(
     String(outbound.airlineCode || '').toUpperCase() !== String(inbound.airlineCode || '').toUpperCase();
 
   if (shouldSplitRoundtrip && outbound && inbound) {
-    const [outboundData, inboundData] = await Promise.all([
+    const [outboundData, inboundData] = await Promise.allSettled([
       postAncillariesForFlight(body, outbound),
       postAncillariesForFlight(body, inbound),
     ]);
+    const failures = [outboundData, inboundData].filter((result) => result.status === 'rejected') as PromiseRejectedResult[];
+    const hardFailure = failures.find((result) => !isOptionalAncillaryUnavailable(result.reason));
+
+    if (hardFailure) {
+      throw hardFailure.reason;
+    }
+
+    const routes = [
+      ...(outboundData.status === 'fulfilled' ? outboundData.value.routes || [] : []),
+      ...(inboundData.status === 'fulfilled' ? inboundData.value.routes || [] : []),
+    ];
+
     return {
       success: true,
-      routes: [...(outboundData.routes || []), ...(inboundData.routes || [])],
+      warning: failures.length > 0 ? 'ANCILLARY_PARTIAL_UNAVAILABLE' : undefined,
+      message: failures.length > 0
+        ? 'Một số hãng hiện chưa trả dữ liệu hành lý ký gửi. Bạn vẫn có thể giữ chỗ không kèm hành lý cho chặng đó.'
+        : undefined,
+      routes,
     };
   }
 
   if (!isRoundtrip && outbound) {
-    const result = await postAncillariesForFlight(body, outbound);
-    return mergeAncillaryResponse(result as unknown as Record<string, unknown>);
+    try {
+      const result = await postAncillariesForFlight(body, outbound);
+      return mergeAncillaryResponse(result as unknown as Record<string, unknown>);
+    } catch (error) {
+      if (isOptionalAncillaryUnavailable(error)) {
+        return emptyAncillaryUnavailableResponse();
+      }
+
+      throw error;
+    }
   }
 
   const payload = isRoundtrip
@@ -1052,8 +1112,16 @@ export async function listNamThanhAncillaries(
       fareId: body.fareId || outbound?.fareId || outbound?.namthanh?.fareId,
       passengers: keepServicesForFlight(body.passengers, outbound),
     };
-  const result = await postAncillaries(payload);
-  return mergeAncillaryResponse(result as unknown as Record<string, unknown>);
+  try {
+    const result = await postAncillaries(payload);
+    return mergeAncillaryResponse(result as unknown as Record<string, unknown>);
+  } catch (error) {
+    if (isOptionalAncillaryUnavailable(error)) {
+      return emptyAncillaryUnavailableResponse();
+    }
+
+    throw error;
+  }
 }
 
 export async function holdNamThanhBooking(

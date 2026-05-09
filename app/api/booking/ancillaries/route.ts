@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { listNamThanhAncillaries, NamThanhApiError } from '@/lib/namthanh';
+import { isOptionalAncillaryUnavailable, listNamThanhAncillaries, NamThanhApiError } from '@/lib/namthanh';
 import type { HoldBookingRequest } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -92,6 +92,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (error: unknown) {
     if (error instanceof NamThanhApiError) {
+      if (isOptionalAncillaryUnavailable(error)) {
+        return NextResponse.json({
+          success: true,
+          routes: [],
+          warning: 'ANCILLARY_UNAVAILABLE',
+          message: 'Hãng này hiện chưa trả dữ liệu hành lý ký gửi. Anh vẫn có thể giữ chỗ không kèm hành lý.',
+          details: error.details,
+        });
+      }
+
       if (isRecoverableAncillaryTimeout(error)) {
         return NextResponse.json({
           success: true,

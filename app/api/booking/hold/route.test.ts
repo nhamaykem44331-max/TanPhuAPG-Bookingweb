@@ -49,7 +49,7 @@ loadEnvFile(path.join(process.cwd(), ".env.local"));
 
 const prisma = new PrismaClient();
 const nextLogs: string[] = [];
-const mockState: { quoteMode: MockQuoteMode } = {
+const mockState: { quoteMode: MockQuoteMode; holdPnrOverride?: string } = {
   quoteMode: "success",
 };
 
@@ -221,7 +221,7 @@ async function createMockBackend(): Promise<void> {
 
     if (request.method === "POST" && url.pathname === "/bookings/hold") {
       const idempotencyKey = String(request.headers["idempotency-key"] || `hold-${Date.now()}`);
-      const pnr = stableTestPnr(idempotencyKey);
+      const pnr = mockState.holdPnrOverride || stableTestPnr(idempotencyKey);
 
       sendJson(response, 200, {
         success: true,
@@ -538,4 +538,32 @@ test("4. Public real hold không cần admin session và vẫn tạo Booking web
   assert.ok(booking.pnr);
 
   await cleanupHoldArtifacts(idempotencyKey);
+});
+
+test("5. PNR da ton tai duoc recover thanh booking cu thay vi loi 502", async () => {
+  const firstKey = `gate-c0-duplicate-pnr-a-${Date.now()}`;
+  const secondKey = `gate-c0-duplicate-pnr-b-${Date.now()}`;
+  mockState.quoteMode = "success";
+  mockState.holdPnrOverride = `TD${Date.now().toString(36).toUpperCase().slice(-4)}`;
+
+  try {
+    const firstResponse = await postHold(createHoldPayload(firstKey, false));
+    const firstBody = (await firstResponse.json()) as { bookingId?: string; success?: boolean };
+
+    assert.equal(firstResponse.status, 200, JSON.stringify(firstBody));
+    assert.equal(firstBody.success, true);
+    assert.ok(firstBody.bookingId);
+
+    const secondResponse = await postHold(createHoldPayload(secondKey, false));
+    const secondBody = (await secondResponse.json()) as { bookingId?: string; success?: boolean; error?: string };
+
+    assert.equal(secondResponse.status, 200, JSON.stringify(secondBody));
+    assert.equal(secondBody.success, true);
+    assert.equal(secondBody.bookingId, firstBody.bookingId);
+    assert.equal(await bookingCount(secondKey), 0);
+  } finally {
+    mockState.holdPnrOverride = undefined;
+    await cleanupHoldArtifacts(firstKey);
+    await cleanupHoldArtifacts(secondKey);
+  }
 });
