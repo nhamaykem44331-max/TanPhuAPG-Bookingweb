@@ -11,3 +11,6 @@ debug
 .kilo
 
 .vercel
+
+# Dev-only preview pages — không build lên production
+app/dev-preview/

@@ -723,6 +723,11 @@ export async function POST(request: NextRequest) {
     const quote = await quoteBooking(input, channel);
     const priceDelta = toPriceDeltaPayload(comparePrices(input.displayedNetPrice, quote.totalNetPrice));
     const markupRuleApplied = firstMarkupRule(quote);
+    // Phụ phí hành lý ký gửi: pass-through (không markup), cộng vào net & sale + mọi totalAmount trả về.
+    const baggageTotal = input.passengers.reduce((sum, passenger) => {
+      const items = Array.isArray(passenger.listLuggage) ? passenger.listLuggage : [];
+      return sum + items.reduce((s, item) => s + Number(item?.price ?? 0), 0);
+    }, 0);
 
     if (input.dryRun) {
       return NextResponse.json({
@@ -734,13 +739,13 @@ export async function POST(request: NextRequest) {
         sellPrice: quote.totalSellPrice.toFixed(0),
         currency: quote.currency,
         holdExpiresAt: quote.expiresAt,
-        totalAmount: Number(quote.totalSellPrice.toFixed(0)),
+        totalAmount: Number(quote.totalSellPrice.toFixed(0)) + baggageTotal,
         markupRuleApplied,
         priceDelta,
         pricing: {
           verified: true,
           source: "admin-quote",
-          totalAmount: Number(quote.totalSellPrice.toFixed(0)),
+          totalAmount: Number(quote.totalSellPrice.toFixed(0)) + baggageTotal,
           currency: quote.currency,
           byPnr: [],
           unresolvedPnrs: [],
@@ -830,8 +835,8 @@ export async function POST(request: NextRequest) {
           chd: passengerCounts.chd,
           inf: passengerCounts.inf,
           cabin: input.cabin ?? null,
-          netAmount: Number(quote.totalNetPrice.toFixed(0)),
-          saleAmount: Number(quote.totalSellPrice.toFixed(0)),
+          netAmount: Number(quote.totalNetPrice.toFixed(0)) + baggageTotal,
+          saleAmount: Number(quote.totalSellPrice.toFixed(0)) + baggageTotal,
           markupAmount: Number(quote.totalMarkupAmount.toFixed(0)),
           serviceFeeAmount: Number(quote.totalServiceFeeAmount.toFixed(0)),
           profit: Number(quote.totalSellPrice.minus(quote.totalNetPrice).toFixed(0)),
@@ -955,7 +960,7 @@ export async function POST(request: NextRequest) {
       markupRuleApplied,
       priceDelta,
       dryRun: false,
-      totalAmount: Number(quote.totalSellPrice.toFixed(0)),
+      totalAmount: Number(quote.totalSellPrice.toFixed(0)) + baggageTotal,
       sessionID: holdResult.sessionID,
       passenger: input.contact.fullName,
       paymentIntent: paymentIntentResult
@@ -974,7 +979,7 @@ export async function POST(request: NextRequest) {
       pricing: {
         verified: true,
         source: "admin-quote",
-        totalAmount: Number(quote.totalSellPrice.toFixed(0)),
+        totalAmount: Number(quote.totalSellPrice.toFixed(0)) + baggageTotal,
         currency: quote.currency,
         byPnr: serializePnrPricing(quote, holdResult.pnrs || []),
         unresolvedPnrs: [],
