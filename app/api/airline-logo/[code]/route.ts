@@ -3,10 +3,16 @@ import path from "node:path";
 
 import { type NextRequest, NextResponse } from "next/server";
 
+import { readPersistentAirlineLogo, writePersistentAirlineLogo } from "@/lib/airlineLogoCache";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const CACHE_DIR = path.join(process.cwd(), "public", "assets", "airlines");
+const BUNDLED_CACHE_DIR = path.join(process.cwd(), "public", "assets", "airlines");
+const RUNTIME_CACHE_DIR = process.env.VERCEL
+  ? path.join("/tmp", "airlines")
+  : BUNDLED_CACHE_DIR;
+const CACHE_READ_DIRS = Array.from(new Set([RUNTIME_CACHE_DIR, BUNDLED_CACHE_DIR]));
 const EXTENSIONS = ["png", "webp", "jpg", "jpeg", "svg"] as const;
 const CONTENT_TYPES: Record<string, string> = {
   png: "image/png",
@@ -36,16 +42,18 @@ function extensionFromContentType(contentType: string | null, sourceUrl: string)
 }
 
 async function readCachedLogo(code: string): Promise<{ bytes: Buffer; contentType: string } | null> {
-  for (const ext of EXTENSIONS) {
-    const filePath = path.join(CACHE_DIR, `${code}.${ext}`);
+  for (const cacheDir of CACHE_READ_DIRS) {
+    for (const ext of EXTENSIONS) {
+      const filePath = path.join(cacheDir, `${code}.${ext}`);
 
-    try {
-      const bytes = await fs.readFile(filePath);
-      return { bytes, contentType: CONTENT_TYPES[ext] };
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code !== "ENOENT") {
-        console.warn("airline logo cache read failed", error);
+      try {
+        const bytes = await fs.readFile(filePath);
+        return { bytes, contentType: CONTENT_TYPES[ext] };
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException).code;
+        if (code !== "ENOENT") {
+          console.warn("airline logo cache read failed", error);
+        }
       }
     }
   }
@@ -74,6 +82,11 @@ export async function GET(request: NextRequest, { params }: { params: { code: st
   const cached = await readCachedLogo(code);
   if (cached) {
     return imageResponse(cached.bytes, cached.contentType);
+  }
+
+  const persistentCached = await readPersistentAirlineLogo(code);
+  if (persistentCached) {
+    return imageResponse(persistentCached.bytes, persistentCached.contentType);
   }
 
   const source = request.nextUrl.searchParams.get("src");
@@ -113,12 +126,19 @@ export async function GET(request: NextRequest, { params }: { params: { code: st
   const finalContentType = CONTENT_TYPES[ext] ?? "image/png";
 
   try {
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    await fs.writeFile(path.join(CACHE_DIR, `${code}.${ext}`), bytes);
+    await fs.mkdir(RUNTIME_CACHE_DIR, { recursive: true });
+    await fs.writeFile(path.join(RUNTIME_CACHE_DIR, `${code}.${ext}`), bytes);
   } catch (error) {
-    // Vercel/serverless may not allow persistent writes; still return the fetched image.
+    // Cache write is best-effort; still return the fetched image.
     console.warn("airline logo cache write failed", error);
   }
+
+  await writePersistentAirlineLogo({
+    code,
+    bytes,
+    contentType: finalContentType,
+    sourceUrl: sourceUrl.toString(),
+  });
 
   return imageResponse(bytes, finalContentType);
 }

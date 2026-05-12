@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Be_Vietnam_Pro, JetBrains_Mono, Raleway } from 'next/font/google';
+import WebVitalsReporter from '@/components/analytics/WebVitalsReporter';
 
 const fontSans = Be_Vietnam_Pro({
   subsets: ['latin', 'vietnamese'],
@@ -55,7 +56,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi">
-      <body className={`${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable}`}>{children}</body>
+      <body className={`${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable}`}>
+        <WebVitalsReporter />
+        {children}
+      </body>
     </html>
   );
 }

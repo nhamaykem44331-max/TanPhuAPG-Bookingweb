@@ -11,7 +11,8 @@ import { setTimeout as delay } from "node:timers/promises";
 
 import { PrismaClient } from "@prisma/client";
 
-type MockQuoteMode = "success" | "sold-out" | "expired" | "generic" | "cache-miss-once";
+type MockQuoteMode = "success" | "sold-out" | "expired" | "generic" | "cache-miss-once" | "no-match";
+type MockAncillaryMode = "success" | "expired";
 
 function loadEnvFile(filePath: string) {
   if (!existsSync(filePath)) {
@@ -49,8 +50,9 @@ loadEnvFile(path.join(process.cwd(), ".env.local"));
 
 const prisma = new PrismaClient();
 const nextLogs: string[] = [];
-const mockState: { quoteMode: MockQuoteMode; holdPnrOverride?: string } = {
+const mockState: { quoteMode: MockQuoteMode; ancillaryMode: MockAncillaryMode; holdPnrOverride?: string } = {
   quoteMode: "success",
+  ancillaryMode: "success",
 };
 
 const mockFlight = {
@@ -202,6 +204,14 @@ async function createMockBackend(): Promise<void> {
         return;
       }
 
+      if (mockState.quoteMode === "no-match") {
+        sendJson(response, 500, {
+          success: false,
+          error: "No matching flight found. Criteria: route=SGN-HAN, airline=VJ, flight=VJ123, time=08:00.",
+        });
+        return;
+      }
+
       sendJson(response, 200, {
         success: true,
         searchId: String(body.searchId || mockFlight.searchId),
@@ -233,6 +243,32 @@ async function createMockBackend(): Promise<void> {
             pnr,
             status: "SUCCESS",
             timelimit: "2026-05-14T20:00:00+07:00",
+          },
+        ],
+      });
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/bookings/ancillaries") {
+      const body = await readJson(request);
+
+      if (mockState.ancillaryMode === "expired") {
+        sendJson(response, 404, {
+          success: false,
+          error: `Search not found or expired: ${String(body.searchId || "mock-search-id")}`,
+          type: "HttpError",
+        });
+        return;
+      }
+
+      sendJson(response, 200, {
+        success: true,
+        routes: [
+          {
+            route: "SGNHAN",
+            segmentId: 1,
+            airline: "VJ",
+            services: [],
           },
         ],
       });
@@ -393,6 +429,16 @@ async function postHold(payload: Record<string, unknown>): Promise<Response> {
   });
 }
 
+async function postAncillaries(payload: Record<string, unknown>): Promise<Response> {
+  return fetch(`${nextBaseUrl}/api/booking/ancillaries`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 async function bookingCount(idempotencyKey: string): Promise<number> {
   return prisma.booking.count({
     where: { idempotencyKey },
@@ -497,7 +543,39 @@ test("2b. Search cache miss fallback route re-price va khong tra QUOTE_EXPIRED",
   assert.equal(await bookingCount(idempotencyKey), 0);
 });
 
-test("3. Lỗi quote generic được map thành 502 UPSTREAM_UNAVAILABLE và không tạo Booking", async () => {
+test("2c. No matching flight duoc map thanh 409 FLIGHT_NOT_AVAILABLE", async () => {
+  const idempotencyKey = `gate-c0-no-match-${Date.now()}`;
+  mockState.quoteMode = "no-match";
+
+  assert.equal(await bookingCount(idempotencyKey), 0);
+
+  const response = await postHold(createHoldPayload(idempotencyKey, true));
+  const body = (await response.json()) as { error?: string };
+
+  assert.equal(response.status, 409);
+  assert.equal(body.error, "FLIGHT_NOT_AVAILABLE");
+  assert.equal(await bookingCount(idempotencyKey), 0);
+});
+
+test("2d. Ancillary search expired duoc tra warning mem va khong chan hold flow", async () => {
+  const idempotencyKey = `gate-c0-ancillary-expired-${Date.now()}`;
+  mockState.ancillaryMode = "expired";
+
+  try {
+    const response = await postAncillaries(createHoldPayload(idempotencyKey, true));
+    const body = (await response.json()) as { success?: boolean; warning?: string; routes?: unknown[]; error?: string };
+
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(body.success, true);
+    assert.equal(body.error, undefined);
+    assert.equal(body.warning, "ANCILLARY_UNAVAILABLE");
+    assert.deepEqual(body.routes, []);
+  } finally {
+    mockState.ancillaryMode = "success";
+  }
+});
+
+test("3. Loi quote generic duoc map thanh 502 UPSTREAM_UNAVAILABLE va khong tao Booking", async () => {
   const idempotencyKey = `gate-c0-generic-${Date.now()}`;
   mockState.quoteMode = "generic";
 

@@ -3,6 +3,12 @@ import type { AirportOption, AirportRecord, AirportSelection } from './types';
 
 const AIRPORTS_CACHE_KEY = 'apg_airports_v1';
 const AIRPORTS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const AIRPORTS_CACHE_MAX_BYTES = 128 * 1024;
+const POPULAR_AIRPORT_CODES = [
+  'HAN', 'SGN', 'DAD', 'PQC', 'CXR', 'VII', 'HPH', 'HUI', 'VCA', 'DLI', 'UIH', 'VCL', 'BMV',
+  'BKK', 'DMK', 'SIN', 'KUL', 'CAN', 'SZX', 'HKG', 'TPE', 'ICN', 'NRT', 'KIX', 'PVG', 'PEK',
+];
+const POPULAR_AIRPORT_RANK = new Map(POPULAR_AIRPORT_CODES.map((code, index) => [code, index]));
 const AIRPORT_ALIASES: Record<string, string[]> = {
   SGN: ['TP Ho Chi Minh', 'Ho Chi Minh', 'Ho Chi Minh City', 'Sai Gon', 'Saigon', 'Tan Son Nhat', 'HCM', 'TPHCM'],
   HAN: ['Ha Noi', 'Hanoi', 'Noi Bai'],
@@ -48,30 +54,45 @@ function enrichAirport(airport: AirportRecord): AirportOption {
     ...airport,
     label,
     aliases,
-    tags: [
-      airport.code,
-      airport.city,
-      airport.name,
-      label,
-      `${airport.city} ${airport.code}`,
-      `${airport.city} ${airport.name}`,
-      `${airport.name} ${airport.code}`,
-      ...aliases,
-    ],
   };
 }
 
 function enrichAirports(airports: AirportRecord[]): AirportOption[] {
   return airports
     .map(enrichAirport)
-    .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+    .sort((a, b) => {
+      const rankA = POPULAR_AIRPORT_RANK.get(a.code) ?? Number.MAX_SAFE_INTEGER;
+      const rankB = POPULAR_AIRPORT_RANK.get(b.code) ?? Number.MAX_SAFE_INTEGER;
+      if (rankA !== rankB) return rankA - rankB;
+      return a.label.localeCompare(b.label, 'vi');
+    });
+}
+
+function airportSearchTags(airport: AirportOption): string[] {
+  const aliases = airport.aliases || AIRPORT_ALIASES[airport.code] || [];
+  return [
+    airport.code,
+    airport.city,
+    airport.name,
+    airport.label,
+    `${airport.city} ${airport.code}`,
+    `${airport.city} ${airport.name}`,
+    `${airport.name} ${airport.code}`,
+    ...aliases,
+  ];
+}
+
+function cacheableAirports(airports: AirportOption[]): AirportOption[] {
+  const popular = airports.filter((airport) => POPULAR_AIRPORT_RANK.has(airport.code));
+  return popular.length > 0 ? popular : airports.filter((airport) => airport.domestic).slice(0, 50);
 }
 
 function toCachePayload(resource: AirportResource): AirportCachePayload {
+  const airports = cacheableAirports(resource.airports);
   return {
     version: resource.version,
     fetchedAt: resource.fetchedAt,
-    airports: resource.airports.map(({ code, city, name, country, domestic }) => ({
+    airports: airports.map(({ code, city, name, country, domestic }) => ({
       code,
       city,
       name,
@@ -94,6 +115,10 @@ function readLocalCache(): AirportResource | null {
   try {
     const raw = localStorage.getItem(AIRPORTS_CACHE_KEY);
     if (!raw) return null;
+    if (raw.length > AIRPORTS_CACHE_MAX_BYTES) {
+      localStorage.removeItem(AIRPORTS_CACHE_KEY);
+      return null;
+    }
     const parsed = JSON.parse(raw) as AirportCachePayload;
     if (!parsed || !Array.isArray(parsed.airports)) return null;
     return fromCachePayload(parsed);
@@ -195,7 +220,7 @@ export function filterAirports(airports: AirportOption[], query: string, limit =
       const name = normalizeAirportText(airport.name);
       const label = normalizeAirportText(airport.label);
       const aliases = (airport.aliases || []).map(normalizeAirportText);
-      const tags = airport.tags.map(normalizeAirportText);
+      const tags = airportSearchTags(airport).map(normalizeAirportText);
 
       let score = -1;
       if (code === q) score = 1000;
@@ -261,12 +286,12 @@ export function matchAirport(airports: AirportOption[], input: string): AirportO
   ));
   if (exactNormalized) return exactNormalized;
 
-  const startsWith = airports.filter((airport) => airport.tags.some((tag) => (
+  const startsWith = airports.filter((airport) => airportSearchTags(airport).some((tag) => (
     normalizeAirportText(tag).startsWith(normalized)
   )));
   if (startsWith.length === 1) return startsWith[0];
 
-  const contains = airports.filter((airport) => airport.tags.some((tag) => (
+  const contains = airports.filter((airport) => airportSearchTags(airport).some((tag) => (
     normalizeAirportText(tag).includes(normalized)
   )));
   if (contains.length === 1) return contains[0];

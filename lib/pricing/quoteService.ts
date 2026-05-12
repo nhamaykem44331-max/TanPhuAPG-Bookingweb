@@ -306,6 +306,10 @@ function mapQuoteError(error: unknown): never {
     throw new QuoteExpiredError();
   }
 
+  if (text.includes("no matching flight found")) {
+    throw new QuoteExpiredError("FLIGHT_NOT_AVAILABLE");
+  }
+
   if (
     text.includes("sold out") ||
     text.includes("no seat") ||

@@ -5,6 +5,10 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const DEFAULT_BACKEND_URL = 'http://localhost:3100';
+const POPULAR_AIRPORT_CODES = new Set([
+  'HAN', 'SGN', 'DAD', 'PQC', 'CXR', 'VII', 'HPH', 'HUI', 'VCA', 'DLI', 'UIH', 'VCL', 'BMV',
+  'BKK', 'DMK', 'SIN', 'KUL', 'CAN', 'SZX', 'HKG', 'TPE', 'ICN', 'NRT', 'KIX', 'PVG', 'PEK',
+]);
 
 function backendUrl(): string {
   return (process.env.NAMTHANH_BACKEND_URL || DEFAULT_BACKEND_URL).replace(/\/+$/, '');
@@ -17,7 +21,10 @@ function backendHeaders(): HeadersInit {
   return headers;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const popularOnly = url.searchParams.get('popular') === '1';
+  const domesticOnly = url.searchParams.get('domestic') === '1';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
 
@@ -30,12 +37,17 @@ export async function GET() {
     });
 
     const data = await res.json().catch(() => ({}));
-    const airports = Array.isArray(data?.airports) ? data.airports : [];
+    const airports = Array.isArray(data?.airports) ? data.airports as AirportRecord[] : [];
     const version = Number(data?.version) || 0;
+    const filteredAirports = airports.filter((airport) => {
+      if (popularOnly && !POPULAR_AIRPORT_CODES.has(String(airport.code || '').toUpperCase())) return false;
+      if (domesticOnly && airport.domestic !== true) return false;
+      return true;
+    });
 
     return NextResponse.json(
       {
-        airports: airports as AirportRecord[],
+        airports: filteredAirports,
         version,
       },
       {

@@ -110,7 +110,7 @@ export default function AirportInput({
                 key={airport.code}
                 type="button"
                 className="flex w-full items-center gap-2 border-b border-[var(--apg-border-default)] px-3 py-2 text-left transition-colors hover:bg-[var(--apg-bg-surface-soft)] last:border-b-0 lg:gap-3 lg:px-4 lg:py-3"
-                onMouseDown={(event) => {
+                onPointerDown={(event) => {
                   event.preventDefault();
                   commit({ code: airport.code, label: airport.label });
                 }}

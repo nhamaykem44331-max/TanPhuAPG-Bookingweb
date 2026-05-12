@@ -195,18 +195,18 @@ model Booking {
 }
 
 model BookingPnr {
-  id        String    @id @default(cuid())
-  bookingId String
-  airline   String?
-  pnr       String
-  status    String?
+  id           String    @id @default(cuid())
+  bookingId    String
+  airline      String?
+  pnr          String
+  status       String?
   routeSummary String?
-  departAt  DateTime?
-  timelimit DateTime?
-  rawJson   Json?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  booking   Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  departAt     DateTime?
+  timelimit    DateTime?
+  rawJson      Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  booking      Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@unique([airline, pnr])
   @@index([bookingId, createdAt])
@@ -400,6 +400,39 @@ model PriceAlert {
 
   @@index([route, status])
   @@index([createdById, createdAt])
+}
+
+model WebVitalMetric {
+  id             String   @id @default(cuid())
+  metricId       String
+  name           String
+  label          String?
+  value          Float
+  rating         String?
+  startTime      Float?
+  navigationType String?
+  path           String   @default("/")
+  userAgent      String?
+  ip             String?
+  observedAt     DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([observedAt])
+  @@index([name, observedAt])
+  @@index([path, observedAt])
+  @@index([metricId])
+}
+
+model AirlineLogoCache {
+  code        String   @id
+  contentType String
+  bytes       Bytes
+  size        Int
+  sourceUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([updatedAt])
 }
 
 model RateLimitHit {

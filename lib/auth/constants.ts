@@ -18,6 +18,7 @@ export const AUDIT_VIEWER_ROLES: Role[] = ["SUPER_ADMIN"];
 export const DASHBOARD_VIEWER_ROLES: Role[] = ADMIN_ROLES;
 export const PRICE_ALERT_MANAGER_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY"];
 export const REVENUE_REPORT_ROLES: Role[] = ADMIN_ROLES;
+export const OBSERVABILITY_VIEWER_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY"];
 
 export interface AdminNavItem {
   label: string;
@@ -73,6 +74,12 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     href: "/admin/reports/revenue",
     description: "So sánh booking date, issue date và payment date cho vận hành và kế toán.",
     roles: REVENUE_REPORT_ROLES,
+  },
+  {
+    label: "Web Vitals",
+    href: "/admin/observability/web-vitals",
+    description: "Theo dõi LCP, INP, CLS và TTFB gần nhất từ người dùng thật.",
+    roles: OBSERVABILITY_VIEWER_ROLES,
   },
   {
     label: "Markup Rules",

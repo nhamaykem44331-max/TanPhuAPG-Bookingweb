@@ -36,6 +36,7 @@ function matchesPath(pathname: string, href?: string): boolean {
 
 function groupForHref(href?: string): NavGroup {
   if (href?.includes("/dashboard")) return "Overview";
+  if (href?.includes("/observability")) return "Overview";
   if (href?.includes("/reports") || href?.includes("/markup-rules")) return "Revenue";
   if (href?.includes("/audit") || href?.includes("/users")) return "Governance";
   return "Operations";
@@ -45,6 +46,7 @@ function IconForHref({ href, active }: { href?: string; active: boolean }) {
   const className = `h-4 w-4 ${active ? "text-[var(--apg-text-primary)]" : "text-[var(--apg-text-muted)]"}`;
 
   if (href?.includes("/dashboard")) return <Gauge className={className} aria-hidden="true" />;
+  if (href?.includes("/observability")) return <Activity className={className} aria-hidden="true" />;
   if (href?.includes("/bookings")) return <Plane className={className} aria-hidden="true" />;
   if (href?.includes("/customers")) return <Users className={className} aria-hidden="true" />;
   if (href?.includes("/payments")) return <CreditCard className={className} aria-hidden="true" />;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 import { getAirlineMeta } from "@/lib/airlines";
 
@@ -37,12 +38,13 @@ export function AdminAirlineLogo({ code, airline, logo, size = 22 }: AdminAirlin
 
   if (meta.logo && !imgFailed) {
     return (
-      <img
+      <Image
         src={meta.logo}
         alt={meta.name || displayCode}
         width={size}
         height={size}
         className="admin-airline-logo shrink-0 rounded-md border border-[var(--apg-border-default)] bg-white object-contain p-0.5"
+        unoptimized
         referrerPolicy="no-referrer"
         style={{ width: size, height: size }}
         onError={() => setImgFailed(true)}

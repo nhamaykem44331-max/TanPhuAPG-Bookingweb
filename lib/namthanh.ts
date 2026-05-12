@@ -409,7 +409,7 @@ function isVietjetFlight(flight?: FlightResult) {
   return airlineCode === 'VJ';
 }
 
-function isSearchCacheMissError(error: unknown) {
+export function isSearchCacheMissError(error: unknown) {
   if (!(error instanceof NamThanhApiError)) return false;
   const text = `${error.message} ${JSON.stringify(error.details || {})}`.toLowerCase();
   // Original 3 pattern chính
@@ -448,8 +448,15 @@ export function isOptionalAncillaryUnavailable(error: unknown): boolean {
 
   const text = namThanhErrorSearchText(error);
   const asciiText = plainVietnameseText(text);
+  const ancillaryCacheMiss =
+    text.includes('search not found or expired') ||
+    text.includes('flight not found in search cache') ||
+    text.includes('fare not found in search cache') ||
+    text.includes('search cache') ||
+    text.includes('cache miss');
 
   return (
+    ancillaryCacheMiss ||
     asciiText.includes('khong lay duoc dich vu ancillary') ||
     asciiText.includes('khong co dich vu ancillary') ||
     asciiText.includes('ancillary voi hanh trinh nay') ||

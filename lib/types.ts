@@ -13,7 +13,7 @@ export interface AirportRecord {
 
 export interface AirportOption extends AirportRecord {
   label: string;
-  tags: string[];
+  tags?: string[];
   aliases?: string[];
 }
 
@@ -342,5 +342,6 @@ export interface QuotePayload {
     date: string;
     returnDate?: string;
   };
+  searchExpiresAt?: string;
   createdAt: string;
 }

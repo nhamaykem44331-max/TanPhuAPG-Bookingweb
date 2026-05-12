@@ -83,6 +83,22 @@ function fullFiveDayResponse() {
   ]);
 }
 
+function multiMonthResponse(): NamThanhLowestFareResponse {
+  return {
+    ...fullFiveDayResponse(),
+    depart: {
+      ...fullFiveDayResponse().depart,
+      "5-2026": [
+        { day: 2, month: 5, year: 2026, fareAmount: 1890000, fareDisplay: "1.890.000 đ" },
+        { day: 12, month: 5, year: 2026, fareAmount: 2210000, fareDisplay: "2.210.000 đ" },
+      ],
+      "6-2026": [
+        { day: 3, month: 6, year: 2026, fareAmount: 1750000, fareDisplay: "1.750.000 đ" },
+      ],
+    },
+  };
+}
+
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
     headers: { "Content-Type": "application/json" },
@@ -120,7 +136,7 @@ afterEach(() => {
 });
 
 describe("<DateStrip />", () => {
-  it("mount route hợp lệ thì fetch đúng 1 lần và render 5 cells", async () => {
+  it("mount route hợp lệ thì fetch đúng 1 lần và render 7 cells", async () => {
     const fetchMock = installFetchMock(jsonResponse(fullFiveDayResponse()));
     const { container, findByText } = render(
       <DateStrip
@@ -136,7 +152,7 @@ describe("<DateStrip />", () => {
 
     assert.equal(fetchMock.calls.length, 1);
     assert.equal(fetchMock.calls[0], "/api/search/lowest-fare?from=HAN&to=SGN");
-    assert.equal(dateCells(container).length, 5);
+    assert.equal(dateCells(container).length, 7);
   });
 
   it("click ngày khác gọi onSelect và không fetch lại lowest-fare", async () => {
@@ -156,6 +172,60 @@ describe("<DateStrip />", () => {
     fireEvent.click(await findByText("2.150K"));
 
     assert.deepEqual(selected, ["2026-04-27"]);
+    assert.equal(fetchMock.calls.length, 1);
+  });
+
+  it("mở lịch tháng và click ngày trong calendar không fetch lại lowest-fare", async () => {
+    const fetchMock = installFetchMock(jsonResponse(fullFiveDayResponse()));
+    const selected: string[] = [];
+
+    const { container, findByText, getByLabelText } = render(
+      <DateStrip
+        destination="SGN"
+        direction="depart"
+        origin="HAN"
+        selectedDate="2026-04-26"
+        onSelect={(date) => selected.push(date)}
+      />,
+    );
+
+    await findByText("1.790K");
+    fireEvent.click(getByLabelText("Mở lịch tháng"));
+    await findByText("Tháng 4/2026");
+
+    const calendarDay = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("28") && button.textContent?.includes("2.000K"));
+    assert.ok(calendarDay);
+    fireEvent.click(calendarDay);
+
+    assert.deepEqual(selected, ["2026-04-28"]);
+    assert.equal(fetchMock.calls.length, 1);
+  });
+
+  it("duyệt nhiều tháng trong calendar từ dữ liệu lowest-fare đã cache", async () => {
+    const fetchMock = installFetchMock(jsonResponse(multiMonthResponse()));
+    const selected: string[] = [];
+
+    const { container, findByText, getByLabelText } = render(
+      <DateStrip
+        destination="SGN"
+        direction="depart"
+        origin="HAN"
+        selectedDate="2026-04-26"
+        onSelect={(date) => selected.push(date)}
+      />,
+    );
+
+    await findByText("1.790K");
+    fireEvent.click(getByLabelText("Mở lịch tháng"));
+    fireEvent.click(await findByText("Tháng 5/2026"));
+
+    const mayDay = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.trim().startsWith("2") && button.textContent?.includes("1.890K"));
+    assert.ok(mayDay);
+    fireEvent.click(mayDay);
+
+    assert.deepEqual(selected, ["2026-05-02"]);
     assert.equal(fetchMock.calls.length, 1);
   });
 

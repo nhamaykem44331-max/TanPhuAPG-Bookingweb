@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Download, Eye, EyeOff, Globe, Mail, Phone } from 'lucide-react';
-import type { FlightResult, QuotePayload } from '@/lib/types';
+import type { FlightResult, QuotePayload, SearchResponse } from '@/lib/types';
 import { durationText, fmtVND, hhmm } from '@/lib/utils';
 import { getAirlineMeta } from '@/lib/airlines';
 import { prefetchAncillaryResponse } from '@/lib/ancillary-cache';
 import { findAirportByCode, useAirports } from '@/lib/useAirports';
 import HoldBookingModal from '@/components/HoldBookingModal';
+
+const QUOTE_SELECTION_KEY = 'apg_quote_selection';
 
 function longDate(d?: string) {
   if (!d) return '';
@@ -45,6 +47,70 @@ function airportEndpointLabel(airports: AirportList, endpoint: FlightResult['dep
   if (code && city && city.toUpperCase() !== code) return `${city} (${code})`;
   if (code && name && name.toUpperCase() !== code) return `${name} (${code})`;
   return code || city || name;
+}
+
+function flightDateKey(flight?: FlightResult | null) {
+  const value = String(flight?.departure?.time || '');
+  const direct = value.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (direct) return direct[1];
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString().slice(0, 10);
+}
+
+function flightTimeKey(flight?: FlightResult | null) {
+  const value = String(flight?.departure?.time || '');
+  const direct = value.match(/T(\d{2}:\d{2})|(?:^|\s)(\d{1,2}:\d{2})/);
+  if (direct) return (direct[1] || direct[2] || '').padStart(5, '0');
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return `${String(parsed.getHours()).padStart(2, '0')}:${String(parsed.getMinutes()).padStart(2, '0')}`;
+}
+
+function normalizedFlightNumber(value?: string) {
+  return String(value || '').toUpperCase().replace(/\s+/g, '');
+}
+
+function flightSelectionMatches(target: FlightResult, candidate: FlightResult) {
+  return (
+    String(candidate.airlineCode || '').toUpperCase() === String(target.airlineCode || '').toUpperCase() &&
+    normalizedFlightNumber(candidate.flightNumber) === normalizedFlightNumber(target.flightNumber) &&
+    String(candidate.departure?.airport || '').toUpperCase() === String(target.departure?.airport || '').toUpperCase() &&
+    String(candidate.arrival?.airport || '').toUpperCase() === String(target.arrival?.airport || '').toUpperCase() &&
+    flightDateKey(candidate) === flightDateKey(target) &&
+    flightTimeKey(candidate) === flightTimeKey(target)
+  );
+}
+
+function uniqueFlights(items: Array<FlightResult | undefined | null>) {
+  const seen = new Set<string>();
+  return items.filter((item): item is FlightResult => {
+    if (!item) return false;
+    const key = [
+      item.id,
+      item.fareId,
+      item.airlineCode,
+      normalizedFlightNumber(item.flightNumber),
+      item.departure?.airport,
+      item.arrival?.airport,
+      flightDateKey(item),
+      flightTimeKey(item),
+    ].join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function refreshedFlightCandidates(response: SearchResponse, leg: 'outbound' | 'inbound') {
+  const pairFlights = (response.pairOptions || []).map((pair) => (
+    leg === 'outbound' ? pair.outbound : pair.inbound
+  ));
+  const directional = leg === 'outbound' ? response.departureResults || [] : response.returnResults || [];
+  return uniqueFlights([...directional, ...pairFlights, ...(response.results || [])]);
+}
+
+function findRefreshedFlight(target: FlightResult, response: SearchResponse, leg: 'outbound' | 'inbound') {
+  return refreshedFlightCandidates(response, leg).find((candidate) => flightSelectionMatches(target, candidate)) || null;
 }
 
 function routeAirportLabel(airports: AirportList, from: FlightResult['departure'], to: FlightResult['arrival']) {
@@ -1098,7 +1164,7 @@ export default function QuotePage() {
   const [usdRate, setUsdRate] = useState<number>(26357);
 
   useEffect(() => {
-    const raw = localStorage.getItem('apg_quote_selection');
+    const raw = localStorage.getItem(QUOTE_SELECTION_KEY);
     if (!raw) return;
     try {
       setData(JSON.parse(raw));
@@ -1164,6 +1230,66 @@ export default function QuotePage() {
     if (!ancillaryPayload) return;
     prefetchAncillaryResponse(ancillaryPayload);
   }, [ancillaryPayload]);
+
+  const refreshQuoteSelection = useCallback(async () => {
+    if (!data) {
+      throw new Error('Không có dữ liệu báo giá để làm mới.');
+    }
+
+    const res = await fetch('/api/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: data.search.from,
+        to: data.search.to,
+        date: data.search.date,
+        returnDate: data.tripType === 'roundtrip' ? data.search.returnDate : undefined,
+        tripType: data.tripType,
+        adults: data.adults,
+        children: data.children,
+        infants: data.infants,
+        cabin: data.cabin,
+      }),
+    });
+    const body = await res.json().catch(() => ({})) as SearchResponse & { error?: string; message?: string };
+
+    if (!res.ok) {
+      throw new Error(body.error || body.message || 'Không làm mới được phiên giá.');
+    }
+
+    const nextOutbound = findRefreshedFlight(data.outbound, body, 'outbound');
+    const nextInbound = data.tripType === 'roundtrip' && data.inbound
+      ? findRefreshedFlight(data.inbound, body, 'inbound')
+      : undefined;
+
+    if (!nextOutbound || (data.tripType === 'roundtrip' && data.inbound && !nextInbound)) {
+      throw new Error('Phiên giá đã hết hạn và chuyến bay cũ không còn khớp. Vui lòng quay lại tìm kiếm để chọn chuyến mới.');
+    }
+
+    const nextData: QuotePayload = {
+      ...data,
+      outbound: nextOutbound,
+      inbound: data.tripType === 'roundtrip' ? nextInbound || data.inbound : undefined,
+      searchExpiresAt: body.metadata?.expiresAt,
+      createdAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem(QUOTE_SELECTION_KEY, JSON.stringify(nextData));
+    setData(nextData);
+    prefetchAncillaryResponse({
+      flight: nextData.outbound,
+      outbound: nextData.outbound,
+      inbound: nextData.tripType === 'roundtrip' ? nextData.inbound : null,
+      tripType: nextData.tripType,
+      search: nextData.search,
+      adults: nextData.adults,
+      children: nextData.children,
+      infants: nextData.infants,
+      cabin: nextData.cabin,
+    });
+
+    return { searchExpiresAt: nextData.searchExpiresAt };
+  }, [data]);
 
   const openHoldModal = useCallback(() => {
     warmAncillaries();
@@ -1475,6 +1601,8 @@ export default function QuotePage() {
         cabin={data.cabin}
         open={holdOpen}
         onClose={() => setHoldOpen(false)}
+        selectionExpiresAt={data.searchExpiresAt}
+        onRefresh={refreshQuoteSelection}
       />
     </main>
   );

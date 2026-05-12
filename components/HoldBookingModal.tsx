@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import { Check, Copy } from 'lucide-react';
 import type {
   BookingAncillaryResponse,
@@ -42,6 +43,7 @@ type HoldProgressStep = {
   durationMs: number;
   text: string;
 };
+type RefreshResult = { searchExpiresAt?: string } | void;
 
 function airportCodeLabel(airports: AirportList, code?: string) {
   const normalized = String(code || '').trim().toUpperCase();
@@ -184,7 +186,13 @@ function holdErrorText(data: unknown) {
   const errorCode = normalizeMessageText(body.error);
   const topMessage = errorCode === 'UPSTREAM_UNAVAILABLE'
     ? 'Chưa giữ được chỗ do hệ thống hãng/Nam Thanh phản hồi không ổn định'
-    : errorCode;
+    : errorCode === 'QUOTE_EXPIRED'
+      ? 'Phiên giá đã hết hạn. Vui lòng làm mới hoặc chọn lại chuyến.'
+      : errorCode === 'FLIGHT_NOT_AVAILABLE'
+        ? 'Chuyến bay hoặc hạng giá này không còn khớp với dữ liệu mới. Vui lòng quay lại tìm kiếm để chọn chuyến khác.'
+        : errorCode === 'SOLD_OUT'
+          ? 'Chuyến bay hoặc hạng giá này đã hết chỗ.'
+          : errorCode;
   const fieldErrors = fieldErrorsText(body.fieldErrors);
   const flatErrors = [nestedErrors, detailErrors, bodyErrors]
     .flatMap((source) => Object.entries(source))
@@ -410,6 +418,14 @@ function dateLabel(value: string) {
 }
 
 const SESSION_DURATION_SEC = 10 * 60;
+const SESSION_EXPIRY_BUFFER_SEC = 30;
+
+function sessionSecondsFromExpiry(expiresAt?: string) {
+  if (!expiresAt) return SESSION_DURATION_SEC;
+  const ms = Date.parse(expiresAt);
+  if (!Number.isFinite(ms)) return SESSION_DURATION_SEC;
+  return Math.max(0, Math.floor((ms - Date.now()) / 1000) - SESSION_EXPIRY_BUFFER_SEC);
+}
 
 function airlineBadgeClasses(code?: string) {
   const a = String(code || '').toUpperCase();
@@ -431,6 +447,7 @@ export default function HoldBookingModal({
   cabin = 'economy',
   open,
   onClose,
+  selectionExpiresAt,
   onRefresh,
 }: {
   flight: FlightResult | null;
@@ -448,7 +465,8 @@ export default function HoldBookingModal({
   cabin?: Cabin;
   open: boolean;
   onClose: () => void;
-  onRefresh?: () => void | Promise<void>;
+  selectionExpiresAt?: string;
+  onRefresh?: () => RefreshResult | Promise<RefreshResult>;
 }) {
   const { airports } = useAirports();
   const [passengers, setPassengers] = useState<UiPassenger[]>(() => buildPassengerSeeds(adults, children, infants));
@@ -475,7 +493,7 @@ export default function HoldBookingModal({
   const [ancillaryAttempt, setAncillaryAttempt] = useState(0);
   const [skipBaggage, setSkipBaggage] = useState(false);
   const [copiedResult, setCopiedResult] = useState(false);
-  const [sessionRemainingSec, setSessionRemainingSec] = useState(SESSION_DURATION_SEC);
+  const [sessionRemainingSec, setSessionRemainingSec] = useState(() => sessionSecondsFromExpiry(selectionExpiresAt));
   const [refreshing, setRefreshing] = useState(false);
   const refreshTriggeredRef = useRef(false);
   const resultRef = useRef<HoldBookingResponse | null>(null);
@@ -542,9 +560,17 @@ export default function HoldBookingModal({
     setHoldProgressPct(0);
     setHoldProgressText('');
     setHoldProgressElapsedMs(0);
-    setSessionRemainingSec(SESSION_DURATION_SEC);
+    setSessionRemainingSec(sessionSecondsFromExpiry(selectionExpiresAt));
     setRefreshing(false);
+    refreshTriggeredRef.current = false;
   }, [open, adults, children, infants]);
+
+  useEffect(() => {
+    if (!open) return;
+    setSessionRemainingSec(sessionSecondsFromExpiry(selectionExpiresAt));
+    setRefreshing(false);
+    refreshTriggeredRef.current = false;
+  }, [open, selectionExpiresAt]);
 
   useEffect(() => {
     if (!open || result || refreshing) return;
@@ -554,8 +580,7 @@ export default function HoldBookingModal({
     return () => window.clearInterval(id);
   }, [open, result, refreshing]);
 
-  // Phiên hết hạn → tự động refresh giá rồi reset đếm lùi.
-  // Dùng ref thay cho cancel-flag để tránh re-run effect (do `refreshing` flip) huỷ async đang chạy.
+  // Auto-refresh when the upstream quote token expires.
   useEffect(() => {
     if (!open || result) {
       refreshTriggeredRef.current = false;
@@ -565,19 +590,26 @@ export default function HoldBookingModal({
     refreshTriggeredRef.current = true;
     setRefreshing(true);
     (async () => {
+      let refreshed = false;
       try {
         if (onRefresh) {
-          await onRefresh();
+          const refreshResult = await onRefresh();
+          refreshed = true;
+          const nextExpiresAt = refreshResult && typeof refreshResult === 'object'
+            ? refreshResult.searchExpiresAt
+            : undefined;
+          setSessionRemainingSec(sessionSecondsFromExpiry(nextExpiresAt));
         } else if (typeof window !== 'undefined') {
           window.location.reload();
           return;
         }
-      } catch {
-        // nuốt lỗi — parent tự log; sau khi reset countdown người dùng có thể submit lại.
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : String(err));
       } finally {
-        setSessionRemainingSec(SESSION_DURATION_SEC);
         setRefreshing(false);
-        refreshTriggeredRef.current = false;
+        if (refreshed) {
+          refreshTriggeredRef.current = false;
+        }
       }
     })();
   }, [open, result, sessionRemainingSec, onRefresh]);
@@ -1250,9 +1282,11 @@ export default function HoldBookingModal({
               <div className="mt-0.5 text-xs text-emerald-900/85">Tạo QR thanh toán SePay để đối soát tự động.</div>
             </div>
             <span className="flex h-11 w-[96px] shrink-0 items-center justify-center rounded-full border border-emerald-300 bg-white px-3 py-1">
-              <img
+              <Image
                 src="/assets/sepay-logo.jpg"
                 alt="SePay"
+                width={96}
+                height={32}
                 className="h-6 w-auto max-w-full object-contain"
               />
             </span>

@@ -677,7 +677,8 @@ async function findExistingBookingByHoldPnrs(holdResult: HoldBookingResponse): P
 
 function quoteErrorResponse(error: unknown): NextResponse | null {
   if (error instanceof QuoteExpiredError) {
-    return NextResponse.json({ error: "QUOTE_EXPIRED" }, { status: 409 });
+    const code = error.message === "FLIGHT_NOT_AVAILABLE" ? "FLIGHT_NOT_AVAILABLE" : "QUOTE_EXPIRED";
+    return NextResponse.json({ error: code }, { status: 409 });
   }
 
   if (error instanceof QuoteUnavailableError) {
@@ -723,6 +724,16 @@ function quoteErrorResponse(error: unknown): NextResponse | null {
 
     if (text.includes("expired")) {
       return NextResponse.json({ error: "QUOTE_EXPIRED" }, { status: 409 });
+    }
+
+    if (text.includes("no matching flight found")) {
+      return NextResponse.json(
+        {
+          error: "FLIGHT_NOT_AVAILABLE",
+          detail: error.message,
+        },
+        { status: 409 },
+      );
     }
 
     if (text.includes("sold out") || text.includes("không còn chỗ") || text.includes("khong con cho")) {

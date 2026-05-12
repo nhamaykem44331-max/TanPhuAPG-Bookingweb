@@ -7,7 +7,7 @@ import React from "react";
 
 import { SearchResultsContent } from "./SearchResultsClient";
 import type { DateStripProps } from "./search/DateStrip";
-import type { SearchResponse } from "@/lib/types";
+import type { FlightResult, SearchResponse } from "@/lib/types";
 
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "http://localhost",
@@ -39,17 +39,63 @@ function makeSearchResponse(overrides: Partial<SearchResponse["metadata"]> = {})
   };
 }
 
+function makeFlight(overrides: Partial<FlightResult> = {}): FlightResult {
+  return {
+    id: overrides.id ?? "flight-test-1",
+    airline: overrides.airline ?? "Vietnam Airlines",
+    airlineCode: overrides.airlineCode ?? "VN",
+    flightNumber: overrides.flightNumber ?? "VN123",
+    departure: overrides.departure ?? {
+      airport: "HAN",
+      airportName: "Noi Bai",
+      city: "Ha Noi",
+      time: "2026-04-26T07:00:00+07:00",
+    },
+    arrival: overrides.arrival ?? {
+      airport: "SGN",
+      airportName: "Tan Son Nhat",
+      city: "Ho Chi Minh",
+      time: "2026-04-26T09:10:00+07:00",
+    },
+    duration: overrides.duration ?? 130,
+    stops: overrides.stops ?? 0,
+    price: overrides.price ?? {
+      amount: 1790000,
+      currency: "VND",
+      source: "namthanh",
+    },
+    priceUSD: overrides.priceUSD ?? 72,
+    sources: overrides.sources ?? ["namthanh"],
+    ...overrides,
+  };
+}
+
+function makeSseResponse(body: SearchResponse): Response {
+  const eventBody = [
+    `event: session\ndata: ${JSON.stringify({ type: "session", airlines: ["TEST"] })}\n\n`,
+    `event: airline_result\ndata: ${JSON.stringify({
+      type: "airline_result",
+      results: body.results,
+      departureResults: body.departureResults ?? body.results,
+      returnResults: body.returnResults ?? [],
+      completedCount: 1,
+      totalCount: 1,
+    })}\n\n`,
+    `event: done\ndata: ${JSON.stringify({ type: "done" })}\n\n`,
+  ].join("");
+
+  return new Response(eventBody, {
+    headers: { "Content-Type": "text/event-stream" },
+    status: 200,
+  });
+}
+
 function installSearchFetchMock(...responses: SearchResponse[]): FetchMock {
   const mock = ((input: RequestInfo | URL, init?: RequestInit) => {
     const body = mock.queue.shift() || responses[responses.length - 1] || makeSearchResponse();
     mock.calls.push({ body, input: String(input), init });
 
-    return Promise.resolve(
-      new Response(JSON.stringify(body), {
-        headers: { "Content-Type": "application/json" },
-        status: 200,
-      }),
-    );
+    return Promise.resolve(makeSseResponse(body));
   }) as FetchMock;
 
   mock.calls = [];
