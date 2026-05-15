@@ -490,6 +490,8 @@ function oneWayRoutePayloadFromFlight(flight: FlightResult, body: HoldBookingReq
     passengers,
     contact: body.contact,
     dryRun: body.dryRun,
+    fastHold: body.fastHold,
+    skipPricingSync: body.skipPricingSync,
     idempotencyKey,
   };
 }
@@ -523,6 +525,8 @@ function roundtripHoldPayload(body: HoldBookingRequest, idempotencyKey?: string)
     passengers: body.passengers,
     contact: body.contact,
     dryRun: body.dryRun,
+    fastHold: body.fastHold,
+    skipPricingSync: body.skipPricingSync,
     idempotencyKey,
   };
 }
@@ -628,6 +632,21 @@ async function postHold(payload: Record<string, unknown>, idempotencyKey?: strin
     headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
     body: JSON.stringify(payload),
   }, 300_000);
+}
+
+export interface NamThanhBookingStatusResponse {
+  success: boolean;
+  sessionID?: number | string;
+  pnrs?: NonNullable<HoldBookingResponse['pnrs']>;
+  rawStatus?: string;
+}
+
+export async function getNamThanhBookingStatus(sessionID: number | string): Promise<NamThanhBookingStatusResponse> {
+  return namThanhFetch<NamThanhBookingStatusResponse>(
+    `/bookings/${encodeURIComponent(String(sessionID))}`,
+    { method: 'GET' },
+    60_000,
+  );
 }
 
 async function postAncillaries(payload: Record<string, unknown>) {

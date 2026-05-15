@@ -125,6 +125,7 @@ export function SepayPaymentClient({ booking, initialIntent }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const lastFetchRef = useRef(0);
+  const autoCreateAttemptedRef = useRef(false);
 
   const ttl = useCountdown(intent?.expiresAt ?? booking.ttlExpiresAt);
 
@@ -181,6 +182,22 @@ export function SepayPaymentClient({ booking, initialIntent }: Props) {
       setCreating(false);
     }
   }, [booking.id]);
+
+  useEffect(() => {
+    if (
+      autoCreateAttemptedRef.current ||
+      intent ||
+      balance <= 0 ||
+      isExpired ||
+      bookingStatus === "EXPIRED" ||
+      bookingStatus === "CANCELLED"
+    ) {
+      return;
+    }
+
+    autoCreateAttemptedRef.current = true;
+    void createIntent();
+  }, [balance, bookingStatus, createIntent, intent, isExpired]);
 
   const copy = useCallback(async (text: string, key: string) => {
     try {

@@ -234,6 +234,8 @@ export interface HoldBookingRequest {
     extraInfo?: string;
   };
   dryRun?: boolean;
+  fastHold?: boolean;
+  skipPricingSync?: boolean;
   idempotencyKey?: string;
 }
 

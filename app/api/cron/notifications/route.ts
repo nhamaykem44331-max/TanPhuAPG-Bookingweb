@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { syncExpiredBookingOrders } from "@/lib/bookings/orderManagement";
+import { syncOpenNamThanhBookings } from "@/lib/bookings/namthanhStatusSync";
 import { processDueNotificationJobs } from "@/lib/notifications/runner";
 
 export const dynamic = "force-dynamic";
@@ -26,11 +27,14 @@ export async function GET(request: Request) {
   }
 
   const expiredOrders = await syncExpiredBookingOrders();
+  const namThanhSync = await syncOpenNamThanhBookings();
   const result = await processDueNotificationJobs();
 
   return NextResponse.json({
     ...result,
     expiredOrderCount: expiredOrders.filter((item) => item.expiredNow).length,
+    namThanhSyncCount: namThanhSync.filter((item) => item.synced).length,
+    namThanhSyncFailedCount: namThanhSync.filter((item) => item.error).length,
   });
 }
 

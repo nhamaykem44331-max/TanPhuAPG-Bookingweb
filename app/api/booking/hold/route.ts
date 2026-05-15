@@ -8,10 +8,10 @@ import { prisma } from "@/lib/db";
 import { getAuditRequestMeta } from "@/lib/audit";
 import type { HoldInput, HoldPassengerInput } from "@/lib/bookings/schemas";
 import { generateUniqueOrderCode } from "@/lib/bookings/orderManagement";
+import { syncNamThanhBookingStatus } from "@/lib/bookings/namthanhStatusSync";
 import { holdInputSchema } from "@/lib/bookings/schemas";
 import { holdNamThanhBooking, NamThanhApiError } from "@/lib/namthanh";
-import { notifyNow } from "@/lib/notifications";
-import { createSepayIntentForBooking, SepayError } from "@/lib/payments/sepayService";
+import { notify } from "@/lib/notifications";
 import { QuoteExpiredError, QuoteUnavailableError } from "@/lib/pricing/errors";
 import { quoteBooking, type QuoteServiceResult } from "@/lib/pricing/quoteService";
 import type { FlightResult, HoldBookingPassenger, HoldBookingResponse } from "@/lib/types";
@@ -958,6 +958,8 @@ export async function POST(request: NextRequest) {
         email: input.contact.email,
       },
       dryRun: false,
+      fastHold: true,
+      skipPricingSync: true,
       idempotencyKey: input.idempotencyKey,
     } satisfies Parameters<typeof holdNamThanhBooking>[0];
     const holdResult = await holdNamThanhBooking(holdPayload, input.idempotencyKey);
@@ -1107,38 +1109,20 @@ export async function POST(request: NextRequest) {
       return createdBooking;
     });
 
-    let paymentIntentResult: Awaited<ReturnType<typeof createSepayIntentForBooking>> | null = null;
+    void notify({
+      type: "BOOKING_HOLD_CREATED",
+      bookingId: booking.id,
+    }).catch((error) => {
+      console.error("booking hold notification enqueue failed", error);
+    });
 
-    try {
-      paymentIntentResult = await createSepayIntentForBooking(booking.id, actorId);
-    } catch (error) {
-      if (error instanceof SepayError) {
-        console.error("create sepay intent after hold failed", {
+    if (holdResult.sessionID) {
+      void syncNamThanhBookingStatus(booking.id).catch((error) => {
+        console.error("booking hold Nam Thanh status sync failed", {
           bookingId: booking.id,
-          code: error.code,
-          message: error.message,
+          error: error instanceof Error ? error.message : String(error),
         });
-      } else {
-        console.error("create sepay intent after hold failed", error);
-      }
-    }
-
-    try {
-      if (paymentIntentResult?.intent) {
-        await notifyNow({
-          type: "BOOKING_HOLD_CREATED",
-          bookingId: booking.id,
-          paymentIntentId: paymentIntentResult.intent.id,
-          reused: paymentIntentResult.reused,
-        });
-      } else {
-        await notifyNow({
-          type: "BOOKING_HOLD_CREATED",
-          bookingId: booking.id,
-        });
-      }
-    } catch (error) {
-      console.error("booking hold telegram notification failed", error);
+      });
     }
 
     return NextResponse.json({
@@ -1157,19 +1141,7 @@ export async function POST(request: NextRequest) {
       totalAmount: Number(quote.totalSellPrice.toFixed(0)) + baggageTotal,
       sessionID: holdResult.sessionID,
       passenger: input.contact.fullName,
-      paymentIntent: paymentIntentResult
-        ? {
-            id: paymentIntentResult.intent.id,
-            status: paymentIntentResult.intent.status,
-            amount: paymentIntentResult.intent.amount,
-            checkoutUrl: paymentIntentResult.intent.checkoutUrl,
-            qrCode: paymentIntentResult.intent.qrCode,
-            transferContent: paymentIntentResult.intent.transferContent,
-            provider: paymentIntentResult.intent.provider,
-            expiresAt: paymentIntentResult.intent.expiresAt?.toISOString() ?? null,
-            reused: paymentIntentResult.reused,
-          }
-        : null,
+      paymentIntent: null,
       pricing: {
         verified: true,
         source: "admin-quote",
