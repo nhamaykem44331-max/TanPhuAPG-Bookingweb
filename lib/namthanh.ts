@@ -166,6 +166,192 @@ export function normalizePairOption(
   };
 }
 
+const SEAT_COUNT_KEYS = [
+  'seatAvailable',
+  'seatsAvailable',
+  'availableSeats',
+  'remainingSeats',
+  'seatLeft',
+  'seatsLeft',
+];
+
+const SOLD_OUT_FLAG_KEYS = [
+  'soldOut',
+  'soldout',
+  'isSoldOut',
+  'unavailable',
+  'isUnavailable',
+  'closed',
+  'isClosed',
+];
+
+const AVAILABLE_FLAG_KEYS = [
+  'available',
+  'isAvailable',
+  'bookable',
+  'isBookable',
+];
+
+const AVAILABILITY_TEXT_KEYS = [
+  'status',
+  'message',
+  'fareStatus',
+  'availabilityStatus',
+  'displayStatus',
+  'inventoryStatus',
+];
+
+function normalizedAvailabilityText(value: unknown): string {
+  return toText(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+}
+
+function booleanFlag(value: unknown): boolean | null {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+  const text = normalizedAvailabilityText(value);
+  if (['true', '1', 'yes', 'y', 'available', 'bookable'].includes(text)) return true;
+  if (['false', '0', 'no', 'n', 'unavailable', 'soldout', 'sold out'].includes(text)) return false;
+  return null;
+}
+
+function numericSeatCount(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const count = Number(value);
+  return Number.isFinite(count) ? count : null;
+}
+
+function seatCountFromRecord(record: LooseRecord | null): number | null {
+  if (!record) return null;
+  for (const key of SEAT_COUNT_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(record, key)) {
+      const count = numericSeatCount(record[key]);
+      if (count !== null) return count;
+    }
+  }
+  return null;
+}
+
+function recordHasUnavailableSignal(record: LooseRecord | null): boolean {
+  if (!record) return false;
+
+  for (const key of SOLD_OUT_FLAG_KEYS) {
+    const flag = booleanFlag(record[key]);
+    if (flag === true) return true;
+  }
+
+  for (const key of AVAILABLE_FLAG_KEYS) {
+    const flag = booleanFlag(record[key]);
+    if (flag === false) return true;
+  }
+
+  for (const key of AVAILABILITY_TEXT_KEYS) {
+    const text = normalizedAvailabilityText(record[key]);
+    if (!text) continue;
+    if (
+      text.includes('sold out') ||
+      text.includes('soldout') ||
+      text.includes('no seat') ||
+      text.includes('no seats') ||
+      text.includes('no availability') ||
+      text.includes('not available') ||
+      text.includes('unavailable') ||
+      text.includes('het cho') ||
+      text.includes('het ve')
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function fareOptionMatchesSelected(flight: FlightResult, option: NonNullable<FlightResult['fareOptions']>[number]) {
+  const fareId = toText(flight.fareId || flight.namthanh?.fareId);
+  if (fareId && option.id === fareId) return true;
+
+  const fareClass = toText(flight.namthanh?.class).toUpperCase();
+  const fareBasis = toText(flight.namthanh?.fareBasis).toUpperCase();
+  const optionClass = toText(option.class).toUpperCase();
+  const optionBasis = toText(option.fareBasis).toUpperCase();
+
+  return !!(
+    (fareClass && optionClass && fareClass === optionClass) &&
+    (!fareBasis || !optionBasis || fareBasis === optionBasis)
+  );
+}
+
+function selectedFareOption(flight: FlightResult) {
+  const options = flight.fareOptions || [];
+  if (!options.length) return null;
+  return options.find((option) => fareOptionMatchesSelected(flight, option)) || null;
+}
+
+function recordSeatIsBookable(record: LooseRecord | null): boolean | null {
+  const count = seatCountFromRecord(record);
+  return count === null ? null : count > 0;
+}
+
+export function isFlightBookable(flight: FlightResult): boolean {
+  const flightRecord = asRecord(flight as unknown);
+  const namThanhRecord = asRecord(flight.namthanh as unknown);
+
+  if (recordHasUnavailableSignal(flightRecord) || recordHasUnavailableSignal(namThanhRecord)) {
+    return false;
+  }
+
+  const selectedOption = selectedFareOption(flight);
+  if (selectedOption) {
+    const selectedRecord = asRecord(selectedOption);
+    if (recordHasUnavailableSignal(selectedRecord)) return false;
+    const selectedSeats = recordSeatIsBookable(selectedRecord);
+    if (selectedSeats !== null) return selectedSeats;
+  }
+
+  const namThanhSeats = recordSeatIsBookable(namThanhRecord);
+  if (namThanhSeats !== null) return namThanhSeats;
+
+  const flightSeats = recordSeatIsBookable(flightRecord);
+  if (flightSeats !== null) return flightSeats;
+
+  const options = flight.fareOptions || [];
+  if (options.length) {
+    let sawExplicitAvailability = false;
+    let sawBookableOption = false;
+
+    for (const option of options) {
+      const optionRecord = asRecord(option);
+      if (recordHasUnavailableSignal(optionRecord)) {
+        sawExplicitAvailability = true;
+        continue;
+      }
+
+      const optionSeats = recordSeatIsBookable(optionRecord);
+      if (optionSeats !== null) {
+        sawExplicitAvailability = true;
+        if (optionSeats) sawBookableOption = true;
+      } else {
+        sawBookableOption = true;
+      }
+    }
+
+    if (sawExplicitAvailability && !sawBookableOption) return false;
+  }
+
+  return true;
+}
+
+export function isPairOptionBookable(pair: RoundtripPairOption): boolean {
+  return isFlightBookable(pair.outbound) && isFlightBookable(pair.inbound);
+}
+
 function trimFlightsForSearch(flights: FlightResult[]) {
   return flights.slice(0, SEARCH_FLIGHT_PRESENTATION_LIMIT);
 }
@@ -877,18 +1063,22 @@ export async function searchNamThanhFlights(payload: SearchPayload): Promise<Sea
 
   const allResults = (data.results || [])
     .map((flight) => normalizeFlight(flight, data.searchId, rate))
+    .filter(isFlightBookable)
     .filter((flight) => flight.price.amount > 0)
     .sort((a, b) => a.price.amount - b.price.amount);
   const allDepartureResults = (data.departureResults || [])
     .map((flight) => normalizeFlight(flight, data.searchId, rate))
+    .filter(isFlightBookable)
     .filter((flight) => flight.price.amount > 0)
     .sort((a, b) => a.price.amount - b.price.amount);
   const allReturnResults = (data.returnResults || [])
     .map((flight) => normalizeFlight(flight, data.searchId, rate))
+    .filter(isFlightBookable)
     .filter((flight) => flight.price.amount > 0)
     .sort((a, b) => a.price.amount - b.price.amount);
   const allPairOptions = (data.pairOptions || [])
     .map((pair) => normalizePairOption(pair, data.searchId, rate))
+    .filter(isPairOptionBookable)
     .filter((pair) => pair.totalAmount > 0)
     .sort((a, b) => a.totalAmount - b.totalAmount);
 
@@ -896,6 +1086,9 @@ export async function searchNamThanhFlights(payload: SearchPayload): Promise<Sea
   const departureResults = trimFlightsForSearch(allDepartureResults);
   const returnResults = trimFlightsForSearch(allReturnResults);
   const pairOptions = trimPairsForSearch(allPairOptions);
+  const oneWayDepartureCount = payload.tripType === 'oneway' ? allResults.length : 0;
+  const oneWayDisplayedDepartureCount = payload.tripType === 'oneway' ? results.length : 0;
+  const totalBookableResults = allPairOptions.length || allResults.length || (allDepartureResults.length + allReturnResults.length);
 
   return {
     searchId: data.searchId,
@@ -904,12 +1097,12 @@ export async function searchNamThanhFlights(payload: SearchPayload): Promise<Sea
     returnResults,
     pairOptions,
     metadata: {
-      totalResults: data.metadata?.totalResults ?? (allPairOptions.length || allResults.length),
-      departureCount: data.metadata?.departureCount ?? allDepartureResults.length,
-      returnCount: data.metadata?.returnCount ?? allReturnResults.length,
-      pairCount: data.metadata?.pairCount ?? allPairOptions.length,
+      totalResults: totalBookableResults,
+      departureCount: allDepartureResults.length || oneWayDepartureCount,
+      returnCount: allReturnResults.length,
+      pairCount: allPairOptions.length,
       displayedResultCount: results.length,
-      displayedDepartureCount: departureResults.length,
+      displayedDepartureCount: departureResults.length || oneWayDisplayedDepartureCount,
       displayedReturnCount: returnResults.length,
       displayedPairCount: pairOptions.length,
       journeyType: data.metadata?.journeyType,

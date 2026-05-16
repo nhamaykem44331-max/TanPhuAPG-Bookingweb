@@ -2,6 +2,8 @@ import { type NextRequest, NextResponse } from 'next/server';
 import {
   normalizeFlight,
   normalizePairOption,
+  isFlightBookable,
+  isPairOptionBookable,
   streamNamThanhSearch,
   NamThanhApiError,
 } from '@/lib/namthanh';
@@ -101,16 +103,16 @@ export async function POST(req: NextRequest) {
             // Normalize then apply markup per-airline chunk
             const rawResults = (event.results ?? []).map((f: FlightResult) =>
               normalizeFlight(f, searchId, exchangeRate),
-            );
+            ).filter(isFlightBookable);
             const rawDeparture = (event.departureResults ?? []).map((f: FlightResult) =>
               normalizeFlight(f, searchId, exchangeRate),
-            );
+            ).filter(isFlightBookable);
             const rawReturn = (event.returnResults ?? []).map((f: FlightResult) =>
               normalizeFlight(f, searchId, exchangeRate),
-            );
+            ).filter(isFlightBookable);
             const rawPairs = (event.pairOptions ?? []).map((pair: RoundtripPairOption) =>
               normalizePairOption(pair, searchId, exchangeRate),
-            );
+            ).filter(isPairOptionBookable);
 
             const [results, departureResults, returnResults, pairOptions] = await Promise.all([
               applyMarkupToFlights(rawResults, ctx, tripType, exchangeRate),
