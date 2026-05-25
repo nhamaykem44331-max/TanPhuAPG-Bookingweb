@@ -717,6 +717,7 @@ export default function HomeSearchExperience() {
       engine: 'MuadiDirectStream',
     });
 
+    try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -836,6 +837,11 @@ export default function HomeSearchExperience() {
         setStreamState(EMPTY_STREAM_STATE);
         return false;
       }
+    }
+
+    } finally {
+      // Giải phóng kết nối SSE phía browser trên mọi lối thoát (done/abort/lỗi).
+      try { await reader.cancel(); } catch { /* reader đã đóng */ }
     }
 
     setStreamState((prev) => ({ ...prev, active: false, done: true }));

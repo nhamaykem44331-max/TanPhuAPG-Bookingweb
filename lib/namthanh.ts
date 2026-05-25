@@ -1136,9 +1136,18 @@ export interface StreamSearchEvent {
 export async function* streamNamThanhSearch(
   payload: SearchPayload,
   timeoutMs = 55_000,
+  externalSignal?: AbortSignal,
 ): AsyncGenerator<StreamSearchEvent> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  // Khi client/route ngắt kết nối (đổi search, đóng tab) → hủy luôn fetch tới backend.
+  // Nếu thiếu, handler vẫn chạy hết stream backend → rò rỉ kết nối, các search sau bị treo/rỗng.
+  const onExternalAbort = () => controller.abort()
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort()
+    else externalSignal.addEventListener('abort', onExternalAbort, { once: true })
+  }
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
 
   try {
     const res = await fetch(`${backendUrl()}/flights/search/stream`, {
@@ -1166,7 +1175,7 @@ export async function* streamNamThanhSearch(
       )
     }
 
-    const reader = res.body.getReader()
+    reader = res.body.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
 
@@ -1192,6 +1201,8 @@ export async function* streamNamThanhSearch(
       }
     }
   } catch (err) {
+    // Bị hủy do client/route ngắt (không phải timeout) → kết thúc generator êm, không ném lỗi.
+    if (externalSignal?.aborted) return
     if (err instanceof NamThanhApiError) throw err
     if (err instanceof Error && err.name === 'AbortError') {
       throw new NamThanhApiError('Nam Thanh stream timeout', 504)
@@ -1199,6 +1210,16 @@ export async function* streamNamThanhSearch(
     throw err
   } finally {
     clearTimeout(timer)
+    if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort)
+    // Đảm bảo fetch backend bị tear down khi generator return/break (consumer dừng vòng lặp).
+    controller.abort()
+    if (reader) {
+      try {
+        await reader.cancel()
+      } catch {
+        // ignore
+      }
+    }
   }
 }
 

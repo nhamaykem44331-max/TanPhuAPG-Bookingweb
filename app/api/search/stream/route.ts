@@ -62,6 +62,13 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const tripType: 'ONEWAY' | 'ROUNDTRIP' = body.tripType === 'roundtrip' ? 'ROUNDTRIP' : 'ONEWAY';
 
+  // Hủy fetch tới backend khi client ngắt kết nối (đổi search / đóng tab) → tránh rò rỉ handler
+  // làm các search sau trả rỗng. Liên kết với req.signal (client disconnect) + cancel() bên dưới.
+  const upstream = new AbortController();
+  const onClientAbort = () => upstream.abort();
+  if (req.signal.aborted) upstream.abort();
+  else req.signal.addEventListener('abort', onClientAbort, { once: true });
+
   const stream = new ReadableStream({
     async start(controller) {
       function push(data: unknown) {
@@ -92,7 +99,8 @@ export async function POST(req: NextRequest) {
 
         const fallbackSearchId = `stream_${Date.now()}`;
 
-        for await (const event of streamNamThanhSearch(body)) {
+        for await (const event of streamNamThanhSearch(body, 55_000, upstream.signal)) {
+          if (upstream.signal.aborted) break;
           if (event.type === 'session') {
             push(event);
             continue;
@@ -148,6 +156,11 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch (err) {
+        // Client ngắt giữa chừng → kết thúc êm, không đẩy lỗi giả.
+        if (upstream.signal.aborted) {
+          try { controller.close(); } catch { /* already closed */ }
+          return;
+        }
         const msg = err instanceof NamThanhApiError
           ? err.message
           : err instanceof Error
@@ -157,6 +170,8 @@ export async function POST(req: NextRequest) {
         const isNotDeployed = err instanceof NamThanhApiError && err.status === 404;
         pushError(isNotDeployed ? 'STREAM_NOT_SUPPORTED' : msg);
         return;
+      } finally {
+        req.signal.removeEventListener('abort', onClientAbort);
       }
 
       try {
@@ -164,6 +179,10 @@ export async function POST(req: NextRequest) {
       } catch {
         // already closed
       }
+    },
+    cancel() {
+      // ReadableStream bị hủy (client đóng kết nối) → hủy fetch backend đang chạy.
+      upstream.abort();
     },
   });
 
