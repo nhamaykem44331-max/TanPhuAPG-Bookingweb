@@ -2249,7 +2249,10 @@ async function handleHealth(options = {}) {
       }
     : { value: null, fallback: EXCHANGE_RATE_FALLBACK };
 
-  const ok = !!session.ok && (!ocr.configured || ocr.reachable) && (!probe || probe.ok);
+  // OCR KHÔNG còn gate health: api-login (đăng nhập chính) không cần OCR; OCR chỉ phục vụ
+  // fallback browser. Trên lean image (không có OCR) /health vẫn phải "ok" nếu session tốt.
+  // (ocr vẫn được report trong body để quan sát.) Lỗi đăng nhập thật sẽ lộ qua session.ok.
+  const ok = !!session.ok && (!probe || probe.ok);
   const sessionMgr = sessionManagerStatus();
 
   return {
