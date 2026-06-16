@@ -636,7 +636,10 @@ export default function RoundtripResultsSection({
         </div>
       )}
 
-      {roundtripViewMode === 'legs' && (
+      {/* Hiện chế độ "từng chiều" khi user chọn legs HOẶC khi không có cặp dựng sẵn
+          (pairOptions rỗng). Nếu thiếu điều kiện pairOptions===0, user đang ở mode 'pair'
+          (đã lưu) mà route không có cặp sẽ thấy MÀN HÌNH TRỐNG không có chuyến để chọn. */}
+      {(roundtripViewMode === 'legs' || pairOptions.length === 0) && (
         <>
           <div className="overflow-hidden bg-white shadow-sm md:hidden" style={{ border: '1px solid var(--apg-border-default)' }}>
             <div className="border-b border-[var(--apg-border-default)] bg-white p-2">
