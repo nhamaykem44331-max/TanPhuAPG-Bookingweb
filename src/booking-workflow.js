@@ -1167,6 +1167,7 @@ module.exports = {
   buildAncillariesRequest,
   buildBookRequest,
   buildSearchRequest,
+  contactFromSession,
   cheapestFare,
   clearSessionListCache,
   createBookingWithProtection,

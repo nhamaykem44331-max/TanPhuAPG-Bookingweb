@@ -43,6 +43,7 @@ const {
   selectFlightPair,
   buildAncillariesRequest,
   buildBookRequest,
+  contactFromSession,
   clearSessionListCache,
   refreshBookRequestLuggage,
   summarizeHoldResult,
@@ -413,6 +414,91 @@ describe('buildBookRequest', () => {
       key: 'bg-10',
       serviceType: 'BAG',
     });
+  });
+});
+
+describe('hold → Muadi payload: field mapping (e2e gửi sang Muadi)', () => {
+  const fare = sampleFlight.priceInfo[0];
+  const rtRequest = {
+    sessionID: 7,
+    originCode: 'SGN',
+    destinationCode: 'HAN',
+    departureDateTime: '30-06-2026',
+    returnDateTime: '01-08-2026',
+    numberOfAdult: 1,
+    numberOfChildren: 0,
+    numberOfInfant: 0,
+    currencyCode: 'VND',
+  };
+
+  it('passenger: đảo Họ/Tên + chuẩn hoá DOB/passport (DD-MM-YYYY) + loyalty', () => {
+    // Frontend gửi: Họ ở lastName, Tên ở firstName, dob dạng YYYY-MM-DD.
+    const pax = parsePassengerName('', {
+      lastName: 'NGUYEN', firstName: 'CONG PHONG', title: 'MR', type: 'ADT', id: 'ADT1',
+      dateOfBirth: '1990-05-15',
+      loyaltyAirline: 'VN', loyaltyNumber: '12345',
+      passport: { number: 'B1234567', nationality: 'VN', issuingCountry: 'VN', issueDate: '2020-01-02', expiryDate: '2030-01-02' },
+    });
+    const req = buildBookRequest({ request: rtRequest, flight: sampleFlight, fare, passenger: pax });
+    const p = req.listPax[0];
+    // Tên đảo đúng quy ước Muadi: firstName=HỌ, lastName=TÊN
+    expect(p.firstName).toBe('NGUYEN');
+    expect(p.lastName).toBe('CONG PHONG');
+    expect(p.name).toBe('NGUYEN CONG PHONG');
+    expect(p.fullName).toBe('NGUYEN CONG PHONG');
+    expect(p.title).toBe('MR');
+    expect(p.type).toBe('ADT');
+    // DOB phải là DD-MM-YYYY (không để lọt YYYY-MM-DD sang Muadi)
+    expect(p.birthday).toBe('15-05-1990');
+    // Passport: ngày issue/expiry cũng DD-MM-YYYY
+    expect(p.passport).toMatchObject({
+      number: 'B1234567', nationality: 'VN', issuingCountry: 'VN',
+      issueDate: '02-01-2020', expiryDate: '02-01-2030',
+    });
+    // Loyalty: [{ airline, cardNumber }]
+    expect(p.loyalty).toEqual([{ airline: 'VN', cardNumber: '12345' }]);
+  });
+
+  it('roundtrip: tạo đúng 2 route (đi SGN→HAN, về HAN→SGN)', () => {
+    const pax = parsePassengerName('', { lastName: 'NGUYEN', firstName: 'CONG PHONG', title: 'MR' });
+    const req = buildBookRequest({
+      request: rtRequest, flight: sampleFlight, fare, passenger: pax,
+      returnFlight: sampleFlight, returnFare: fare,
+    });
+    expect(req.listRoutes).toHaveLength(2);
+    expect(req.listRoutes[0]).toMatchObject({ from: 'SGN', to: 'HAN' });
+    expect(req.listRoutes[1]).toMatchObject({ from: 'HAN', to: 'SGN' });
+  });
+
+  it('nhiều khách: đảo tên đúng cho TỪNG người, giữ thứ tự & type', () => {
+    const adt = parsePassengerName('', { lastName: 'NGUYEN', firstName: 'CONG PHONG', title: 'MR', type: 'ADT', id: 'ADT1' });
+    const chd = parsePassengerName('', { lastName: 'TRAN', firstName: 'BAO AN', title: 'MSTR', type: 'CHD', id: 'CHD1' });
+    const req = buildBookRequest({ request: rtRequest, flight: sampleFlight, fare, passengers: [adt, chd] });
+    expect(req.listPax).toHaveLength(2);
+    expect(req.listPax[0]).toMatchObject({ id: 'ADT1', firstName: 'NGUYEN', lastName: 'CONG PHONG', type: 'ADT' });
+    expect(req.listPax[1]).toMatchObject({ id: 'CHD1', firstName: 'TRAN', lastName: 'BAO AN', type: 'CHD' });
+  });
+
+  it('customerInfo: dùng đúng email/phone/tên liên hệ từ body (không đảo)', () => {
+    const contact = contactFromSession(mockClient, { firstName: 'CONG PHONG', lastName: 'NGUYEN' }, {
+      contactName: 'NGUYEN CONG PHONG', email: 'kspaducanh@gmail.com', phone: '0944513866',
+    });
+    expect(contact).toMatchObject({
+      email: 'kspaducanh@gmail.com',
+      fullName: 'NGUYEN CONG PHONG',
+      phoneNumber: '0944513866',
+    });
+  });
+
+  it('counts: adt/chd/inf trong payload khớp request', () => {
+    const pax = parsePassengerName('', { lastName: 'NGUYEN', firstName: 'CONG PHONG', title: 'MR' });
+    const req = buildBookRequest({
+      request: { ...rtRequest, numberOfAdult: 2, numberOfChildren: 1, numberOfInfant: 0 },
+      flight: sampleFlight, fare, passenger: pax,
+    });
+    expect(req.adt).toBe(2);
+    expect(req.chd).toBe(1);
+    expect(req.inf).toBe(0);
   });
 });
 
