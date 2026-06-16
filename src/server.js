@@ -2226,7 +2226,9 @@ async function handleHealth(options = {}) {
     }
   }
 
-  let ocr = { configured: false, reachable: false, url: config.ddddocr && config.ddddocr.apiUrl };
+  // OCR chỉ "configured" khi DDDDOCR_API_URL được set tường minh. Lean image (Phase 2) bỏ env này
+  // → ocr.configured=false → /health KHÔNG còn phụ thuộc OCR (tránh restart loop khi đã gỡ ddddocr).
+  let ocr = { configured: false, reachable: false, url: process.env.DDDDOCR_API_URL || null };
   if (ocr.url) {
     ocr.configured = true;
     try {
