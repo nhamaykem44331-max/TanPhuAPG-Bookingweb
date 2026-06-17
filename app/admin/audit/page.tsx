@@ -69,6 +69,7 @@ export default async function AuditPage({ searchParams }: AuditPageProps) {
     prisma.auditLog.count({ where }),
     prisma.user.findMany({
       orderBy: { email: "asc" },
+      take: 500,
       select: {
         id: true,
         email: true,

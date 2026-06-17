@@ -306,6 +306,7 @@ export async function getAdminCustomerById(customerId: string): Promise<AdminCus
       },
       bookings: {
         orderBy: { createdAt: "desc" },
+        take: 50,
         select: {
           id: true,
           pnr: true,

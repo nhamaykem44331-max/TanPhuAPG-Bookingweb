@@ -1,9 +1,11 @@
+import { unstable_cache } from "next/cache";
 import { BookingStatus, type Prisma } from "@prisma/client";
 
 import { calculatePaymentSummary } from "@/lib/booking/paymentSummary";
 import { bookingListWhereForRole, type OwnershipContext } from "@/lib/auth/ownership";
 import { prisma } from "@/lib/db";
-import { getDashboardCache, setDashboardCache } from "@/lib/dashboard/cache";
+
+const DASHBOARD_CACHE_TTL_SECONDS = 30;
 
 export interface DashboardSummary {
   today: {
@@ -70,14 +72,7 @@ function deltaPercent(today: number, yesterday: number): number {
   return Math.round(((today - yesterday) / yesterday) * 1000) / 10;
 }
 
-export async function getDashboardSummary(ctx: OwnershipContext): Promise<DashboardSummary> {
-  const cacheKey = `${ctx.userId}:${ctx.role}`;
-  const cached = getDashboardCache<DashboardSummary>(cacheKey);
-
-  if (cached) {
-    return cached;
-  }
-
+async function computeDashboardSummary(ctx: OwnershipContext): Promise<DashboardSummary> {
   const now = new Date();
   const todayStart = startOfDay(now);
   const tomorrowStart = addDays(todayStart, 1);
@@ -246,6 +241,15 @@ export async function getDashboardSummary(ctx: OwnershipContext): Promise<Dashbo
     })),
   };
 
-  setDashboardCache(cacheKey, summary);
   return summary;
+}
+
+const getCachedDashboardSummary = unstable_cache(
+  (ctx: OwnershipContext) => computeDashboardSummary(ctx),
+  ["admin-dashboard-summary"],
+  { revalidate: DASHBOARD_CACHE_TTL_SECONDS },
+);
+
+export async function getDashboardSummary(ctx: OwnershipContext): Promise<DashboardSummary> {
+  return getCachedDashboardSummary(ctx);
 }

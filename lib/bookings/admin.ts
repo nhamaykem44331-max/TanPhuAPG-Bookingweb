@@ -3,7 +3,7 @@ import type { Prisma as PrismaNamespace } from "@prisma/client";
 import { bookingListWhereForRole, type OwnershipContext } from "@/lib/auth/ownership";
 import { calculatePaymentSummary, type PaymentSummary } from "@/lib/booking/paymentSummary";
 import { prisma } from "@/lib/db";
-import { syncBookingOrderById, syncExpiredBookingOrders } from "@/lib/bookings/orderManagement";
+import { syncBookingOrderById } from "@/lib/bookings/orderManagement";
 import type { AdminBookingListQuery } from "@/lib/bookings/schemas";
 import { syncExpiredPaymentIntentsForBooking } from "@/lib/payments/paymentIntentService";
 
@@ -160,8 +160,6 @@ function toAdminBookingRecord(pnr: AdminBookingListItemModel): AdminBookingRecor
 }
 
 export async function listAdminBookings(query: AdminBookingListQuery, ownership?: OwnershipContext): Promise<AdminBookingListResult> {
-  await syncExpiredBookingOrders();
-
   const bookingBaseWhere: PrismaNamespace.BookingWhereInput = {
     ...(query.status ? { status: query.status } : {}),
     ...(query.orderCode

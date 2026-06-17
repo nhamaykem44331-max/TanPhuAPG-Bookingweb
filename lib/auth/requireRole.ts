@@ -3,7 +3,7 @@ import type { Session } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
-import { prisma } from "@/lib/db";
+import { getCurrentUserById } from "@/lib/auth/sessionUser";
 
 export class AdminRouteError extends Error {
   status: number;
@@ -22,16 +22,7 @@ export async function requireRole(allowed: Role[]): Promise<Session> {
     throw new AdminRouteError(401, "Chưa đăng nhập");
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      id: true,
-      email: true,
-      fullName: true,
-      role: true,
-      active: true,
-    },
-  });
+  const user = await getCurrentUserById(session.user.id);
 
   if (!user) {
     throw new AdminRouteError(401, "Chưa đăng nhập");
