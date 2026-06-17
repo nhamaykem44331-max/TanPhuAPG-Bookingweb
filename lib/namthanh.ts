@@ -68,9 +68,21 @@ const SEARCH_FLIGHT_PRESENTATION_LIMIT = envNumber('SEARCH_FLIGHT_PRESENTATION_L
 const SEARCH_PAIR_PRESENTATION_LIMIT = envNumber('SEARCH_PAIR_PRESENTATION_LIMIT', 140);
 const SEARCH_PAIR_SOURCE_LIMIT = envNumber('SEARCH_PAIR_SOURCE_LIMIT', 70);
 
-async function namThanhFetch<T>(path: string, init: RequestInit = {}, timeoutMs = 180_000): Promise<T> {
+async function namThanhFetch<T>(
+  path: string,
+  init: RequestInit = {},
+  timeoutMs = 180_000,
+  externalSignal?: AbortSignal,
+): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  // Khi client/route ngắt kết nối (đổi search, đóng tab) → hủy luôn fetch tới backend
+  // để không rò rỉ handler/`create-session` (nguyên nhân gây bão 403 cho các search sau).
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+  }
 
   try {
     const targetUrl = /^https?:\/\//i.test(path) ? path : `${backendUrl()}${path}`;
@@ -95,11 +107,16 @@ async function namThanhFetch<T>(path: string, init: RequestInit = {}, timeoutMs 
   } catch (error) {
     if (error instanceof NamThanhApiError) throw error;
     if (error instanceof Error && error.name === 'AbortError') {
+      // Phân biệt client/route chủ động hủy (499) với backend quá thời gian (504).
+      if (externalSignal?.aborted) {
+        throw new NamThanhApiError('Nam Thanh request aborted', 499);
+      }
       throw new NamThanhApiError('Nam Thanh backend timeout', 504);
     }
     throw error;
   } finally {
     clearTimeout(timeout);
+    if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort);
   }
 }
 
@@ -1041,7 +1058,7 @@ export async function healthNamThanhBackend() {
   return namThanhFetch<Record<string, unknown>>('/health', { method: 'GET' }, 15_000);
 }
 
-export async function searchNamThanhFlights(payload: SearchPayload): Promise<SearchResponse> {
+export async function searchNamThanhFlights(payload: SearchPayload, signal?: AbortSignal): Promise<SearchResponse> {
   const started = Date.now();
   const [data, rate] = await Promise.all([
     namThanhFetch<SearchResponse>('/flights/search', {
@@ -1057,7 +1074,7 @@ export async function searchNamThanhFlights(payload: SearchPayload): Promise<Sea
         infants: payload.infants,
         cabin: payload.cabin,
       }),
-    }),
+    }, 180_000, signal),
     getVndUsdRate(),
   ]);
 

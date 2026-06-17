@@ -20,6 +20,41 @@ export const runtime = 'nodejs';
 // SSE streams — no hard timeout; stream ends when backend closes
 export const maxDuration = 60;
 
+// Rate-limit theo IP (in-memory). Dùng chung env config với /api/search để chống
+// spam click mở nhiều SSE stream song song (defense-in-depth, ngoài cơ chế abort).
+const rlBucket = new Map<string, { count: number; resetAt: number }>();
+let rlCalls = 0;
+
+function envNumber(name: string, fallback: number) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+const DEFAULT_RATE_LIMIT = process.env.NODE_ENV === 'development' ? 500 : 120;
+const DEFAULT_RATE_WINDOW_MS = process.env.NODE_ENV === 'development' ? 60_000 : 3_600_000;
+const RATE_LIMIT_MAX = envNumber('SEARCH_RATE_LIMIT_MAX', DEFAULT_RATE_LIMIT);
+const RATE_LIMIT_WINDOW_MS = envNumber('SEARCH_RATE_LIMIT_WINDOW_MS', DEFAULT_RATE_WINDOW_MS);
+const RATE_LIMIT_DISABLED = process.env.SEARCH_RATE_LIMIT_DISABLED === 'true';
+
+function checkRateLimit(ip: string): { ok: boolean; retryAfterSeconds: number } {
+  if (RATE_LIMIT_DISABLED) return { ok: true, retryAfterSeconds: 0 };
+
+  const now = Date.now();
+  const entry = rlBucket.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rlBucket.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { ok: true, retryAfterSeconds: 0 };
+  }
+  entry.count++;
+  if (++rlCalls % 500 === 0) {
+    for (const [k, v] of rlBucket) if (now > v.resetAt) rlBucket.delete(k);
+  }
+  return {
+    ok: entry.count <= RATE_LIMIT_MAX,
+    retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)),
+  };
+}
+
 function localTodayYmd() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -36,6 +71,22 @@ function validate(body: SearchPayload): string | null {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
+  const rateLimit = checkRateLimit(ip);
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: `Quá nhiều yêu cầu. Vui lòng thử lại sau ${rateLimit.retryAfterSeconds} giây.` },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimit.retryAfterSeconds),
+          'X-RateLimit-Limit': String(RATE_LIMIT_MAX),
+          'X-RateLimit-Window': String(Math.ceil(RATE_LIMIT_WINDOW_MS / 1000)),
+        },
+      },
+    );
+  }
+
   let body: SearchPayload;
   try {
     body = await req.json();
