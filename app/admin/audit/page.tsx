@@ -1,25 +1,29 @@
 import Link from "next/link";
 
+import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
+import { formatNumber, formatTime } from "@/lib/admin/ui/format";
+import { buildAuditSummary } from "@/lib/audit/summary";
 import { AUDIT_VIEWER_ROLES } from "@/lib/auth/constants";
 import { requireRole } from "@/lib/auth/requireRole";
 import { prisma } from "@/lib/db";
-import { buildAuditSummary, extractChangedFields } from "@/lib/audit/summary";
-import { AuditTable } from "@/components/admin/AuditTable";
 
-interface AuditPageProps {
+export const dynamic = "force-dynamic";
+
+interface AdminAuditPageProps {
   searchParams?: Record<string, string | string[] | undefined>;
 }
 
+const PAGE_SIZE = 40;
+
+// Ngày/tháng giờ VN cho cột THỜI GIAN ("18/06"), ghép với formatTime → "18/06 · 14:25".
+const DAY_MONTH_FMT = new Intl.DateTimeFormat("vi-VN", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: "Asia/Ho_Chi_Minh",
+});
+
 function singleValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
-}
-
-function startOfDay(value: string): Date {
-  return new Date(`${value}T00:00:00+07:00`);
-}
-
-function endOfDay(value: string): Date {
-  return new Date(`${value}T23:59:59.999+07:00`);
 }
 
 function sevenDaysAgo(): Date {
@@ -28,158 +32,121 @@ function sevenDaysAgo(): Date {
   return date;
 }
 
-export default async function AuditPage({ searchParams }: AuditPageProps) {
+function auditTime(iso: string): string {
+  return `${DAY_MONTH_FMT.format(new Date(iso))} · ${formatTime(iso)}`;
+}
+
+interface AuditRow {
+  id: string;
+  time: string;
+  who: string;
+  action: string;
+  entity: string;
+  entityId: string;
+}
+
+// Mã đơn ngắn (6 ký tự cuối) cho cột ĐƠN khi entity là Booking; còn lại không hiển thị.
+function orderRef(row: AuditRow): string | null {
+  return row.entity === "Booking" ? row.entityId.slice(-6).toUpperCase() : null;
+}
+
+export default async function AdminAuditPage({ searchParams }: AdminAuditPageProps) {
   await requireRole(AUDIT_VIEWER_ROLES);
 
-  const actorId = singleValue(searchParams?.actorId);
-  const entity = singleValue(searchParams?.entity);
-  const action = singleValue(searchParams?.action);
-  const entityId = singleValue(searchParams?.entityId);
-  const from = singleValue(searchParams?.from);
-  const to = singleValue(searchParams?.to);
-  const limit = Number(singleValue(searchParams?.limit) ?? 100);
-  const offset = Number(singleValue(searchParams?.offset) ?? 0);
-  const where = {
-    ...(actorId ? { actorId } : {}),
-    ...(entity ? { entity } : {}),
-    ...(action ? { action: { contains: action, mode: "insensitive" as const } } : {}),
-    ...(entityId ? { entityId } : {}),
-    createdAt: {
-      gte: from ? startOfDay(from) : sevenDaysAgo(),
-      ...(to ? { lte: endOfDay(to) } : {}),
-    },
-  };
+  const offset = Math.max(Number(singleValue(searchParams?.offset) ?? 0) || 0, 0);
+  const where = { createdAt: { gte: sevenDaysAgo() } };
 
-  const [logs, total, users] = await Promise.all([
+  const [logs, total] = await Promise.all([
     prisma.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip: offset,
-      take: Math.min(Math.max(limit, 1), 100),
-      include: {
-        actor: {
-          select: {
-            id: true,
-            email: true,
-            fullName: true,
-          },
-        },
-      },
+      take: PAGE_SIZE,
+      include: { actor: { select: { email: true, fullName: true } } },
     }),
     prisma.auditLog.count({ where }),
-    prisma.user.findMany({
-      orderBy: { email: "asc" },
-      take: 500,
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-      },
-    }),
   ]);
 
-  const previousOffset = Math.max(offset - limit, 0);
-  const nextOffset = offset + limit;
+  const rows: AuditRow[] = logs.map((log) => ({
+    id: log.id,
+    time: auditTime(log.createdAt.toISOString()),
+    who: log.actor?.email ?? "system",
+    action: buildAuditSummary(log),
+    entity: log.entity,
+    entityId: log.entityId,
+  }));
+
+  const previousOffset = Math.max(offset - PAGE_SIZE, 0);
+  const nextOffset = offset + PAGE_SIZE;
   const hasNextPage = nextOffset < total;
-  const baseQuery = Object.fromEntries(
-    Object.entries({ actorId, entity, action, entityId, from, to, limit: String(limit) }).filter((entry) => entry[1]),
-  );
+  const pageQuery = (value: number) => (value > 0 ? { offset: String(value) } : {});
+
+  const columns: DataTableColumn<AuditRow>[] = [
+    {
+      key: "time",
+      header: "THỜI GIAN",
+      width: "130px",
+      render: (row) => <span className="text-[12px] text-[var(--ink-soft)]">{row.time}</span>,
+    },
+    {
+      key: "who",
+      header: "NGƯỜI THỰC HIỆN",
+      width: "140px",
+      render: (row) => <span className="text-[13px] font-medium">{row.who}</span>,
+    },
+    {
+      key: "action",
+      header: "HÀNH ĐỘNG",
+      width: "minmax(0,1fr)",
+      render: (row) => <span className="text-[13px] text-[var(--ink-soft)]">{row.action}</span>,
+    },
+    {
+      key: "order",
+      header: "ĐƠN",
+      width: "110px",
+      render: (row) => {
+        const ref = orderRef(row);
+        return ref ? (
+          <span className="ofly-sans text-[12px] font-semibold tracking-[1px] text-[var(--rust)]">{ref}</span>
+        ) : (
+          <span className="text-[12px] text-[var(--ink-faint)]">—</span>
+        );
+      },
+    },
+  ];
 
   return (
-    <div className="space-y-5">
-      <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-base font-semibold text-[var(--apg-text-primary)]">Audit Log</h1>
-          <p className="mt-1 text-sm text-[var(--apg-text-secondary)]">Mặc định 7 ngày gần nhất, mở từng dòng để xem diff.</p>
-        </div>
-        <span className="rounded-md border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-3 py-2 text-sm text-[var(--apg-text-secondary)]">
-          {total} log
-        </span>
-      </section>
+    <div>
+      <p className="mb-[22px] max-w-[560px] text-[14px] leading-[1.6] text-[var(--ink-soft)]">
+        Nhật ký thao tác nghiệp vụ trong <strong className="font-semibold text-[var(--ink)]">7 ngày gần nhất</strong>:
+        xuất vé, đối soát, hoàn tiền, cập nhật cấu hình và phân quyền.
+      </p>
 
-      <section className="apg-admin-toolbar px-4 py-4">
-        <form className="grid gap-3 xl:grid-cols-[180px_140px_180px_180px_150px_150px_100px_auto_auto] xl:items-end">
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Actor
-            <select className="apg-field mt-2" defaultValue={actorId ?? ""} name="actorId">
-              <option value="">Tất cả</option>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.email}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Entity
-            <input className="apg-field mt-2" defaultValue={entity ?? ""} name="entity" placeholder="Booking" />
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Action
-            <input className="apg-field mt-2" defaultValue={action ?? ""} name="action" placeholder="booking.cancel" />
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Entity ID
-            <input className="apg-field mt-2" defaultValue={entityId ?? ""} name="entityId" />
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Từ ngày
-            <input className="apg-field mt-2" defaultValue={from ?? ""} name="from" type="date" />
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Đến ngày
-            <input className="apg-field mt-2" defaultValue={to ?? ""} name="to" type="date" />
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Limit
-            <input className="apg-field mt-2" defaultValue={String(limit)} min={1} max={100} name="limit" type="number" />
-          </label>
-
-          <input name="offset" type="hidden" value="0" />
-          <button className="apg-btn-primary w-full" type="submit">
-            Lọc
-          </button>
-          <Link className="apg-btn-secondary inline-flex w-full items-center justify-center" href="/admin/audit">
-            Xóa lọc
-          </Link>
-        </form>
-      </section>
-
-      <AuditTable
-        items={logs.map((log) => ({
-          id: log.id,
-          actor: log.actor,
-          entity: log.entity,
-          entityId: log.entityId,
-          action: log.action,
-          before: log.before,
-          after: log.after,
-          changedFields: extractChangedFields(log),
-          ip: log.ip,
-          createdAt: log.createdAt.toISOString(),
-          summary: buildAuditSummary(log),
-        }))}
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        empty="Chưa có nhật ký nào trong 7 ngày qua."
+        className="overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface)]"
       />
 
-      <div className="flex items-center justify-between rounded-lg border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-4 py-3">
+      <div className="mt-4 flex items-center justify-between text-[12px] text-[var(--ink-soft)]">
         <Link
-          className={`apg-btn-secondary ${offset === 0 ? "pointer-events-none opacity-50" : ""}`}
-          href={{ pathname: "/admin/audit", query: { ...baseQuery, offset: String(previousOffset) } }}
+          href={{ pathname: "/admin/audit", query: pageQuery(previousOffset) }}
+          className={`rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] ${
+            offset === 0 ? "pointer-events-none opacity-40" : ""
+          }`}
         >
           Trang trước
         </Link>
-        <div className="text-sm text-[var(--apg-text-secondary)]">
-          Hiển thị {logs.length} / {total}
-        </div>
+        <span>
+          Hiển thị {rows.length} / {formatNumber(total)} nhật ký
+        </span>
         <Link
-          className={`apg-btn-secondary ${!hasNextPage ? "pointer-events-none opacity-50" : ""}`}
-          href={{ pathname: "/admin/audit", query: { ...baseQuery, offset: String(nextOffset) } }}
+          href={{ pathname: "/admin/audit", query: pageQuery(nextOffset) }}
+          className={`rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] ${
+            !hasNextPage ? "pointer-events-none opacity-40" : ""
+          }`}
         >
           Trang sau
         </Link>
