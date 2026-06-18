@@ -1,14 +1,15 @@
 import type { Role } from "@prisma/client";
 
+// KE_TOAN đã gỡ khỏi web (Phần N): nghiệp vụ kế toán/doanh thu/công nợ chuyển sang RMS.
+// Giá trị enum KE_TOAN vẫn còn trong Prisma cho dữ liệu cũ — gỡ hẳn cần migration phối hợp.
 export const ADMIN_ROLES: Role[] = [
   "SUPER_ADMIN",
   "QUAN_LY_DAI_LY",
   "NHAN_VIEN_BAN",
-  "KE_TOAN",
 ];
 
 export const MARKUP_RULE_MANAGER_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY"];
-export const PAYMENT_CAPTURE_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "NHAN_VIEN_BAN", "KE_TOAN"];
+export const PAYMENT_CAPTURE_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "NHAN_VIEN_BAN"];
 export const PAYMENT_REJECT_ROLES: Role[] = ["SUPER_ADMIN"];
 export const ISSUE_TICKET_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "NHAN_VIEN_BAN"];
 export const CANCEL_BOOKING_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "NHAN_VIEN_BAN"];
@@ -22,7 +23,6 @@ export const USER_MANAGER_ROLES: Role[] = ["SUPER_ADMIN"];
 export const AUDIT_VIEWER_ROLES: Role[] = ["SUPER_ADMIN"];
 export const DASHBOARD_VIEWER_ROLES: Role[] = ADMIN_ROLES;
 export const PRICE_ALERT_MANAGER_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY"];
-export const REVENUE_REPORT_ROLES: Role[] = ADMIN_ROLES;
 export const OBSERVABILITY_VIEWER_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY"];
 
 export interface AdminNavItem {
@@ -73,12 +73,6 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     href: "/admin/price-alerts",
     description: "Theo dõi ngưỡng giá theo chặng bay và nhận cảnh báo nội bộ.",
     roles: ADMIN_ROLES,
-  },
-  {
-    label: "Revenue Reports",
-    href: "/admin/reports/revenue",
-    description: "So sánh booking date, issue date và payment date cho vận hành và kế toán.",
-    roles: REVENUE_REPORT_ROLES,
   },
   {
     label: "Web Vitals",
