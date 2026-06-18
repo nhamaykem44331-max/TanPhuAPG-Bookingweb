@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getAuditRequestMeta } from "@/lib/audit";
-import { ADMIN_ROLES } from "@/lib/auth/constants";
+import { CANCEL_BOOKING_ROLES } from "@/lib/auth/constants";
 import { assertCanMutateBooking } from "@/lib/auth/ownership";
 import { requireRole, toAdminErrorResponse } from "@/lib/auth/requireRole";
 import { calculatePaymentSummary } from "@/lib/booking/paymentSummary";
@@ -46,7 +46,7 @@ function buildUnprocessableResponse(error: string, message?: string) {
 
 export async function POST(request: Request, context: { params: { id: string } }) {
   try {
-    const session = await requireRole(ADMIN_ROLES);
+    const session = await requireRole(CANCEL_BOOKING_ROLES);
     await assertCanMutateBooking({ userId: session.user.id, role: session.user.role }, context.params.id, "cancel");
     await syncBookingOrderById(context.params.id);
     const body = await request.json().catch(() => ({}));

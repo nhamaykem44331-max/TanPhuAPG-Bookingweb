@@ -12,6 +12,11 @@ export const PAYMENT_CAPTURE_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "
 export const PAYMENT_REJECT_ROLES: Role[] = ["SUPER_ADMIN"];
 export const ISSUE_TICKET_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "NHAN_VIEN_BAN"];
 export const CANCEL_BOOKING_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "NHAN_VIEN_BAN"];
+// Hàng đợi xuất vé: xem, nhận đơn, xuất vé, báo không xuất được.
+export const TICKETING_QUEUE_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "NHAN_VIEN_BAN"];
+// Xác nhận hoàn tiền + bàn giao RMS chỉ dành cho cấp quản lý.
+export const REFUND_MANAGER_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY"];
+export const RMS_HANDOFF_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY"];
 export const CUSTOMER_MANAGER_ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "NHAN_VIEN_BAN"];
 export const USER_MANAGER_ROLES: Role[] = ["SUPER_ADMIN"];
 export const AUDIT_VIEWER_ROLES: Role[] = ["SUPER_ADMIN"];
