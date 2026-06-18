@@ -7,7 +7,7 @@ import { ADMIN_ROLES } from "@/lib/auth/constants";
 import { assertCanMutateBooking } from "@/lib/auth/ownership";
 import { requireRole, toAdminErrorResponse } from "@/lib/auth/requireRole";
 import { calculatePaymentSummary } from "@/lib/booking/paymentSummary";
-import { canTransition } from "@/lib/booking/stateMachine";
+import { assertTransition } from "@/lib/booking/stateMachine";
 import { syncBookingOrderById } from "@/lib/bookings/orderManagement";
 import { prisma } from "@/lib/db";
 import { cancelBookingInputSchema } from "@/lib/bookings/schemas";
@@ -75,7 +75,7 @@ export async function POST(request: Request, context: { params: { id: string } }
         return { kind: "not_found" as const };
       }
 
-      const transition = canTransition(booking.status, "cancel");
+      const transition = assertTransition(booking.status, BookingStatus.CANCELLED);
 
       if (!transition.ok) {
         return {

@@ -10,7 +10,7 @@ import {
 } from "@/lib/auth/constants";
 import { requireRole } from "@/lib/auth/requireRole";
 import { bookingAccessBadge } from "@/lib/auth/ownership";
-import { canTransition } from "@/lib/booking/stateMachine";
+import { assertTransition } from "@/lib/booking/stateMachine";
 import type { AdminBookingCore, AdminBookingTimelineEvent } from "@/lib/bookings/admin";
 import { getAdminBookingById } from "@/lib/bookings/admin";
 import { BookingDetailHeader } from "@/components/admin/BookingDetailHeader";
@@ -230,7 +230,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
     PAYMENT_CAPTURE_ROLES.includes(session.user.role) &&
     (booking.status === "HELD" || booking.status === "TICKETED");
   const canRejectPayments = PAYMENT_REJECT_ROLES.includes(session.user.role);
-  const issueTransition = canTransition(booking.status, "issue");
+  const issueTransition = assertTransition(booking.status, "TICKETED");
   const hasSuccessPnr = pnrs.some((pnr) => pnr.status === "SUCCESS");
   const ttlExpired = booking.ttlExpiresAt ? booking.ttlExpiresAt.getTime() < Date.now() : false;
   const issueDisabledReason = !ISSUE_TICKET_ROLES.includes(session.user.role)
@@ -257,7 +257,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
       totalPaid={paymentSummary.totalPaid}
     />
   );
-  const cancelTransition = canTransition(booking.status, "cancel");
+  const cancelTransition = assertTransition(booking.status, "CANCELLED");
   const cancelDisabledReason = !CANCEL_BOOKING_ROLES.includes(session.user.role)
     ? "Bạn không có quyền hủy booking."
     : !cancelTransition.ok
