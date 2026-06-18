@@ -14,11 +14,11 @@ interface AdminBookingsPageProps {
 const STATUS_TABS = [
   { value: "", label: "Tất cả" },
   { value: "HELD", label: "Held" },
-  { value: "PRICING_PENDING", label: "Chờ giá" },
+  { value: "PENDING_PAYMENT", label: "Chờ thanh toán" },
   { value: "TICKETED", label: "Đã xuất" },
   { value: "EXPIRED", label: "Hết hạn" },
   { value: "CANCELLED", label: "Đã hủy" },
-  { value: "FAILED", label: "Lỗi" },
+  { value: "PAYMENT_FAILED", label: "Lỗi" },
 ] as const;
 
 function singleValue(value: string | string[] | undefined): string | undefined {

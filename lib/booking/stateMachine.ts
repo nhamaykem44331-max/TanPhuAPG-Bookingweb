@@ -23,9 +23,9 @@ export function canTransition(from: BookingStatus, action: BookingAction): Booki
   }
 
   if (action === "expire") {
-    return from === "HELD" || from === "PRICING_PENDING"
+    return from === "HELD" || from === "PENDING_PAYMENT"
       ? { ok: true }
-      : { ok: false, reason: `Chỉ booking HELD hoặc PRICING_PENDING mới được đánh dấu hết hạn, trạng thái hiện tại là ${from}.` };
+      : { ok: false, reason: `Chỉ booking HELD hoặc PENDING_PAYMENT mới được đánh dấu hết hạn, trạng thái hiện tại là ${from}.` };
   }
 
   return from === "TICKETED" || from === "CANCELLED"

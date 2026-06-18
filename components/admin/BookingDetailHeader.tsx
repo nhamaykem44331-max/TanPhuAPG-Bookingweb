@@ -41,7 +41,7 @@ function statusClassName(status: string): string {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
-  if (status === "CANCELLED" || status === "FAILED" || status === "EXPIRED") {
+  if (status === "CANCELLED" || status === "PAYMENT_FAILED" || status === "EXPIRED") {
     return "border-rose-200 bg-rose-50 text-rose-700";
   }
 

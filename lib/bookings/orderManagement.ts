@@ -94,7 +94,7 @@ export function deriveEarliestPnrTimelimit(
 }
 
 function dueForExpiry(booking: ExpirableBookingRecord, now: Date): boolean {
-  if (booking.status !== BookingStatus.HELD && booking.status !== BookingStatus.PRICING_PENDING) {
+  if (booking.status !== BookingStatus.HELD && booking.status !== BookingStatus.PENDING_PAYMENT) {
     return false;
   }
 
@@ -306,7 +306,7 @@ export async function syncExpiredBookingOrders(limit = 50, now = new Date()): Pr
   const dueBookings = await prisma.booking.findMany({
     where: {
       status: {
-        in: [BookingStatus.HELD, BookingStatus.PRICING_PENDING],
+        in: [BookingStatus.HELD, BookingStatus.PENDING_PAYMENT],
       },
       OR: [
         {
