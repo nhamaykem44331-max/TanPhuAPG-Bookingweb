@@ -228,13 +228,24 @@ export function sumPaymentFlows(
   );
 }
 
+const MAX_REVENUE_RANGE_DAYS = 366;
+
 export function normalizeRevenueReportQuery(input: z.input<typeof revenueReportQuerySchema>): RevenueReportQuery {
   const parsed = revenueReportQuerySchema.parse(input);
+  const to = parsed.to ?? todayDateKey();
+  let from = parsed.from ?? firstDayOfMonthKey();
+
+  // Totals/breakdowns are aggregated in-memory over the full result set, so capping rows
+  // would corrupt the figures. Bound the date window instead to limit how much we load.
+  const earliestFrom = localDateKey(addDays(startOfDay(to), -MAX_REVENUE_RANGE_DAYS));
+  if (from < earliestFrom) {
+    from = earliestFrom;
+  }
 
   return {
     ...parsed,
-    from: parsed.from ?? firstDayOfMonthKey(),
-    to: parsed.to ?? todayDateKey(),
+    from,
+    to,
   };
 }
 

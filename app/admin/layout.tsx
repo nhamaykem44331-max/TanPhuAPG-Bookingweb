@@ -11,7 +11,7 @@ import { AdminNavRail } from "@/components/admin/AdminNavRail";
 import { AdminTopbar } from "@/components/admin/AdminTopbar";
 import { AdminTopbarActions } from "@/components/admin/AdminTopbarActions";
 import { ADMIN_NAV_ITEMS, getRoleLabel } from "@/lib/auth/constants";
-import { prisma } from "@/lib/db";
+import { getCurrentUserById } from "@/lib/auth/sessionUser";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -37,16 +37,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
     return <>{children}</>;
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: {
-      id: true,
-      fullName: true,
-      role: true,
-      active: true,
-      email: true,
-    },
-  });
+  const user = await getCurrentUserById(session.user.id);
 
   if (!user?.active) {
     redirect("/admin/login?error=inactive");
