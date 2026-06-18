@@ -1,0 +1,196 @@
+/*
+ * OpenFly admin design system (HANDOFF Phần I).
+ * Scoped to the `.ofly` shell root so it does not leak into the public site.
+ * Tokens mirror `OpenFly Admin.dc.html`: Ink / Paper / Rust / Tan + 8-tone status palette.
+ * Components consume these via Tailwind arbitrary values, e.g. `text-[var(--ink)]`.
+ */
+
+.ofly {
+  /* I.1 — base palette (LIGHT / "Ngày") */
+  --bg: #f5f1ea;
+  --surface: #ffffff;
+  --surface-2: #ede6da;
+  --tan: #ede6da;
+  --ink: #1a1a19;
+  --ink-soft: rgba(26, 26, 25, 0.6);
+  --ink-faint: rgba(26, 26, 25, 0.4);
+  --rust: #a14b2c;
+  --line: rgba(26, 26, 25, 0.12);
+  --line-strong: rgba(26, 26, 25, 0.22);
+
+  /* I.2 — status tones (LIGHT) */
+  --tone-rust-fg: #8c3a22;
+  --tone-rust-bg: rgba(161, 75, 44, 0.1);
+  --tone-rust-bd: rgba(161, 75, 44, 0.24);
+  --tone-rust-solid: #a14b2c;
+  --tone-warn-fg: #8a5a14;
+  --tone-warn-bg: rgba(190, 128, 32, 0.14);
+  --tone-warn-bd: rgba(190, 128, 32, 0.3);
+  --tone-warn-solid: #b0802a;
+  --tone-ok-fg: #37674a;
+  --tone-ok-bg: rgba(55, 103, 74, 0.11);
+  --tone-ok-bd: rgba(55, 103, 74, 0.26);
+  --tone-ok-solid: #3c7050;
+  --tone-muted-fg: rgba(26, 26, 25, 0.52);
+  --tone-muted-bg: rgba(26, 26, 25, 0.05);
+  --tone-muted-bd: rgba(26, 26, 25, 0.14);
+  --tone-muted-solid: #8a857c;
+  --tone-info-fg: #3c4a86;
+  --tone-info-bg: rgba(67, 82, 148, 0.11);
+  --tone-info-bd: rgba(67, 82, 148, 0.26);
+  --tone-info-solid: #4a5a95;
+  --tone-teal-fg: #1f6e68;
+  --tone-teal-bg: rgba(36, 118, 110, 0.11);
+  --tone-teal-bd: rgba(36, 118, 110, 0.26);
+  --tone-teal-solid: #2a8078;
+  --tone-red-fg: #992a24;
+  --tone-red-bg: rgba(178, 46, 40, 0.1);
+  --tone-red-bd: rgba(178, 46, 40, 0.27);
+  --tone-red-solid: #b2302a;
+  --tone-plum-fg: #6a3768;
+  --tone-plum-bg: rgba(120, 62, 116, 0.1);
+  --tone-plum-bd: rgba(120, 62, 116, 0.26);
+  --tone-plum-solid: #7a427a;
+
+  --sans: var(--font-ofly-sans), "Inter", system-ui, -apple-system, sans-serif;
+  --serif: var(--font-ofly-serif), "Fraunces", Georgia, serif;
+
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ofly.theme-dark {
+  /* I.1 — base palette (DARK / "Đêm") */
+  --bg: #161512;
+  --surface: #211f1b;
+  --surface-2: #2a2722;
+  --tan: #2a2722;
+  --ink: #f5f1ea;
+  --ink-soft: rgba(245, 241, 234, 0.58);
+  --ink-faint: rgba(245, 241, 234, 0.36);
+  --rust: #c2643f;
+  --line: rgba(245, 241, 234, 0.12);
+  --line-strong: rgba(245, 241, 234, 0.22);
+
+  /* I.2 — status tones (DARK) */
+  --tone-rust-fg: #e0916b;
+  --tone-rust-bg: rgba(193, 100, 63, 0.18);
+  --tone-rust-bd: rgba(193, 100, 63, 0.34);
+  --tone-rust-solid: #c2643f;
+  --tone-warn-fg: #e0b45f;
+  --tone-warn-bg: rgba(216, 174, 92, 0.15);
+  --tone-warn-bd: rgba(216, 174, 92, 0.3);
+  --tone-warn-solid: #d8ae5c;
+  --tone-ok-fg: #84b394;
+  --tone-ok-bg: rgba(132, 179, 148, 0.15);
+  --tone-ok-bd: rgba(132, 179, 148, 0.3);
+  --tone-ok-solid: #6fae83;
+  --tone-muted-fg: rgba(245, 241, 234, 0.5);
+  --tone-muted-bg: rgba(245, 241, 234, 0.06);
+  --tone-muted-bd: rgba(245, 241, 234, 0.16);
+  --tone-muted-solid: #9a948a;
+  --tone-info-fg: #93a0dc;
+  --tone-info-bg: rgba(125, 140, 214, 0.16);
+  --tone-info-bd: rgba(125, 140, 214, 0.32);
+  --tone-info-solid: #7d8cd6;
+  --tone-teal-fg: #5fb8b0;
+  --tone-teal-bg: rgba(72, 168, 160, 0.16);
+  --tone-teal-bd: rgba(72, 168, 160, 0.32);
+  --tone-teal-solid: #48a8a0;
+  --tone-red-fg: #e68a82;
+  --tone-red-bg: rgba(210, 90, 80, 0.17);
+  --tone-red-bd: rgba(210, 90, 80, 0.34);
+  --tone-red-solid: #d25a50;
+  --tone-plum-fg: #c792c2;
+  --tone-plum-bg: rgba(180, 124, 178, 0.16);
+  --tone-plum-bd: rgba(180, 124, 178, 0.32);
+  --tone-plum-solid: #b47cb2;
+}
+
+/* Typography helpers (I.3) */
+.ofly-serif {
+  font-family: var(--serif);
+}
+
+.ofly-sans {
+  font-family: var(--sans);
+}
+
+.ofly-eyebrow {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.ofly-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbars match the editorial tone */
+.ofly *::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.ofly *::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 10px;
+}
+
+.ofly *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ofly {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+/* I.4 — entrance motion (no shadow/gradient; subtle only) */
+@keyframes oflyIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes oflyPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.ofly-in {
+  animation: oflyIn 0.32s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.ofly-pulse {
+  animation: oflyPulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ofly-in,
+  .ofly-pulse {
+    animation: none;
+  }
+}
