@@ -1,26 +1,28 @@
+import type {
+  NotificationAudience,
+  NotificationJobChannel,
+  NotificationJobStatus,
+  PaymentMethod,
+} from "@prisma/client";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { OrderActions } from "@/components/admin/bookings/OrderActions";
+import { StatusChip } from "@/components/admin/ui/Chip";
+import { formatDate, formatDateTime, formatRoute, formatTime, formatVnd } from "@/lib/admin/ui/format";
+import { toneVars, type Tone } from "@/lib/admin/ui/tones";
 import {
   ADMIN_ROLES,
   CANCEL_BOOKING_ROLES,
   ISSUE_TICKET_ROLES,
-  PAYMENT_CAPTURE_ROLES,
-  PAYMENT_REJECT_ROLES,
+  REFUND_MANAGER_ROLES,
+  RMS_HANDOFF_ROLES,
+  TICKETING_QUEUE_ROLES,
 } from "@/lib/auth/constants";
 import { requireRole } from "@/lib/auth/requireRole";
-import { bookingAccessBadge } from "@/lib/auth/ownership";
-import { assertTransition } from "@/lib/booking/stateMachine";
-import type { AdminBookingCore, AdminBookingTimelineEvent } from "@/lib/bookings/admin";
-import { getAdminBookingById } from "@/lib/bookings/admin";
-import { BookingDetailHeader } from "@/components/admin/BookingDetailHeader";
-import { BookingPaymentsTable } from "@/components/admin/BookingPaymentsTable";
-import { BookingPriceBreakdown } from "@/components/admin/BookingPriceBreakdown";
-import { BookingTimeline } from "@/components/admin/BookingTimeline";
-import { CancelBookingDialog } from "@/components/admin/CancelBookingDialog";
-import { IssueTicketDialog } from "@/components/admin/IssueTicketDialog";
-import { PaymentForm } from "@/components/admin/PaymentForm";
-import { PaymentIntentPanel } from "@/components/admin/PaymentIntentPanel";
+import { getAdminBookingById, type AdminBookingCore } from "@/lib/bookings/admin";
+
+export const dynamic = "force-dynamic";
 
 interface BookingDetailPageProps {
   params: {
@@ -28,50 +30,57 @@ interface BookingDetailPageProps {
   };
 }
 
-interface BookingPassengerView {
-  type: string;
+interface PassengerView {
   fullName: string;
-  firstName: string | null;
-  lastName: string | null;
-  dob: string | null;
+  initial: string;
+  roleLabel: string;
 }
 
-function formatDateTime(value: Date | null): string {
-  if (!value) {
-    return "-";
-  }
+const PAY_METHOD_LABELS: Record<PaymentMethod, string> = {
+  CASH: "Tiền mặt",
+  BANK: "Chuyển khoản",
+  QR: "QR code",
+  CARD: "Thẻ",
+  CREDIT: "Công nợ",
+};
 
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Ho_Chi_Minh",
-  }).format(value);
-}
+const CHANNEL_LABELS: Record<NotificationJobChannel, string> = {
+  EMAIL: "Email",
+  SLACK: "Slack",
+  TELEGRAM: "Telegram",
+  INTERNAL: "Nội bộ",
+  ZALO_OA: "Zalo OA",
+  ZNS: "ZNS",
+};
 
-function formatDate(value: Date | string | null): string {
-  if (!value) {
-    return "-";
-  }
+const AUDIENCE_LABELS: Record<NotificationAudience, string> = {
+  INTERNAL: "Nội bộ",
+  CUSTOMER: "Khách hàng",
+};
 
-  const date = typeof value === "string" ? new Date(`${value}T00:00:00+07:00`) : value;
+const NOTIF_STATUS_META: Record<NotificationJobStatus, { label: string; tone: Tone }> = {
+  PENDING: { label: "Chờ gửi", tone: "warn" },
+  PROCESSING: { label: "Đang gửi", tone: "warn" },
+  SENT: { label: "Đã gửi", tone: "ok" },
+  FAILED: { label: "Lỗi", tone: "red" },
+  CANCELLED: { label: "Đã huỷ", tone: "muted" },
+  SKIPPED: { label: "Bỏ qua", tone: "muted" },
+};
 
-  if (Number.isNaN(date.getTime())) {
-    return typeof value === "string" ? value : "-";
-  }
-
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "medium",
-    timeZone: "Asia/Ho_Chi_Minh",
-  }).format(date);
-}
-
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat("vi-VN").format(value);
-}
-
-function formatCurrency(value: number, currency: string | null | undefined = "VND"): string {
-  return currency === "VND" || !currency ? `${formatMoney(value)} ₫` : `${formatMoney(value)} ${currency}`;
-}
+const NOTIF_TITLES: Record<string, string> = {
+  BOOKING_HOLD: "Giữ chỗ",
+  BOOKING_HOLD_CREATED: "Tạo yêu cầu giữ chỗ",
+  BOOKING_HOLD_CONFIRM: "Xác nhận giữ chỗ thành công",
+  BOOKING_ISSUED: "Đã xuất vé · gửi vé điện tử",
+  BOOKING_CANCELLED: "Thông báo huỷ đơn",
+  SEPAY_PAYMENT_MATCHED: "Đã nhận thanh toán",
+  SEPAY_PAYMENT_REVIEW: "Cần đối soát thanh toán",
+  SLA_BREACH: "Cảnh báo quá hạn SLA xuất vé",
+  HELD_EXPIRING: "Sắp hết hạn giữ chỗ",
+  INTERNAL_ALERT: "Cảnh báo nội bộ",
+  PAYMENT_REMINDER: "Nhắc thanh toán",
+  TICKETING_REQUIRED: "Cần xuất vé",
+};
 
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -81,497 +90,279 @@ function arrayOf(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => !!item && typeof item === "object") : [];
 }
 
-function formatTripType(value: string): string {
-  return value === "ROUNDTRIP" ? "Khứ hồi" : "Một chiều";
+function initialOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const last = parts[parts.length - 1];
+  return last ? last[0]!.toUpperCase() : "•";
 }
 
-function describeCountdown(value: Date | null): string {
-  if (!value) {
-    return "Không có hạn giữ chỗ.";
-  }
+function extractPassengers(booking: AdminBookingCore): PassengerView[] {
+  const request = recordOf(recordOf(booking.namthanhRawJson).request);
+  const passengers = arrayOf(request.passengers);
 
-  const diffMs = value.getTime() - Date.now();
+  return passengers.map((passenger, index) => {
+    const lastName = typeof passenger.lastName === "string" ? passenger.lastName : "";
+    const firstName = typeof passenger.firstName === "string" ? passenger.firstName : "";
+    const explicit = typeof passenger.fullName === "string" ? passenger.fullName : "";
+    const fullName = (explicit || [lastName, firstName].filter(Boolean).join(" ")).trim() || "Chưa rõ";
 
-  if (diffMs <= 0) {
-    return "Đã hết hạn giữ chỗ.";
-  }
-
-  const totalMinutes = Math.floor(diffMs / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours <= 0) {
-    return `Còn ${minutes} phút.`;
-  }
-
-  return `Còn ${hours} giờ ${minutes} phút.`;
-}
-
-function extractPassengers(booking: AdminBookingCore, timeline: AdminBookingTimelineEvent[]): BookingPassengerView[] {
-  const rawBooking = recordOf(booking.namthanhRawJson);
-  const request = recordOf(rawBooking.request);
-  const requestPassengers = arrayOf(request.passengers);
-
-  if (requestPassengers.length > 0) {
-    return requestPassengers.map((passenger) => {
-      const lastName = typeof passenger.lastName === "string" ? passenger.lastName : null;
-      const firstName = typeof passenger.firstName === "string" ? passenger.firstName : null;
-      const fullName =
-        [lastName, firstName]
-          .filter((value): value is string => !!value && value.trim().length > 0)
-          .join(" ")
-          .trim() || "Chưa rõ";
-
-      return {
-        type: typeof passenger.type === "string" ? passenger.type : "ADT",
-        fullName,
-        firstName,
-        lastName,
-        dob: typeof passenger.dob === "string" ? passenger.dob : null,
-      };
-    });
-  }
-
-  const holdCreated = timeline.find((event) => event.eventType === "HOLD_CREATED");
-  const holdPayload = recordOf(holdCreated?.payload);
-  const holdResult = recordOf(holdPayload.holdResult);
-
-  if (typeof holdResult.passenger === "string" && holdResult.passenger.trim()) {
-    return [
-      {
-        type: "ADT",
-        fullName: holdResult.passenger.trim(),
-        firstName: null,
-        lastName: null,
-        dob: null,
-      },
-    ];
-  }
-
-  return [];
-}
-
-function pnrUrgencyLabel(timelimit: Date | null): { label: string; className: string } {
-  if (!timelimit) {
     return {
-      label: "Chưa có time limit",
-      className: "border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] text-[var(--apg-text-secondary)]",
+      fullName,
+      initial: initialOf(fullName),
+      roleLabel: index === 0 ? "Người đặt" : "Hành khách",
     };
-  }
-
-  const diffMs = timelimit.getTime() - Date.now();
-
-  if (diffMs <= 0) {
-    return {
-      label: "Đã hết hạn",
-      className: "border-rose-200 bg-rose-50 text-rose-700",
-    };
-  }
-
-  if (diffMs <= 2 * 60 * 60 * 1000) {
-    return {
-      label: "Sắp hết hạn",
-      className: "border-amber-200 bg-amber-50 text-amber-700",
-    };
-  }
-
-  return {
-    label: "Còn hiệu lực",
-    className: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  };
+  });
 }
 
-function routeLabel(value: string | null): string {
-  return value && value.trim() ? value.replace(/-/g, " → ") : "-";
-}
-
-function displayValue(value: string | null | undefined): string {
-  return value && value.trim() ? value : "-";
-}
-
-function pnrStatusClass(status: string | null): string {
-  if (status === "SUCCESS" || status === "HELD") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  if (status === "PENDING") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (!status) {
-    return "border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] text-[var(--apg-text-secondary)]";
-  }
-
-  return "border-slate-200 bg-slate-50 text-slate-700";
+function notificationTitle(type: string): string {
+  return NOTIF_TITLES[type] ?? type;
 }
 
 export default async function BookingDetailPage({ params }: BookingDetailPageProps) {
   const session = await requireRole(ADMIN_ROLES);
-
   const detail = await getAdminBookingById(params.id);
 
   if (!detail) {
     notFound();
   }
 
-  const { booking, customer, pnrs, timeline, payments, paymentIntents, notificationJobs, appliedMarkupRule, paymentSummary } = detail;
+  const { booking, customer, timeline, payments, notificationJobs, paymentSummary } = detail;
 
   if (session.user.role === "NHAN_VIEN_BAN" && booking.createdById !== session.user.id) {
     notFound();
   }
 
-  const accessBadge = bookingAccessBadge({ userId: session.user.id, role: session.user.role }, booking);
-  const passengers = extractPassengers(booking, timeline);
-  const canCapturePayment =
-    PAYMENT_CAPTURE_ROLES.includes(session.user.role) &&
-    (booking.status === "HELD" || booking.status === "TICKETED") &&
-    paymentSummary.balance > 0;
-  const canManagePaymentQr =
-    PAYMENT_CAPTURE_ROLES.includes(session.user.role) &&
-    (booking.status === "HELD" || booking.status === "TICKETED");
-  const canRejectPayments = PAYMENT_REJECT_ROLES.includes(session.user.role);
-  const issueTransition = assertTransition(booking.status, "TICKETED");
-  const hasSuccessPnr = pnrs.some((pnr) => pnr.status === "SUCCESS");
-  const ttlExpired = booking.ttlExpiresAt ? booking.ttlExpiresAt.getTime() < Date.now() : false;
-  const issueDisabledReason = !ISSUE_TICKET_ROLES.includes(session.user.role)
-    ? "Bạn không có quyền xuất vé."
-    : !issueTransition.ok
-      ? issueTransition.reason
-      : paymentSummary.balance !== 0
-        ? `Booking còn công nợ ${formatCurrency(paymentSummary.balance, booking.currency)}.`
-        : ttlExpired
-          ? "Booking đã hết hạn giữ chỗ."
-          : !hasSuccessPnr
-            ? "Booking chưa có PNR SUCCESS."
-            : null;
-  const issueAction = (
-    <IssueTicketDialog
-      balance={paymentSummary.balance}
-      bookingId={booking.id}
-      currency={booking.currency}
-      disabled={!!issueDisabledReason}
-      disabledReason={issueDisabledReason}
-      passengerNames={passengers.map((passenger) => passenger.fullName)}
-      pnr={booking.orderCode}
-      totalDue={paymentSummary.totalDue}
-      totalPaid={paymentSummary.totalPaid}
-    />
-  );
-  const cancelTransition = assertTransition(booking.status, "CANCELLED");
-  const cancelDisabledReason = !CANCEL_BOOKING_ROLES.includes(session.user.role)
-    ? "Bạn không có quyền hủy booking."
-    : !cancelTransition.ok
-      ? cancelTransition.reason
-      : null;
-  const canMarkRefund = booking.status === "TICKETED" && payments.some((payment) => payment.status === "PAID");
-  const cancelAction = (
-    <CancelBookingDialog
-      bookingId={booking.id}
-      canMarkRefund={canMarkRefund}
-      currency={booking.currency}
-      disabled={!!cancelDisabledReason}
-      disabledReason={cancelDisabledReason}
-      status={booking.status}
-      totalPaid={paymentSummary.totalPaid}
-    />
-  );
+  const role = session.user.role;
+  const permissions = {
+    issue: ISSUE_TICKET_ROLES.includes(role),
+    queueAction: TICKETING_QUEUE_ROLES.includes(role),
+    refundConfirm: REFUND_MANAGER_ROLES.includes(role),
+    handoff: RMS_HANDOFF_ROLES.includes(role),
+    cancel: CANCEL_BOOKING_ROLES.includes(role),
+  };
+
+  const passengers = extractPassengers(booking);
+  const headerSub =
+    [formatDate(booking.departAt, ""), formatTime(booking.departAt, ""), booking.cabin].filter(Boolean).join(" · ") || "—";
+
+  // SLA box (parity design JS 868-873) — tính phía server, an toàn vì trang force-dynamic.
+  const now = Date.now();
+  let sla: { text: string; sub: string; tone: Tone } | null = null;
+  if (booking.status === "PAID") {
+    const dueMin = booking.slaDueAt ? Math.round((booking.slaDueAt.getTime() - now) / 60_000) : null;
+    const paidMin = booking.paidConfirmedAt ? Math.max(0, Math.round((now - booking.paidConfirmedAt.getTime()) / 60_000)) : null;
+    const paidText = paidMin !== null ? `Đã trả tiền ${paidMin} phút trước` : "Đã ghi nhận thanh toán";
+    if (dueMin !== null && dueMin < 0) {
+      sla = { text: `Quá SLA xuất vé +${Math.abs(dueMin)} phút`, sub: `${paidText} · cần xử lý ngay`, tone: "rust" };
+    } else if (dueMin !== null) {
+      sla = { text: `Còn ${dueMin} phút trong SLA`, sub: paidText, tone: "warn" };
+    } else {
+      sla = { text: "Đã thanh toán · chờ xuất vé", sub: paidText, tone: "warn" };
+    }
+  } else if (booking.status === "TICKETING") {
+    sla = { text: "Đang xuất vé", sub: "Đã nhận xử lý", tone: "info" };
+  } else if (booking.status === "CANNOT_ISSUE") {
+    sla = { text: "Khách đã trả nhưng không xuất được", sub: "Bắt buộc chuyển sang quy trình hoàn tiền", tone: "rust" };
+  }
+
+  const settledPayment = [...payments].reverse().find((payment) => payment.status === "PAID" || payment.status === "PARTIAL");
+  const payMethodLabel = settledPayment ? PAY_METHOD_LABELS[settledPayment.method] : "—";
+
+  let payStatusLabel: string;
+  let payStatusTone: Tone;
+  if (booking.status === "REFUNDED") {
+    payStatusLabel = "Đã hoàn tiền";
+    payStatusTone = "muted";
+  } else if (paymentSummary.totalPaid > 0 && paymentSummary.balance <= 0) {
+    payStatusLabel = "Đã nhận đủ";
+    payStatusTone = "ok";
+  } else if (paymentSummary.totalPaid > 0) {
+    payStatusLabel = `Còn thiếu ${formatVnd(paymentSummary.balance)}`;
+    payStatusTone = "warn";
+  } else if (booking.status === "PAYMENT_FAILED") {
+    payStatusLabel = "Thanh toán lỗi";
+    payStatusTone = "red";
+  } else {
+    payStatusLabel = "Chưa thanh toán";
+    payStatusTone = "warn";
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--apg-text-secondary)]">
-        <Link className="font-semibold text-[var(--apg-aviation-navy)] hover:underline" href="/admin/bookings">
-          ← Quay lại danh sách booking
-        </Link>
-        <span className="apg-chip">Đơn hàng {booking.orderCode}</span>
-        <span className="apg-chip">PNR chính {booking.pnr || "PENDING"}</span>
-        <span className="apg-chip">{booking.airline || "Chưa có hãng"}</span>
-      </div>
+    <div>
+      <Link
+        href="/admin/bookings"
+        className="mb-[18px] inline-flex items-center gap-[7px] text-[12px] font-medium text-[var(--ink-soft)] transition hover:text-[var(--rust)]"
+      >
+        ← Tất cả đơn
+      </Link>
 
-      <BookingDetailHeader
-        accessBadge={accessBadge}
-        booking={booking}
-        cancelAction={cancelAction}
-        issueAction={issueAction}
-        paymentFormEnabled={canCapturePayment}
-        paymentSummary={paymentSummary}
-      />
-
-      <section className="apg-admin-sheet overflow-hidden">
-        <div className="border-b border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(238,242,245,0.98))] px-5 py-4 lg:px-6">
-          <p className="apg-eyebrow">Flight Deck</p>
-          <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">Thông tin chuyến bay và time limit</h3>
-        </div>
-
-        <div className="p-5 lg:p-6">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <article className="apg-admin-stat px-4 py-4">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Hành trình</div>
-              <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{booking.routeSummary}</div>
-            </article>
-
-            <article className="apg-admin-stat px-4 py-4">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Loại chuyến</div>
-              <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{formatTripType(booking.tripType)}</div>
-            </article>
-
-            <article className="apg-admin-stat px-4 py-4">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Khởi hành</div>
-              <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{formatDateTime(booking.departAt)}</div>
-            </article>
-
-            <article className="apg-admin-stat px-4 py-4">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Chiều về</div>
-              <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{formatDateTime(booking.returnAt)}</div>
-            </article>
-
-            <article className="apg-admin-stat px-4 py-4">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Cabin</div>
-              <div className="mt-2 text-base font-semibold uppercase text-[var(--apg-aviation-navy-deep)]">{displayValue(booking.cabin)}</div>
-            </article>
-
-            <article className="apg-admin-stat px-4 py-4">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Số lượng khách</div>
-              <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">
-                ADT {booking.adt} · CHD {booking.chd} · INF {booking.inf}
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_344px]">
+        {/* LEFT */}
+        <div className="flex flex-col gap-5">
+          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[26px]">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="ofly-eyebrow mb-[9px]">{`${booking.airline ?? "—"} · ${booking.orderCode}`}</div>
+                <div className="ofly-serif text-[34px] font-medium leading-none tracking-[-0.5px]">
+                  {formatRoute(booking.routeSummary)}
+                </div>
+                <div className="mt-[10px] text-[13px] text-[var(--ink-soft)]">{headerSub}</div>
               </div>
-            </article>
-
-            <article className="apg-admin-stat px-4 py-4 xl:col-span-2">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">TTL giữ chỗ</div>
-              <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{formatDateTime(booking.ttlExpiresAt)}</div>
-              {booking.status === "HELD" ? (
-                <div className="mt-2 text-sm text-[var(--apg-text-secondary)]">
-                  TTL đơn hàng lấy theo PNR hết hạn sớm nhất. {describeCountdown(booking.ttlExpiresAt)}
+              {booking.priceLockedAt ? (
+                <div className="flex items-center gap-2 rounded-[8px] border border-[var(--line)] bg-[var(--surface-2)] px-[13px] py-[9px]">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--rust)" strokeWidth="2" aria-hidden="true">
+                    <rect x="5" y="11" width="14" height="9" rx="2" />
+                    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+                  </svg>
+                  <div className="text-[11px] leading-[1.4]">
+                    <span className="font-semibold">Giá đã khoá</span>
+                    <br />
+                    <span className="text-[var(--ink-soft)]">{formatDateTime(booking.priceLockedAt)}</span>
+                  </div>
                 </div>
               ) : null}
-            </article>
-          </div>
-        </div>
-      </section>
+            </div>
+          </section>
 
-      <BookingPriceBreakdown appliedMarkupRule={appliedMarkupRule} booking={booking} />
-
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <div className="apg-admin-sheet overflow-hidden">
-          <div className="border-b border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(238,242,245,0.98))] px-5 py-4 lg:px-6">
-            <p className="apg-eyebrow">Customer Hub</p>
-            <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">Khách hàng gắn với booking</h3>
-          </div>
-
-          <div className="p-5 lg:p-6">
-            {customer ? (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <Link className="text-xl font-semibold text-[var(--apg-aviation-navy)] hover:underline" href={`/admin/customers/${customer.id}`}>
-                    {customer.fullName}
-                  </Link>
-                  {customer.blacklisted ? (
-                    <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
-                      Blacklist
-                    </span>
-                  ) : (
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                      Hồ sơ sạch
-                    </span>
-                  )}
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <article className="apg-admin-stat px-4 py-4">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Điện thoại</div>
-                    <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.phone)}</div>
-                  </article>
-                  <article className="apg-admin-stat px-4 py-4">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Email</div>
-                    <div className="mt-2 break-all text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.email)}</div>
-                  </article>
-                  <article className="apg-admin-stat px-4 py-4">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">CMND / CCCD</div>
-                    <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.idNumber)}</div>
-                  </article>
-                  <article className="apg-admin-stat px-4 py-4">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Passport / Ngày sinh</div>
-                    <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">
-                      {displayValue(customer.passport)} · {formatDate(customer.dob)}
-                    </div>
-                  </article>
-                </div>
-              </div>
+          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[24px]">
+            <div className="ofly-eyebrow mb-5">Dòng thời gian đơn</div>
+            {timeline.length === 0 ? (
+              <div className="text-[13px] italic text-[var(--ink-soft)]">Chưa có sự kiện nào.</div>
             ) : (
-              <div className="rounded-[20px] border border-dashed border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-4 py-10 text-center text-sm text-[var(--apg-text-secondary)]">
-                Booking này chưa gắn với customer record.
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="apg-admin-sheet overflow-hidden">
-          <div className="border-b border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(238,242,245,0.98))] px-5 py-4 lg:px-6">
-            <p className="apg-eyebrow">Passengers</p>
-            <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">Danh sách hành khách</h3>
-          </div>
-
-          <div className="p-5 lg:p-6">
-            {passengers.length === 0 ? (
-              <div className="rounded-[20px] border border-dashed border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-4 py-10 text-center text-sm text-[var(--apg-text-secondary)]">
-                Chưa đọc được passenger list từ snapshot booking.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {passengers.map((passenger, index) => (
-                  <article key={`${passenger.fullName}-${index}`} className="apg-admin-toolbar px-4 py-4">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="rounded-full border border-[var(--apg-border-default)] bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">
-                        {passenger.type}
-                      </span>
-                      <div className="text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{passenger.fullName}</div>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 text-sm text-[var(--apg-text-secondary)] md:grid-cols-3">
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.16em]">Họ</div>
-                        <div className="mt-1 font-medium text-[var(--apg-aviation-navy-deep)]">{displayValue(passenger.lastName)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.16em]">Tên</div>
-                        <div className="mt-1 font-medium text-[var(--apg-aviation-navy-deep)]">{displayValue(passenger.firstName)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.16em]">Ngày sinh</div>
-                        <div className="mt-1 font-medium text-[var(--apg-aviation-navy-deep)]">{formatDate(passenger.dob)}</div>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <BookingTimeline fallbackActorId={booking.createdById} timeline={timeline} />
-
-      {(canManagePaymentQr || paymentIntents.length > 0) ? (
-        <PaymentIntentPanel
-          balance={paymentSummary.balance}
-          bookingId={booking.id}
-          canManage={canManagePaymentQr}
-          currency={booking.currency}
-          notificationJobs={notificationJobs}
-          paymentIntents={paymentIntents}
-        />
-      ) : null}
-
-      {canCapturePayment ? <PaymentForm balance={paymentSummary.balance} bookingId={booking.id} currency={booking.currency} /> : null}
-
-      <BookingPaymentsTable
-        bookingId={booking.id}
-        canRejectPayments={canRejectPayments}
-        currency={booking.currency}
-        paymentSummary={paymentSummary}
-        payments={payments}
-      />
-
-      <section className="apg-admin-sheet overflow-hidden">
-        <div className="border-b border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(238,242,245,0.98))] px-5 py-4 lg:px-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="apg-eyebrow">PNR Control</p>
-              <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">PNR và time limit</h3>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--apg-text-secondary)]">
-              <span className="apg-chip">{pnrs.length} bản ghi PNR</span>
-              <span className="apg-chip">{hasSuccessPnr ? "Có PNR SUCCESS" : "Chưa có PNR SUCCESS"}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-5 lg:p-6">
-          {pnrs.length === 0 ? (
-            <div className="rounded-[20px] border border-dashed border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-4 py-10 text-center text-sm text-[var(--apg-text-secondary)]">
-              Booking này chưa có PNR record.
-            </div>
-          ) : (
-            <>
-              <div className="grid gap-4 md:hidden">
-                {pnrs.map((pnr) => {
-                  const urgency = pnrUrgencyLabel(pnr.timelimit);
-
+              <div className="flex flex-col">
+                {timeline.map((event, index) => {
+                  const isLast = index === timeline.length - 1;
+                  const tone: Tone = isLast ? "rust" : "ok";
+                  const dotColor = toneVars(tone).solid;
                   return (
-                    <article key={pnr.id} className="rounded-[22px] border border-[var(--apg-border-default)] bg-white p-4 shadow-sm">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs uppercase tracking-[0.16em] text-[var(--apg-text-secondary)]">{pnr.airline || "Airline"}</div>
-                          <div className="mt-2 text-xl font-semibold text-[var(--apg-aviation-navy-deep)]">{pnr.pnr}</div>
-                        </div>
-                        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${pnrStatusClass(pnr.status)}`}>{pnr.status || "-"}</span>
+                    <div key={event.id} className="flex gap-[15px]">
+                      <div className="flex flex-col items-center">
+                        <span
+                          className="mt-[3px] flex-none rounded-full"
+                          style={{ width: 11, height: 11, background: dotColor, border: `2px solid ${dotColor}`, boxSizing: "border-box" }}
+                          aria-hidden="true"
+                        />
+                        {!isLast ? <span className="flex-1" style={{ width: 2, minHeight: 14, background: "var(--line)" }} aria-hidden="true" /> : null}
                       </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-[var(--apg-text-secondary)]">
-                        <div className="col-span-2">
-                          <div className="text-xs uppercase tracking-[0.16em]">Hành trình</div>
-                          <div className="mt-1 text-[var(--apg-aviation-navy-deep)]">{routeLabel(pnr.routeSummary)}</div>
+                      <div className="flex-1 pb-[18px]">
+                        <div className="text-[14px] leading-[1.3] text-[var(--ink)]" style={{ fontWeight: isLast ? 600 : 500 }}>
+                          {event.title}
                         </div>
-                        <div>
-                          <div className="text-xs uppercase tracking-[0.16em]">Khởi hành</div>
-                          <div className="mt-1 text-[var(--apg-aviation-navy-deep)]">{formatDateTime(pnr.departAt)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs uppercase tracking-[0.16em]">Time limit</div>
-                          <div className="mt-1 text-[var(--apg-aviation-navy-deep)]">{formatDateTime(pnr.timelimit)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs uppercase tracking-[0.16em]">Cảnh báo</div>
-                          <div className="mt-1">
-                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${urgency.className}`}>{urgency.label}</span>
-                          </div>
-                        </div>
+                        <div className="mt-[3px] text-[11px] text-[var(--ink-faint)]">{formatDateTime(event.occurredAt)}</div>
                       </div>
-                    </article>
+                    </div>
                   );
                 })}
               </div>
+            )}
+          </section>
 
-              <div className="hidden overflow-x-auto md:block">
-                <table className="apg-admin-table min-w-full border-collapse text-sm">
-                  <thead>
-                    <tr>
-                      <th className="px-5 py-4 font-semibold">PNR</th>
-                      <th className="px-4 py-4 font-semibold">Airline</th>
-                      <th className="px-4 py-4 font-semibold">Hành trình</th>
-                      <th className="px-4 py-4 font-semibold">Khởi hành</th>
-                      <th className="px-4 py-4 font-semibold">Status</th>
-                      <th className="px-4 py-4 font-semibold">Time limit</th>
-                      <th className="px-5 py-4 font-semibold">Cảnh báo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pnrs.map((pnr) => {
-                      const urgency = pnrUrgencyLabel(pnr.timelimit);
+          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[24px]">
+            <div className="ofly-eyebrow mb-4">{`Hành khách (${passengers.length})`}</div>
+            {passengers.length === 0 ? (
+              <div className="text-[13px] italic text-[var(--ink-soft)]">Chưa đọc được danh sách hành khách.</div>
+            ) : (
+              passengers.map((passenger, index) => (
+                <div
+                  key={`${passenger.fullName}-${index}`}
+                  className="flex items-center justify-between border-b border-[var(--line)] py-[11px] last:border-b-0"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="ofly-serif flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[var(--surface-2)] text-[13px] font-medium text-[var(--ink-soft)]">
+                      {passenger.initial}
+                    </div>
+                    <span className="text-[14px] font-medium">{passenger.fullName}</span>
+                  </div>
+                  <span className="text-[12px] text-[var(--ink-soft)]">{passenger.roleLabel}</span>
+                </div>
+              ))
+            )}
+          </section>
 
-                      return (
-                        <tr key={pnr.id} className="border-t border-[var(--apg-border-default)] align-top">
-                          <td className="px-5 py-4 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{pnr.pnr}</td>
-                          <td className="px-4 py-4 text-[var(--apg-aviation-navy-deep)]">{pnr.airline || "-"}</td>
-                          <td className="px-4 py-4 text-[var(--apg-aviation-navy-deep)]">{routeLabel(pnr.routeSummary)}</td>
-                          <td className="px-4 py-4 text-[var(--apg-aviation-navy-deep)]">{formatDateTime(pnr.departAt)}</td>
-                          <td className="px-4 py-4">
-                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${pnrStatusClass(pnr.status)}`}>{pnr.status || "-"}</span>
-                          </td>
-                          <td className="px-4 py-4 text-[var(--apg-aviation-navy-deep)]">{formatDateTime(pnr.timelimit)}</td>
-                          <td className="px-5 py-4">
-                            <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${urgency.className}`}>{urgency.label}</span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
+          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[24px]">
+            <div className="ofly-eyebrow mb-4">Lịch sử thông báo</div>
+            {notificationJobs.length === 0 ? (
+              <div className="text-[13px] italic text-[var(--ink-soft)]">Chưa có thông báo nào.</div>
+            ) : (
+              notificationJobs.map((job) => {
+                const meta = NOTIF_STATUS_META[job.status];
+                return (
+                  <div key={job.id} className="flex gap-[13px] border-b border-[var(--line)] py-[12px] last:border-b-0">
+                    <span
+                      className="mt-[5px] inline-block flex-none rounded-full"
+                      style={{ width: 7, height: 7, background: toneVars(meta.tone).solid }}
+                      aria-hidden="true"
+                    />
+                    <div className="flex-1">
+                      <div className="text-[13px] font-medium leading-[1.35]">{notificationTitle(job.type)}</div>
+                      <div className="mt-[3px] text-[11px] text-[var(--ink-soft)]">
+                        {`${CHANNEL_LABELS[job.channel]} · ${AUDIENCE_LABELS[job.audience]} · ${formatDateTime(job.scheduledAt)}`}
+                      </div>
+                    </div>
+                    <span className="whitespace-nowrap text-[11px] font-semibold" style={{ color: toneVars(meta.tone).fg }}>
+                      {meta.label}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </section>
         </div>
-      </section>
+
+        {/* RIGHT */}
+        <div className="flex flex-col gap-5 lg:sticky lg:top-[96px]">
+          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-[24px]">
+            <div className="mb-[14px] flex items-center justify-between gap-3">
+              <StatusChip status={booking.status} />
+              <span className="ofly-sans text-[13px] font-semibold tracking-[1px] text-[var(--rust)]">{booking.pnr || "—"}</span>
+            </div>
+            {sla ? (
+              <div className="mb-4 rounded-[8px] px-[14px] py-[12px]" style={{ background: toneVars(sla.tone).bg }}>
+                <div className="text-[12px] font-semibold" style={{ color: toneVars(sla.tone).fg }}>
+                  {sla.text}
+                </div>
+                <div className="mt-[3px] text-[11px] text-[var(--ink-soft)]">{sla.sub}</div>
+              </div>
+            ) : null}
+            <OrderActions
+              bookingId={booking.id}
+              status={booking.status}
+              alreadyHandedOff={booking.rmsSyncedAt !== null}
+              totalPaid={paymentSummary.totalPaid}
+              permissions={permissions}
+            />
+          </section>
+
+          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-[24px]">
+            <div className="ofly-eyebrow mb-4">Thanh toán</div>
+            <div className="flex justify-between py-[7px] text-[13px]">
+              <span className="text-[var(--ink-soft)]">Giá net (vốn)</span>
+              <span className="font-medium">{formatVnd(booking.netAmount)}</span>
+            </div>
+            <div className="flex justify-between py-[7px] text-[13px]">
+              <span className="text-[var(--ink-soft)]">Markup</span>
+              <span className="font-medium text-[var(--rust)]">+ {formatVnd(booking.markupAmount)}</span>
+            </div>
+            <div className="mt-[5px] flex justify-between border-t border-[var(--line)] pb-[7px] pt-[11px] text-[14px]">
+              <span className="font-semibold">Khách trả</span>
+              <span className="ofly-serif text-[18px] font-medium">{formatVnd(booking.saleAmount)}</span>
+            </div>
+            <div className="mt-[14px] flex items-center justify-between border-t border-[var(--line)] pt-[14px]">
+              <span className="text-[12px] text-[var(--ink-soft)]">{payMethodLabel}</span>
+              <span className="text-[11px] font-semibold" style={{ color: toneVars(payStatusTone).fg }}>
+                {payStatusLabel}
+              </span>
+            </div>
+          </section>
+
+          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-[24px]">
+            <div className="ofly-eyebrow mb-[14px]">Khách hàng</div>
+            <div className="text-[14px] font-medium">{customer?.fullName ?? "—"}</div>
+            <div className="mt-[5px] text-[13px] text-[var(--ink-soft)]">{customer?.phone ?? "Chưa có số điện thoại"}</div>
+            {customer?.email ? <div className="mt-[3px] text-[13px] text-[var(--ink-soft)]">{customer.email}</div> : null}
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

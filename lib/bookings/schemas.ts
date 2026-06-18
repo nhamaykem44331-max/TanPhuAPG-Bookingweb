@@ -118,8 +118,19 @@ export type HoldPassengerInput = z.infer<typeof holdPassengerSchema>;
 
 const bookingStatusValues = Object.values(BookingStatus) as [BookingStatus, ...BookingStatus[]];
 
+// Tab "Tất cả đơn" gom nhiều trạng thái thành 1 nhóm (parity tabDefs file thiết kế).
+export const ORDER_TAB_KEYS = ["all", "queue", "held", "pending", "ticketed", "refund", "closed"] as const;
+export type OrderTabKey = (typeof ORDER_TAB_KEYS)[number];
+
 export const adminBookingListQuerySchema = z.object({
   status: z.enum(bookingStatusValues).optional(),
+  tab: z.enum(ORDER_TAB_KEYS).optional(),
+  q: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .transform((value) => value || undefined),
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),
   pnr: z.string().trim().max(30).optional(),

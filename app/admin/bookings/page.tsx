@@ -1,25 +1,33 @@
+import { BookingStatus } from "@prisma/client";
 import Link from "next/link";
 
-import { BookingTable } from "@/components/admin/BookingTable";
-import { ExportButton } from "@/components/admin/ExportButton";
+import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
+import { StatusChip } from "@/components/admin/ui/Chip";
 import { ADMIN_ROLES } from "@/lib/auth/constants";
+import { bookingListWhereForRole } from "@/lib/auth/ownership";
 import { requireRole } from "@/lib/auth/requireRole";
-import { listAdminBookings } from "@/lib/bookings/admin";
-import { adminBookingListQuerySchema } from "@/lib/bookings/schemas";
+import { ORDER_TAB_STATUSES, listAdminBookings, type AdminBookingRecord } from "@/lib/bookings/admin";
+import { adminBookingListQuerySchema, type OrderTabKey } from "@/lib/bookings/schemas";
+import { formatDate, formatNumber, formatRoute, formatVnd } from "@/lib/admin/ui/format";
+import { prisma } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
 
 interface AdminBookingsPageProps {
   searchParams?: Record<string, string | string[] | undefined>;
 }
 
-const STATUS_TABS = [
-  { value: "", label: "Tất cả" },
-  { value: "HELD", label: "Held" },
-  { value: "PENDING_PAYMENT", label: "Chờ thanh toán" },
-  { value: "TICKETED", label: "Đã xuất" },
-  { value: "EXPIRED", label: "Hết hạn" },
-  { value: "CANCELLED", label: "Đã hủy" },
-  { value: "PAYMENT_FAILED", label: "Lỗi" },
-] as const;
+const TAB_LABELS: Record<OrderTabKey, string> = {
+  all: "Tất cả",
+  queue: "Chờ xuất",
+  held: "Đang giữ",
+  pending: "Chờ TT",
+  ticketed: "Đã xuất",
+  refund: "Cần hoàn",
+  closed: "Đã đóng",
+};
+
+const TAB_ORDER: OrderTabKey[] = ["all", "queue", "held", "pending", "ticketed", "refund", "closed"];
 
 function singleValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -27,150 +35,163 @@ function singleValue(value: string | string[] | undefined): string | undefined {
 
 export default async function AdminBookingsPage({ searchParams }: AdminBookingsPageProps) {
   const session = await requireRole(ADMIN_ROLES);
+  const ownership = { userId: session.user.id, role: session.user.role };
+
   const parsedQuery = adminBookingListQuerySchema.parse({
-    status: singleValue(searchParams?.status),
-    from: singleValue(searchParams?.from),
-    to: singleValue(searchParams?.to),
-    pnr: singleValue(searchParams?.pnr),
-    orderCode: singleValue(searchParams?.orderCode),
+    tab: singleValue(searchParams?.tab),
+    q: singleValue(searchParams?.q),
     limit: singleValue(searchParams?.limit),
     offset: singleValue(searchParams?.offset),
   });
-  const result = await listAdminBookings(parsedQuery, {
-    userId: session.user.id,
-    role: session.user.role,
-  });
+  const currentTab: OrderTabKey = parsedQuery.tab ?? "all";
+  const searchTerm = parsedQuery.q ?? "";
+
+  const [result, statusCounts] = await Promise.all([
+    listAdminBookings(parsedQuery, ownership),
+    prisma.booking.groupBy({
+      by: ["status"],
+      where: bookingListWhereForRole(ownership, {}),
+      _count: { _all: true },
+    }),
+  ]);
+
+  const countByStatus = new Map(statusCounts.map((row) => [row.status, row._count._all]));
+  const grandTotal = statusCounts.reduce((acc, row) => acc + row._count._all, 0);
+  const tabCount = (tab: OrderTabKey): number =>
+    tab === "all" ? grandTotal : ORDER_TAB_STATUSES[tab].reduce((acc, status) => acc + (countByStatus.get(status) ?? 0), 0);
+
   const previousOffset = Math.max(parsedQuery.offset - parsedQuery.limit, 0);
   const nextOffset = parsedQuery.offset + parsedQuery.limit;
   const hasNextPage = nextOffset < result.total;
-  const baseQuery = Object.fromEntries(
-    Object.entries({
-      status: parsedQuery.status,
-      from: parsedQuery.from,
-      to: parsedQuery.to,
-      pnr: parsedQuery.pnr,
-      orderCode: parsedQuery.orderCode,
-      limit: String(parsedQuery.limit),
-    }).filter((entry) => entry[1]),
-  );
+  const pageQuery = (offset: number) => ({
+    tab: currentTab,
+    ...(searchTerm ? { q: searchTerm } : {}),
+    ...(offset > 0 ? { offset: String(offset) } : {}),
+  });
+
+  const columns: DataTableColumn<AdminBookingRecord>[] = [
+    {
+      key: "pnr",
+      header: "PNR",
+      width: "104px",
+      render: (row) => (
+        <span className="ofly-sans text-[13px] font-semibold tracking-[1px] text-[var(--rust)]">{row.pnr || "—"}</span>
+      ),
+    },
+    {
+      key: "route",
+      header: "CHẶNG BAY",
+      width: "minmax(0,1.3fr)",
+      render: (row) => (
+        <div className="min-w-0">
+          <div className="ofly-serif text-[15px] font-medium tracking-[0.4px]">{formatRoute(row.route)}</div>
+          <div className="mt-[3px] truncate text-[11px] text-[var(--ink-soft)]">
+            {[row.airline, formatDate(row.departureDate, "")].filter(Boolean).join(" · ") || "—"}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "customer",
+      header: "KHÁCH",
+      width: "minmax(0,1fr)",
+      render: (row) => (
+        <div className="min-w-0">
+          <div className="truncate text-[13px] font-medium">{row.customerName ?? "—"}</div>
+          <div className="mt-[2px] text-[11px] text-[var(--ink-soft)]">{row.passengerCount} khách</div>
+        </div>
+      ),
+    },
+    {
+      key: "amount",
+      header: "SỐ TIỀN",
+      width: "128px",
+      render: (row) => <span className="ofly-serif text-[15px] font-medium">{formatVnd(row.sellPrice)}</span>,
+    },
+    {
+      key: "status",
+      header: "TRẠNG THÁI",
+      width: "168px",
+      render: (row) => <StatusChip status={row.status as BookingStatus} />,
+    },
+    {
+      key: "assignee",
+      header: "PHỤ TRÁCH",
+      width: "116px",
+      render: (row) => (
+        <span className="text-[12px]" style={{ color: row.assignedToName ? "var(--ink)" : "var(--ink-faint)" }}>
+          {row.assignedToName ?? "—"}
+        </span>
+      ),
+    },
+  ];
 
   return (
-    <div className="space-y-5">
-      <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-base font-semibold text-[var(--apg-text-primary)]">Bookings</h1>
-          <p className="mt-1 text-sm text-[var(--apg-text-secondary)]">Quản lý theo từng PNR nhưng vẫn gom thanh toán theo mã đơn hàng.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-md border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-3 py-2 text-sm text-[var(--apg-text-secondary)]">
-            {result.total} PNR
-          </span>
-          <ExportButton
-            basePath="/api/admin/bookings/export"
-            query={{
-              status: parsedQuery.status,
-              from: parsedQuery.from,
-              to: parsedQuery.to,
-              orderCode: parsedQuery.orderCode,
-            }}
-          />
-        </div>
-      </section>
-
-      <div className="border-b border-[var(--apg-border-default)]">
-        <nav className="flex gap-6 overflow-x-auto text-sm">
-          {STATUS_TABS.map((tab) => {
-            const active = (parsedQuery.status ?? "") === tab.value;
-            const query = {
-              ...baseQuery,
-              status: tab.value || undefined,
-              offset: "0",
-            };
-
+    <div>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-[6px]">
+          {TAB_ORDER.map((tab) => {
+            const active = currentTab === tab;
             return (
               <Link
-                key={tab.value || "all"}
-                className={`whitespace-nowrap border-b-2 px-1 pb-3 transition ${
+                key={tab}
+                href={{ pathname: "/admin/bookings", query: { tab, ...(searchTerm ? { q: searchTerm } : {}) } }}
+                className="rounded-[8px] border px-[14px] py-[8px] text-[12px] font-medium leading-none transition"
+                style={
                   active
-                    ? "border-[var(--apg-text-primary)] font-semibold text-[var(--apg-text-primary)]"
-                    : "border-transparent text-[var(--apg-text-secondary)] hover:text-[var(--apg-text-primary)]"
-                }`}
-                href={{ pathname: "/admin/bookings", query }}
+                    ? { borderColor: "var(--rust)", background: "var(--rust)", color: "#F5F1EA" }
+                    : { borderColor: "var(--line)", background: "var(--surface)", color: "var(--ink-soft)" }
+                }
               >
-                {tab.label}
+                {TAB_LABELS[tab]} <span className="opacity-60">{formatNumber(tabCount(tab))}</span>
               </Link>
             );
           })}
-        </nav>
+        </div>
+
+        <form action="/admin/bookings" className="flex items-center gap-2">
+          <input type="hidden" name="tab" value={currentTab} />
+          <input
+            name="q"
+            defaultValue={searchTerm}
+            placeholder="Tìm PNR, mã đơn, khách, chặng…"
+            className="w-[260px] rounded-[8px] border border-[var(--line)] bg-[var(--surface)] px-[12px] py-[8px] text-[13px] text-[var(--ink)] outline-none transition placeholder:text-[var(--ink-faint)] focus:border-[var(--line-strong)]"
+          />
+          <button
+            type="submit"
+            className="rounded-[8px] border border-[var(--line-strong)] bg-transparent px-[14px] py-[8px] text-[12px] font-medium text-[var(--ink-soft)] transition hover:border-[var(--ink)] hover:text-[var(--ink)]"
+          >
+            Tìm
+          </button>
+        </form>
       </div>
 
-      <section className="apg-admin-toolbar px-4 py-4">
-        <form className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_minmax(220px,1fr)_160px_160px_110px_auto_auto] xl:items-end">
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            PNR
-            <input className="apg-field mt-2" defaultValue={parsedQuery.pnr ?? ""} name="pnr" placeholder="63JTXF" />
-          </label>
+      <DataTable
+        columns={columns}
+        rows={result.items}
+        getRowKey={(row) => row.pnrRecordId}
+        rowHref={(row) => `/admin/bookings/${row.id}`}
+        empty={searchTerm ? `Không có đơn nào khớp “${searchTerm}”.` : "Chưa có đơn nào trong nhóm này."}
+        className="overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface)]"
+      />
 
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Mã đơn hàng
-            <input className="apg-field mt-2" defaultValue={parsedQuery.orderCode ?? ""} name="orderCode" placeholder="APG-260425-XXXXXX" />
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Từ ngày
-            <input className="apg-field mt-2" defaultValue={parsedQuery.from ?? ""} name="from" type="date" />
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Đến ngày
-            <input className="apg-field mt-2" defaultValue={parsedQuery.to ?? ""} name="to" type="date" />
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Limit
-            <input className="apg-field mt-2" defaultValue={String(parsedQuery.limit)} min={1} max={100} name="limit" type="number" />
-          </label>
-
-          <input name="status" type="hidden" value={parsedQuery.status ?? ""} />
-          <input name="offset" type="hidden" value="0" />
-          <button className="apg-btn-primary w-full" type="submit">
-            Lọc
-          </button>
-          <Link className="apg-btn-secondary inline-flex w-full items-center justify-center" href="/admin/bookings">
-            Xóa lọc
-          </Link>
-        </form>
-      </section>
-
-      <BookingTable bookings={result.items} />
-
-      <div className="flex items-center justify-between rounded-lg border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-4 py-3">
+      <div className="mt-4 flex items-center justify-between text-[12px] text-[var(--ink-soft)]">
         <Link
-          className={`apg-btn-secondary ${parsedQuery.offset === 0 ? "pointer-events-none opacity-50" : ""}`}
-          href={{
-            pathname: "/admin/bookings",
-            query: {
-              ...baseQuery,
-              offset: String(previousOffset),
-            },
-          }}
+          href={{ pathname: "/admin/bookings", query: pageQuery(previousOffset) }}
+          className={`rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] ${
+            parsedQuery.offset === 0 ? "pointer-events-none opacity-40" : ""
+          }`}
         >
           Trang trước
         </Link>
-
-        <div className="text-sm text-[var(--apg-text-secondary)]">
+        <span>
           Hiển thị {result.items.length} / {result.total} PNR
-        </div>
-
+        </span>
         <Link
-          className={`apg-btn-secondary ${!hasNextPage ? "pointer-events-none opacity-50" : ""}`}
-          href={{
-            pathname: "/admin/bookings",
-            query: {
-              ...baseQuery,
-              offset: String(nextOffset),
-            },
-          }}
+          href={{ pathname: "/admin/bookings", query: pageQuery(nextOffset) }}
+          className={`rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] ${
+            !hasNextPage ? "pointer-events-none opacity-40" : ""
+          }`}
         >
           Trang sau
         </Link>
