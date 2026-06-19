@@ -16,13 +16,18 @@ enum Role {
 }
 
 enum BookingStatus {
-  DRAFT
+  QUOTED
   HELD
-  PRICING_PENDING
+  PENDING_PAYMENT
+  PAID
+  TICKETING
   TICKETED
+  CANNOT_ISSUE
+  REFUND_REQUIRED
+  REFUNDED
+  PAYMENT_FAILED
   EXPIRED
   CANCELLED
-  FAILED
 }
 
 enum MarkupType {
@@ -75,6 +80,8 @@ enum NotificationJobChannel {
   SLACK
   TELEGRAM
   INTERNAL
+  ZALO_OA
+  ZNS
 }
 
 enum NotificationJobStatus {
@@ -97,6 +104,18 @@ enum PriceAlertStatus {
   DISABLED
 }
 
+enum RefundStatus {
+  REQUIRED
+  PROCESSING
+  REFUNDED
+  FAILED
+}
+
+enum NotificationAudience {
+  INTERNAL
+  CUSTOMER
+}
+
 model User {
   id                    String          @id @default(cuid())
   email                 String          @unique
@@ -115,6 +134,8 @@ model User {
   auditLogs             AuditLog[]      @relation("AuditActor")
   createdPriceAlerts    PriceAlert[]    @relation("PriceAlertCreatedBy")
   createdPaymentIntents PaymentIntent[] @relation("PaymentIntentCreatedBy")
+  assignedBookings      Booking[]       @relation("BookingAssignee")
+  processedRefunds      Refund[]        @relation("RefundProcessedBy")
 
   @@index([role, active])
 }
@@ -168,6 +189,14 @@ model Booking {
   channel                   String                 @default("web")
   source                    String                 @default("namthanh")
   notes                     String?
+  /// Thời điểm webhook xác nhận khách đã trả đủ (set khi Booking → PAID).
+  paidConfirmedAt           DateTime?
+  /// Hạn xuất vé (paidConfirmedAt + TICKETING_SLA_MINUTES). Dùng cho hàng đợi & cron SLA.
+  slaDueAt                  DateTime?
+  /// NV xuất vé đang xử lý đơn (set khi claim PAID → TICKETING).
+  assignedToId              String?
+  /// Thời điểm đã bàn giao sang RMS để hạch toán.
+  rmsSyncedAt               DateTime?
   /// Thời điểm lần cuối giá sale được khoá cho khách (set ở HOLD và ISSUE).
   /// Nếu giá airline đổi sau đó, hệ thống phải re-quote và compare với snapshot này.
   priceLockedAt             DateTime?
@@ -184,11 +213,15 @@ model Booking {
   payments                  Payment[]
   paymentIntents            PaymentIntent[]
   notificationJobs          NotificationJob[]
+  assignedTo                User?                  @relation("BookingAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  refunds                   Refund[]
 
   @@index([pnr])
   @@index([orderCode])
   @@index([sessionId])
   @@index([status, ttlExpiresAt])
+  @@index([status, slaDueAt])
+  @@index([assignedToId, status])
   @@index([customerId, createdAt])
   @@index([createdById, createdAt])
   @@index([appliedMarkupRuleId])
@@ -227,6 +260,22 @@ model BookingTimelineEvent {
 
   @@index([bookingId, occurredAt])
   @@index([pnr, occurredAt])
+}
+
+model Refund {
+  id            String       @id @default(cuid())
+  bookingId     String
+  amount        Int
+  reason        String
+  status        RefundStatus @default(REQUIRED)
+  processedById String?
+  createdAt     DateTime     @default(now())
+  refundedAt    DateTime?
+  booking       Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  processedBy   User?        @relation("RefundProcessedBy", fields: [processedById], references: [id], onDelete: SetNull)
+
+  @@index([bookingId, createdAt])
+  @@index([status, createdAt])
 }
 
 model MarkupRule {
@@ -348,6 +397,7 @@ model BankTransaction {
 model NotificationJob {
   id              String                 @id @default(cuid())
   type            String
+  audience        NotificationAudience   @default(INTERNAL)
   channel         NotificationJobChannel
   status          NotificationJobStatus  @default(PENDING)
   bookingId       String?
@@ -359,6 +409,8 @@ model NotificationJob {
   maxAttempts     Int                    @default(3)
   lastError       String?
   payload         Json?
+  idempotencyKey  String?                @unique
+  templateCode    String?
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
   booking         Booking?               @relation(fields: [bookingId], references: [id], onDelete: Cascade)
@@ -367,6 +419,13 @@ model NotificationJob {
   @@index([status, scheduledAt])
   @@index([bookingId, type])
   @@index([paymentIntentId, type])
+}
+
+model NotificationTemplate {
+  code          String  @id
+  name          String
+  znsTemplateId String?
+  sampleParams  Json?
 }
 
 model AuditLog {

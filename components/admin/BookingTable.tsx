@@ -42,7 +42,7 @@ function displayValue(value: string | null | undefined): string {
 }
 
 function statusClass(status: string, overdue: boolean): string {
-  if (overdue || status === "CANCELLED" || status === "FAILED" || status === "EXPIRED") {
+  if (overdue || status === "CANCELLED" || status === "PAYMENT_FAILED" || status === "EXPIRED") {
     return "border-rose-200 bg-rose-50 text-rose-700";
   }
 
@@ -50,7 +50,7 @@ function statusClass(status: string, overdue: boolean): string {
     return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
-  if (status === "HELD" || status === "PRICING_PENDING") {
+  if (status === "HELD" || status === "PENDING_PAYMENT") {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
 
@@ -62,11 +62,11 @@ function statusLabel(status: string, overdue: boolean): string {
 
   const labels: Record<string, string> = {
     HELD: "HELD",
-    PRICING_PENDING: "CHỜ GIÁ",
+    PENDING_PAYMENT: "CHỜ THANH TOÁN",
     TICKETED: "TICKETED",
     EXPIRED: "EXPIRED",
     CANCELLED: "CANCELLED",
-    FAILED: "FAILED",
+    PAYMENT_FAILED: "PAYMENT_FAILED",
   };
 
   return labels[status] ?? status;

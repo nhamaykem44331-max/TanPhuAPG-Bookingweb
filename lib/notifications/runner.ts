@@ -4,6 +4,9 @@ import { calculatePaymentSummary } from "@/lib/booking/paymentSummary";
 import { prisma } from "@/lib/db";
 import { notify } from "@/lib/notifications";
 import { sendEmail } from "@/lib/notifications/channels/email";
+import { isTelegramEnabled, sendTelegram } from "@/lib/notifications/channels/telegram";
+import { isZaloOaEnabled, sendZaloOa } from "@/lib/notifications/channels/zalo";
+import { isZnsEnabled, sendZns, type ZnsMessage } from "@/lib/notifications/channels/zns";
 import { renderBookingHold } from "@/lib/notifications/templates/bookingHold";
 import { renderBookingPaymentReminder } from "@/lib/notifications/templates/bookingPaymentReminder";
 
@@ -49,6 +52,131 @@ function formatDateTime(value: Date | null): string {
 
 function formatMoney(value: number): string {
   return new Intl.NumberFormat("vi-VN").format(value);
+}
+
+function appBaseUrl(): string {
+  const raw = process.env.NEXTAUTH_URL || process.env.APP_BASE_URL || "https://tanphuapg.com";
+  const normalized = raw.startsWith("http") ? raw : `https://${raw}`;
+  return normalized.replace(/\/+$/, "");
+}
+
+function bookingAdminUrl(bookingId: string): string {
+  return `${appBaseUrl()}/admin/bookings/${bookingId}`;
+}
+
+function asRecord(value: Prisma.JsonValue | null): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+// Cảnh báo nội bộ (Zalo OA / Telegram) — text hành động cho nhân viên xử lý.
+function renderOpsAlertText(job: DueNotificationJob): string | null {
+  const booking = job.booking;
+
+  if (!booking) {
+    return null;
+  }
+
+  const payload = asRecord(job.payload);
+  const pnr = booking.pnr ?? booking.pnrs[0]?.pnr ?? "PENDING";
+  const route = booking.routeSummary;
+  const adminLine = `Admin: ${bookingAdminUrl(booking.id)}`;
+
+  if (job.type === "NEEDS_TICKETING") {
+    return [
+      "*CẦN XUẤT VÉ*",
+      `Đơn: ${booking.orderCode}`,
+      `PNR: ${pnr}`,
+      `Chặng: ${route}`,
+      `Hạn xuất: ${formatDateTime(booking.slaDueAt)}`,
+      adminLine,
+    ].join("\n");
+  }
+
+  if (job.type === "SLA_BREACH") {
+    return [
+      "*QUÁ HẠN SLA XUẤT VÉ*",
+      `Đơn: ${booking.orderCode}`,
+      `PNR: ${pnr}`,
+      `Chặng: ${route}`,
+      `Hạn: ${formatDateTime(booking.slaDueAt)}`,
+      adminLine,
+    ].join("\n");
+  }
+
+  if (job.type === "HELD_EXPIRING") {
+    return [
+      "*SẮP HẾT HẠN GIỮ CHỖ*",
+      `Đơn: ${booking.orderCode}`,
+      `PNR: ${pnr}`,
+      `Chặng: ${route}`,
+      `Hết hạn: ${formatDateTime(booking.ttlExpiresAt)}`,
+      adminLine,
+    ].join("\n");
+  }
+
+  if (job.type === "CANNOT_ISSUE") {
+    return [
+      "*KHÔNG XUẤT ĐƯỢC VÉ*",
+      `Đơn: ${booking.orderCode}`,
+      `PNR: ${pnr}`,
+      `Chặng: ${route}`,
+      `Lý do: ${String(payload.reason ?? "-")}`,
+      adminLine,
+    ].join("\n");
+  }
+
+  return null;
+}
+
+function znsTemplateId(type: string): string | undefined {
+  if (type === "TICKET_ISSUED") {
+    return process.env.ZNS_TEMPLATE_TICKET_ISSUED;
+  }
+
+  if (type === "REFUND_DONE") {
+    return process.env.ZNS_TEMPLATE_REFUND_DONE;
+  }
+
+  if (type === "CANNOT_ISSUE") {
+    return process.env.ZNS_TEMPLATE_CANNOT_ISSUE;
+  }
+
+  return undefined;
+}
+
+// Tin cho khách (ZNS) — cần số điện thoại + template_id đã duyệt.
+function buildZnsMessage(job: DueNotificationJob): { ok: true; message: ZnsMessage } | { ok: false; reason: string } {
+  const booking = job.booking;
+
+  if (!booking) {
+    return { ok: false, reason: "BOOKING_NOT_FOUND" };
+  }
+
+  const phone = booking.customer?.phone;
+
+  if (!phone) {
+    return { ok: false, reason: "CUSTOMER_PHONE_NOT_FOUND" };
+  }
+
+  const templateId = znsTemplateId(job.type);
+
+  if (!templateId) {
+    return { ok: false, reason: `ZNS_TEMPLATE_NOT_CONFIGURED:${job.type}` };
+  }
+
+  const payload = asRecord(job.payload);
+  const templateData: Record<string, string> = {
+    order_code: booking.orderCode,
+    route: booking.routeSummary,
+  };
+
+  if (job.type === "REFUND_DONE") {
+    templateData.amount = formatMoney(Number(payload.amount ?? 0));
+  }
+
+  return { ok: true, message: { phone, templateId, templateData } };
 }
 
 function isEmailTransportEnabled(): boolean {
@@ -173,10 +301,73 @@ async function skipJob(job: DueNotificationJob, lastError: string): Promise<"ski
 }
 
 async function deliverJob(job: DueNotificationJob): Promise<"sent" | "skipped" | "cancelled"> {
-  if (job.channel !== NotificationJobChannel.EMAIL) {
-    return skipJob(job, `UNSUPPORTED_CHANNEL:${job.channel}`);
+  switch (job.channel) {
+    case NotificationJobChannel.EMAIL:
+      return deliverEmailJob(job);
+    case NotificationJobChannel.ZALO_OA:
+      return deliverOpsAlertJob(job, "zalo");
+    case NotificationJobChannel.TELEGRAM:
+      return deliverOpsAlertJob(job, "telegram");
+    case NotificationJobChannel.ZNS:
+      return deliverZnsJob(job);
+    case NotificationJobChannel.INTERNAL:
+      // Chỉ ghi nhận trong DB, không có kênh phát bên ngoài.
+      await finishJob(job.id, NotificationJobStatus.SENT, { sentAt: new Date() });
+      return "sent";
+    default:
+      return skipJob(job, `UNSUPPORTED_CHANNEL:${job.channel}`);
+  }
+}
+
+async function deliverOpsAlertJob(
+  job: DueNotificationJob,
+  transport: "zalo" | "telegram",
+): Promise<"sent" | "skipped" | "cancelled"> {
+  if (!job.booking) {
+    return skipJob(job, "BOOKING_NOT_FOUND");
   }
 
+  const text = renderOpsAlertText(job);
+
+  if (!text) {
+    return skipJob(job, `UNSUPPORTED_TYPE:${job.type}`);
+  }
+
+  if (transport === "zalo") {
+    if (!isZaloOaEnabled()) {
+      return skipJob(job, "ZALO_TRANSPORT_DISABLED");
+    }
+
+    await sendZaloOa({ text });
+  } else {
+    if (!isTelegramEnabled()) {
+      return skipJob(job, "TELEGRAM_TRANSPORT_DISABLED");
+    }
+
+    await sendTelegram({ text });
+  }
+
+  await finishJob(job.id, NotificationJobStatus.SENT, { sentAt: new Date() });
+  return "sent";
+}
+
+async function deliverZnsJob(job: DueNotificationJob): Promise<"sent" | "skipped" | "cancelled"> {
+  if (!isZnsEnabled()) {
+    return skipJob(job, "ZNS_TRANSPORT_DISABLED");
+  }
+
+  const built = buildZnsMessage(job);
+
+  if (!built.ok) {
+    return skipJob(job, built.reason);
+  }
+
+  await sendZns(built.message);
+  await finishJob(job.id, NotificationJobStatus.SENT, { sentAt: new Date() });
+  return "sent";
+}
+
+async function deliverEmailJob(job: DueNotificationJob): Promise<"sent" | "skipped" | "cancelled"> {
   const context = buildEmailContext(job);
 
   if (!context) {

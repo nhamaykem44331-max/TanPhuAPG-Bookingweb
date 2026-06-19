@@ -6,6 +6,7 @@ import { getAuditRequestMeta } from "@/lib/audit";
 import { PAYMENT_CAPTURE_ROLES } from "@/lib/auth/constants";
 import { assertCanMutateBooking } from "@/lib/auth/ownership";
 import { requireRole, toAdminErrorResponse } from "@/lib/auth/requireRole";
+import { settleBookingIfFullyPaid } from "@/lib/booking/paidTransition";
 import { calculatePaymentSummary } from "@/lib/booking/paymentSummary";
 import { syncBookingOrderById } from "@/lib/bookings/orderManagement";
 import { prisma } from "@/lib/db";
@@ -151,9 +152,21 @@ export async function POST(request: Request, context: { params: { id: string } }
         },
       });
 
+      // Phần D — thu tay đủ tiền cũng đẩy booking vào hàng đợi xuất vé như SePay.
+      const settled =
+        paymentStatus === PaymentStatus.PAID
+          ? await settleBookingIfFullyPaid(tx, {
+              bookingId: booking.id,
+              paidAt,
+              actorId: session.user.id,
+              source: "admin",
+            })
+          : false;
+
       return {
         kind: "created" as const,
         payment,
+        settled,
       };
     });
 
@@ -175,7 +188,7 @@ export async function POST(request: Request, context: { params: { id: string } }
       return buildFieldErrorResponse("amount", result.message);
     }
 
-    return NextResponse.json({ payment: result.payment }, { status: 201 });
+    return NextResponse.json({ payment: result.payment, settled: result.settled }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return buildValidationErrorResponse(error);

@@ -118,8 +118,19 @@ export type HoldPassengerInput = z.infer<typeof holdPassengerSchema>;
 
 const bookingStatusValues = Object.values(BookingStatus) as [BookingStatus, ...BookingStatus[]];
 
+// Tab "Tất cả đơn" gom nhiều trạng thái thành 1 nhóm (parity tabDefs file thiết kế).
+export const ORDER_TAB_KEYS = ["all", "queue", "held", "pending", "ticketed", "refund", "closed"] as const;
+export type OrderTabKey = (typeof ORDER_TAB_KEYS)[number];
+
 export const adminBookingListQuerySchema = z.object({
   status: z.enum(bookingStatusValues).optional(),
+  tab: z.enum(ORDER_TAB_KEYS).optional(),
+  q: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .transform((value) => value || undefined),
   from: isoDateSchema.optional(),
   to: isoDateSchema.optional(),
   pnr: z.string().trim().max(30).optional(),
@@ -129,6 +140,22 @@ export const adminBookingListQuerySchema = z.object({
 });
 
 export type AdminBookingListQuery = z.infer<typeof adminBookingListQuerySchema>;
+
+export const ticketingQueueQuerySchema = z.object({
+  assignedToId: z.string().trim().min(1).max(40).optional(),
+  unassigned: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+  overdueOnly: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((value) => value === "true"),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+export type TicketingQueueQuery = z.infer<typeof ticketingQueueQuerySchema>;
 
 export const adminBookingPaymentInputSchema = z.object({
   method: z.enum(["CASH", "BANK", "QR", "CARD", "CREDIT"]),
@@ -198,3 +225,61 @@ export const cancelBookingInputSchema = z
   });
 
 export type CancelBookingInput = z.infer<typeof cancelBookingInputSchema>;
+
+const optionalNotes = z
+  .string()
+  .trim()
+  .max(500, "Ghi chú không được vượt quá 500 ký tự.")
+  .optional()
+  .transform((value) => value || undefined);
+
+export const claimBookingInputSchema = z.object({
+  notes: optionalNotes,
+});
+
+export type ClaimBookingInput = z.infer<typeof claimBookingInputSchema>;
+
+export const cannotIssueInputSchema = z
+  .object({
+    reason: z.enum(["NO_SEAT", "PRICE_INCREASED", "SCHEDULE_CHANGE", "AIRLINE_REJECT", "DUPLICATE", "OTHER"]),
+    detail: z
+      .string()
+      .trim()
+      .max(1000, "Chi tiết không được vượt quá 1000 ký tự.")
+      .optional()
+      .transform((value) => value || undefined),
+  })
+  .refine((value) => value.reason !== "OTHER" || (value.detail && value.detail.length >= 10), {
+    message: "reason=OTHER bắt buộc detail tối thiểu 10 ký tự",
+    path: ["detail"],
+  });
+
+export type CannotIssueInput = z.infer<typeof cannotIssueInputSchema>;
+
+export const refundRequestInputSchema = z.object({
+  amount: z.coerce.number().int().positive("Số tiền hoàn phải lớn hơn 0.").max(10_000_000_000),
+  reason: z.string().trim().min(3, "Lý do hoàn tiền tối thiểu 3 ký tự.").max(500),
+});
+
+export type RefundRequestInput = z.infer<typeof refundRequestInputSchema>;
+
+export const refundConfirmInputSchema = z.object({
+  refundId: z.string().trim().min(1).optional(),
+  method: z.enum(["CASH", "BANK", "QR", "CARD", "CREDIT"]).default("BANK"),
+  transactionRef: z
+    .string()
+    .trim()
+    .max(100, "Mã giao dịch không được vượt quá 100 ký tự.")
+    .optional()
+    .transform((value) => value || undefined),
+  refundedAt: z.string().datetime("Thời gian hoàn tiền không hợp lệ.").optional(),
+  notes: optionalNotes,
+});
+
+export type RefundConfirmInput = z.infer<typeof refundConfirmInputSchema>;
+
+export const handoffInputSchema = z.object({
+  notes: optionalNotes,
+});
+
+export type HandoffInput = z.infer<typeof handoffInputSchema>;

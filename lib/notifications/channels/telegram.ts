@@ -2,12 +2,16 @@ export interface TelegramMessage {
   text: string;
 }
 
+export function isTelegramEnabled(): boolean {
+  return (
+    process.env.NOTIFICATIONS_TELEGRAM_ENABLED === "true" &&
+    !!process.env.TELEGRAM_BOT_TOKEN &&
+    !!process.env.TELEGRAM_CHAT_ID
+  );
+}
+
 export async function sendTelegram(message: TelegramMessage): Promise<void> {
-  if (
-    process.env.NOTIFICATIONS_TELEGRAM_ENABLED !== "true" ||
-    !process.env.TELEGRAM_BOT_TOKEN ||
-    !process.env.TELEGRAM_CHAT_ID
-  ) {
+  if (!isTelegramEnabled()) {
     console.info("telegram skipped");
     return;
   }

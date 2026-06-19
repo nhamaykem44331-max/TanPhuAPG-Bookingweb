@@ -20,6 +20,7 @@ import {
 } from "@prisma/client";
 
 import { audit, buildAuditDiff } from "@/lib/audit/diff";
+import { settleBookingIfFullyPaid } from "@/lib/booking/paidTransition";
 import { calculatePaymentSummary } from "@/lib/booking/paymentSummary";
 import { syncBookingOrderById } from "@/lib/bookings/orderManagement";
 import { prisma } from "@/lib/db";
@@ -800,6 +801,16 @@ export async function handleSepayWebhook(payload: SepayWebhookPayload): Promise<
       await cancelPendingPaymentReminderJobs(tx, {
         bookingId: intent.bookingId,
         paymentIntentId: intent.id,
+      });
+    }
+
+    // B3 (Phần D) — khi booking đã đủ tiền: HELD/PENDING_PAYMENT → PAID, đặt SLA
+    // xuất vé và đẩy job NEEDS_TICKETING. Dùng chung helper với luồng thu tay.
+    if (decision.decision === "PAID") {
+      await settleBookingIfFullyPaid(tx, {
+        bookingId: intent.bookingId,
+        paidAt,
+        source: "system",
       });
     }
 

@@ -8,7 +8,15 @@ export interface OwnershipContext {
   role: Role;
 }
 
-export type BookingMutationAction = "issue" | "cancel" | "addPayment";
+export type BookingMutationAction =
+  | "issue"
+  | "cancel"
+  | "addPayment"
+  | "claim"
+  | "cannotIssue"
+  | "refundRequest"
+  | "refundConfirm"
+  | "handoff";
 
 export function bookingListWhereForRole(
   ctx: OwnershipContext,
@@ -29,7 +37,8 @@ export function canRoleMutateBookingAction(role: Role, action: BookingMutationAc
   }
 
   if (role === "NHAN_VIEN_BAN") {
-    return true;
+    // NV bán làm toàn bộ luồng bán → xuất vé, trừ xác nhận hoàn tiền và bàn giao RMS.
+    return action !== "refundConfirm" && action !== "handoff";
   }
 
   return action === "addPayment";

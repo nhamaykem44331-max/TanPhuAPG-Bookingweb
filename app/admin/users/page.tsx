@@ -1,131 +1,151 @@
-import Link from "next/link";
 import type { Role } from "@prisma/client";
 
-import { ROLE_LABELS, USER_MANAGER_ROLES } from "@/lib/auth/constants";
+import { MiniChip } from "@/components/admin/ui/Chip";
+import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
+import { formatDateTime } from "@/lib/admin/ui/format";
+import { USER_MANAGER_ROLES } from "@/lib/auth/constants";
 import { requireRole } from "@/lib/auth/requireRole";
+import { prisma } from "@/lib/db";
 import { listAdminUsers } from "@/lib/users/admin";
 import { adminUserListQuerySchema } from "@/lib/users/schemas";
-import { UserTable } from "@/components/admin/UserTable";
 
-interface AdminUsersPageProps {
-  searchParams?: Record<string, string | string[] | undefined>;
+export const dynamic = "force-dynamic";
+
+interface RoleMeta {
+  role: Role;
+  name: string;
+  desc: string;
 }
 
-const ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "NHAN_VIEN_BAN", "KE_TOAN"];
+// Vai trò hiển thị trên web (KE_TOAN đã gỡ — nghiệp vụ kế toán chuyển sang RMS).
+const ROLE_CARDS: RoleMeta[] = [
+  {
+    role: "SUPER_ADMIN",
+    name: "Quản trị hệ thống",
+    desc: "Toàn quyền vận hành: hàng đợi, đơn, thanh toán, markup, phân quyền, bàn giao RMS.",
+  },
+  {
+    role: "QUAN_LY_DAI_LY",
+    name: "Quản lý đại lý",
+    desc: "Quản lý kênh bán: cấu hình markup, bàn giao RMS, đối soát thanh toán và theo dõi phễu vận hành.",
+  },
+  {
+    role: "NHAN_VIEN_BAN",
+    name: "Nhân viên xuất vé",
+    desc: "Nhận & xử lý đơn trong hàng đợi, xuất vé, xử lý không xuất được / hoàn tiền, gửi thông báo.",
+  },
+];
 
-function singleValue(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
+const ROLE_SHORT: Record<Role, string> = {
+  SUPER_ADMIN: "Quản trị hệ thống",
+  QUAN_LY_DAI_LY: "Quản lý đại lý",
+  NHAN_VIEN_BAN: "Nhân viên xuất vé",
+  KE_TOAN: "Kế toán",
+};
+
+interface UserRow {
+  id: string;
+  name: string;
+  email: string;
+  initial: string;
+  role: Role;
+  last: string;
+  active: boolean;
 }
 
-function parseActive(value: string | undefined): boolean | undefined {
-  if (value === "true") return true;
-  if (value === "false") return false;
-  return undefined;
+// Chữ cái đầu của tên gọi (từ cuối trong họ tên) cho avatar; fallback ký tự đầu email.
+function initialOf(fullName: string, email: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  const base = parts.length > 0 ? parts[parts.length - 1] : email;
+  return (base.charAt(0) || "?").toUpperCase();
 }
 
-export default async function AdminUsersPage({ searchParams }: AdminUsersPageProps) {
+export default async function AdminUsersPage() {
   await requireRole(USER_MANAGER_ROLES);
 
-  const parsedQuery = adminUserListQuerySchema.parse({
-    q: singleValue(searchParams?.q),
-    role: singleValue(searchParams?.role),
-    active: parseActive(singleValue(searchParams?.active)),
-    limit: singleValue(searchParams?.limit),
-    offset: singleValue(searchParams?.offset),
-  });
-  const result = await listAdminUsers(parsedQuery);
-  const previousOffset = Math.max(parsedQuery.offset - parsedQuery.limit, 0);
-  const nextOffset = parsedQuery.offset + parsedQuery.limit;
-  const hasNextPage = nextOffset < result.total;
-  const activeCount = result.items.filter((user) => user.active).length;
-  const baseQuery = Object.fromEntries(
-    Object.entries({
-      q: parsedQuery.q,
-      role: parsedQuery.role,
-      active: parsedQuery.active === undefined ? undefined : String(parsedQuery.active),
-      limit: String(parsedQuery.limit),
-    }).filter((entry) => entry[1]),
-  );
+  const [list, roleCounts] = await Promise.all([
+    listAdminUsers(adminUserListQuerySchema.parse({ limit: "100" })),
+    prisma.user.groupBy({ by: ["role"], _count: { _all: true } }),
+  ]);
+
+  const countByRole = new Map<string, number>(roleCounts.map((row) => [row.role as string, row._count._all]));
+
+  const rows: UserRow[] = list.items.map((user) => ({
+    id: user.id,
+    name: user.fullName,
+    email: user.email,
+    initial: initialOf(user.fullName, user.email),
+    role: user.role,
+    last: user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "Chưa đăng nhập",
+    active: user.active,
+  }));
+
+  const columns: DataTableColumn<UserRow>[] = [
+    {
+      key: "user",
+      header: "NGƯỜI DÙNG",
+      width: "minmax(0,1fr)",
+      render: (row) => (
+        <div className="flex min-w-0 items-center gap-[12px]">
+          <div className="flex h-[32px] w-[32px] flex-none items-center justify-center rounded-full bg-[var(--surface-2)] ofly-serif text-[13px] font-medium text-[var(--ink-soft)]">
+            {row.initial}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-[14px] font-medium">{row.name}</div>
+            <div className="truncate text-[11px] text-[var(--ink-soft)]">{row.email}</div>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "role",
+      header: "VAI TRÒ",
+      width: "180px",
+      render: (row) => <span className="text-[13px]">{ROLE_SHORT[row.role]}</span>,
+    },
+    {
+      key: "last",
+      header: "HOẠT ĐỘNG GẦN NHẤT",
+      width: "170px",
+      render: (row) => <span className="text-[12px] text-[var(--ink-soft)]">{row.last}</span>,
+    },
+    {
+      key: "status",
+      header: "TRẠNG THÁI",
+      width: "110px",
+      render: (row) =>
+        row.active ? <MiniChip tone="ok">Đang hoạt động</MiniChip> : <MiniChip tone="muted">Đã khoá</MiniChip>,
+    },
+  ];
 
   return (
-    <div className="space-y-5">
-      <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-base font-semibold text-[var(--apg-text-primary)]">Users</h1>
-          <p className="mt-1 text-sm text-[var(--apg-text-secondary)]">Tài khoản nội bộ, role và reset mật khẩu.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-md border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-3 py-2 text-sm text-[var(--apg-text-secondary)]">
-            {activeCount}/{result.total} active
-          </span>
-          <Link className="apg-btn-primary inline-flex items-center justify-center px-4" href="/admin/users/new">
-            + Tạo tài khoản
-          </Link>
-        </div>
-      </section>
-
-      <section className="apg-admin-toolbar px-4 py-4">
-        <form className="grid gap-3 xl:grid-cols-[minmax(280px,1fr)_180px_160px_110px_auto_auto] xl:items-end">
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Tìm kiếm
-            <input className="apg-field mt-2" defaultValue={parsedQuery.q ?? ""} name="q" placeholder="Email hoặc họ tên" />
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Role
-            <select className="apg-field mt-2" defaultValue={parsedQuery.role ?? ""} name="role">
-              <option value="">Tất cả</option>
-              {ROLES.map((role) => (
-                <option key={role} value={role}>
-                  {ROLE_LABELS[role]}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Active
-            <select className="apg-field mt-2" defaultValue={parsedQuery.active === undefined ? "" : String(parsedQuery.active)} name="active">
-              <option value="">Tất cả</option>
-              <option value="true">Active</option>
-              <option value="false">Locked</option>
-            </select>
-          </label>
-
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Limit
-            <input className="apg-field mt-2" defaultValue={String(parsedQuery.limit)} min={1} max={100} name="limit" type="number" />
-          </label>
-
-          <input name="offset" type="hidden" value="0" />
-          <button className="apg-btn-primary w-full" type="submit">
-            Lọc
-          </button>
-          <Link className="apg-btn-secondary inline-flex w-full items-center justify-center" href="/admin/users">
-            Xóa lọc
-          </Link>
-        </form>
-      </section>
-
-      <UserTable users={result.items} />
-
-      <div className="flex items-center justify-between rounded-lg border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-4 py-3">
-        <Link
-          className={`apg-btn-secondary ${parsedQuery.offset === 0 ? "pointer-events-none opacity-50" : ""}`}
-          href={{ pathname: "/admin/users", query: { ...baseQuery, offset: String(previousOffset) } }}
-        >
-          Trang trước
-        </Link>
-        <div className="text-sm text-[var(--apg-text-secondary)]">
-          Hiển thị {result.items.length} / {result.total}
-        </div>
-        <Link
-          className={`apg-btn-secondary ${!hasNextPage ? "pointer-events-none opacity-50" : ""}`}
-          href={{ pathname: "/admin/users", query: { ...baseQuery, offset: String(nextOffset) } }}
-        >
-          Trang sau
-        </Link>
+    <div>
+      <div className="mb-6 grid gap-4 md:grid-cols-2">
+        {ROLE_CARDS.map((card) => (
+          <div
+            key={card.role}
+            className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[24px] py-[22px]"
+          >
+            <div className="ofly-serif text-[18px] font-medium">{card.name}</div>
+            <div className="mt-[8px] text-[12px] leading-[1.55] text-[var(--ink-soft)]">{card.desc}</div>
+            <div className="mt-[14px] ofly-sans text-[11px] font-semibold text-[var(--rust)]">
+              {countByRole.get(card.role) ?? 0} người
+            </div>
+          </div>
+        ))}
       </div>
+
+      <div className="mb-[18px] rounded-[8px] border border-dashed border-[var(--line-strong)] bg-[var(--surface-2)] px-[16px] py-[13px] ofly-serif text-[12px] italic text-[var(--ink-soft)]">
+        Vai trò “Kế toán” đã được gỡ khỏi trang web — toàn bộ nghiệp vụ kế toán, doanh thu, công nợ chuyển sang RMS.
+      </div>
+
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        empty="Chưa có tài khoản nội bộ nào."
+        className="overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface)]"
+      />
     </div>
   );
 }

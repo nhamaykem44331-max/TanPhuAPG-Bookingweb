@@ -1,17 +1,18 @@
-import { BookingStatus, Prisma } from "@prisma/client";
+import { BookingStatus, NotificationAudience, NotificationJobChannel, Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getAuditRequestMeta } from "@/lib/audit";
-import { ADMIN_ROLES } from "@/lib/auth/constants";
+import { ISSUE_TICKET_ROLES } from "@/lib/auth/constants";
 import { assertCanMutateBooking } from "@/lib/auth/ownership";
 import { requireRole, toAdminErrorResponse } from "@/lib/auth/requireRole";
 import { calculatePaymentSummary } from "@/lib/booking/paymentSummary";
-import { canTransition } from "@/lib/booking/stateMachine";
+import { assertTransition } from "@/lib/booking/stateMachine";
 import { syncBookingOrderById } from "@/lib/bookings/orderManagement";
 import { prisma } from "@/lib/db";
 import { issueTicketInputSchema } from "@/lib/bookings/schemas";
 import { notify } from "@/lib/notifications";
+import { enqueueNotification } from "@/lib/notifications/jobs";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -36,7 +37,7 @@ function buildNotFoundResponse(bookingId: string) {
 
 export async function POST(request: Request, context: { params: { id: string } }) {
   try {
-    const session = await requireRole(ADMIN_ROLES);
+    const session = await requireRole(ISSUE_TICKET_ROLES);
     await assertCanMutateBooking({ userId: session.user.id, role: session.user.role }, context.params.id, "issue");
     await syncBookingOrderById(context.params.id);
     const body = await request.json().catch(() => ({}));
@@ -74,7 +75,7 @@ export async function POST(request: Request, context: { params: { id: string } }
         return { kind: "not_found" as const };
       }
 
-      const transition = canTransition(booking.status, "issue");
+      const transition = assertTransition(booking.status, BookingStatus.TICKETED);
 
       if (!transition.ok) {
         return {
@@ -93,55 +94,6 @@ export async function POST(request: Request, context: { params: { id: string } }
         };
       }
 
-      if (booking.ttlExpiresAt && booking.ttlExpiresAt.getTime() < now.getTime()) {
-        const expiredBooking = await tx.booking.update({
-          where: { id: booking.id },
-          data: {
-            status: BookingStatus.EXPIRED,
-          },
-        });
-
-        await tx.bookingTimelineEvent.create({
-          data: {
-            bookingId: booking.id,
-            pnr: booking.pnr,
-            source: "admin",
-            eventType: "BOOKING_EXPIRED",
-            title: "Booking hết hạn giữ chỗ",
-            payload: toJsonValue({
-              actorId: session.user.id,
-              ttlExpiresAt: booking.ttlExpiresAt.toISOString(),
-              attemptedAction: "issue",
-            }),
-            occurredAt: now,
-          },
-        });
-
-        await tx.auditLog.create({
-          data: {
-            actorId: session.user.id,
-            entity: "Booking",
-            entityId: booking.id,
-            action: "booking.expire",
-            before: toJsonValue({
-              status: booking.status,
-              ttlExpiresAt: booking.ttlExpiresAt.toISOString(),
-            }),
-            after: toJsonValue({
-              status: expiredBooking.status,
-              ttlExpiresAt: expiredBooking.ttlExpiresAt?.toISOString() ?? null,
-            }),
-            ip: auditMeta.ip,
-            userAgent: auditMeta.userAgent,
-          },
-        });
-
-        return {
-          kind: "expired" as const,
-          booking: expiredBooking,
-        };
-      }
-
       const hasValidPnr = booking.pnrs.some((pnr) => pnr.status === "SUCCESS");
 
       if (!hasValidPnr) {
@@ -155,6 +107,7 @@ export async function POST(request: Request, context: { params: { id: string } }
         data: {
           status: BookingStatus.TICKETED,
           priceLockedAt: now,
+          slaDueAt: null,
         },
       });
 
@@ -193,6 +146,16 @@ export async function POST(request: Request, context: { params: { id: string } }
         },
       });
 
+      // Phần G — báo khách đã xuất vé qua ZNS; cron sẽ gửi thật (B5).
+      await enqueueNotification(tx, {
+        type: "TICKET_ISSUED",
+        channel: NotificationJobChannel.ZNS,
+        audience: NotificationAudience.CUSTOMER,
+        bookingId: booking.id,
+        idempotencyKey: `ticket-issued:${booking.id}`,
+        payload: { orderCode: booking.orderCode },
+      });
+
       return {
         kind: "issued" as const,
         booking: issuedBooking,
@@ -219,16 +182,6 @@ export async function POST(request: Request, context: { params: { id: string } }
         {
           error: "INSUFFICIENT_PAYMENT",
           balance: result.balance,
-        },
-        { status: 409 },
-      );
-    }
-
-    if (result.kind === "expired") {
-      return NextResponse.json(
-        {
-          error: "EXPIRED",
-          booking: result.booking,
         },
         { status: 409 },
       );

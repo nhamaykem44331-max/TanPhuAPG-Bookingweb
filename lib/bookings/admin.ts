@@ -1,11 +1,27 @@
-import type { Prisma as PrismaNamespace } from "@prisma/client";
+import { BookingStatus, type Prisma as PrismaNamespace } from "@prisma/client";
 
 import { bookingListWhereForRole, type OwnershipContext } from "@/lib/auth/ownership";
 import { calculatePaymentSummary, type PaymentSummary } from "@/lib/booking/paymentSummary";
 import { prisma } from "@/lib/db";
 import { syncBookingOrderById } from "@/lib/bookings/orderManagement";
-import type { AdminBookingListQuery } from "@/lib/bookings/schemas";
+import type { AdminBookingListQuery, OrderTabKey } from "@/lib/bookings/schemas";
 import { syncExpiredPaymentIntentsForBooking } from "@/lib/payments/paymentIntentService";
+
+// Nhóm trạng thái cho từng tab màn "Tất cả đơn" (parity tabDefs file thiết kế).
+export const ORDER_TAB_STATUSES: Record<Exclude<OrderTabKey, "all">, BookingStatus[]> = {
+  queue: [BookingStatus.PAID, BookingStatus.TICKETING],
+  held: [BookingStatus.HELD],
+  pending: [BookingStatus.PENDING_PAYMENT],
+  ticketed: [BookingStatus.TICKETED],
+  refund: [BookingStatus.CANNOT_ISSUE, BookingStatus.REFUND_REQUIRED],
+  closed: [
+    BookingStatus.EXPIRED,
+    BookingStatus.CANCELLED,
+    BookingStatus.REFUNDED,
+    BookingStatus.PAYMENT_FAILED,
+    BookingStatus.QUOTED,
+  ],
+};
 
 export interface AdminBookingRecord {
   id: string;
@@ -22,6 +38,7 @@ export interface AdminBookingRecord {
   sellPrice: number;
   markupAmount: number;
   customerName: string | null;
+  assignedToName: string | null;
   createdAt: string;
   holdExpiresAt: string | null;
 }
@@ -133,6 +150,11 @@ type AdminBookingListItemModel = PrismaNamespace.BookingPnrGetPayload<{
             fullName: true;
           };
         };
+        assignedTo: {
+          select: {
+            fullName: true;
+          };
+        };
       };
     };
   };
@@ -154,14 +176,17 @@ function toAdminBookingRecord(pnr: AdminBookingListItemModel): AdminBookingRecor
     sellPrice: pnr.booking.saleAmount,
     markupAmount: pnr.booking.markupAmount,
     customerName: pnr.booking.customer?.fullName ?? null,
+    assignedToName: pnr.booking.assignedTo?.fullName ?? null,
     createdAt: pnr.booking.createdAt.toISOString(),
     holdExpiresAt: (pnr.timelimit ?? pnr.booking.ttlExpiresAt)?.toISOString() ?? null,
   };
 }
 
 export async function listAdminBookings(query: AdminBookingListQuery, ownership?: OwnershipContext): Promise<AdminBookingListResult> {
+  const tabStatuses = query.tab && query.tab !== "all" ? ORDER_TAB_STATUSES[query.tab] : null;
   const bookingBaseWhere: PrismaNamespace.BookingWhereInput = {
     ...(query.status ? { status: query.status } : {}),
+    ...(tabStatuses ? { status: { in: tabStatuses } } : {}),
     ...(query.orderCode
       ? {
           orderCode: {
@@ -179,6 +204,19 @@ export async function listAdminBookings(query: AdminBookingListQuery, ownership?
           ...(query.to ? { lte: endOfDay(query.to) } : {}),
         }
       : null;
+  const searchTerm = query.q;
+  const searchWhere: PrismaNamespace.BookingPnrWhereInput = searchTerm
+    ? {
+        OR: [
+          { pnr: { contains: searchTerm, mode: "insensitive" as const } },
+          { airline: { contains: searchTerm, mode: "insensitive" as const } },
+          { routeSummary: { contains: searchTerm, mode: "insensitive" as const } },
+          { booking: { orderCode: { contains: searchTerm, mode: "insensitive" as const } } },
+          { booking: { routeSummary: { contains: searchTerm, mode: "insensitive" as const } } },
+          { booking: { customer: { fullName: { contains: searchTerm, mode: "insensitive" as const } } } },
+        ],
+      }
+    : {};
   const where: PrismaNamespace.BookingPnrWhereInput = {
     AND: [
       query.pnr
@@ -189,6 +227,7 @@ export async function listAdminBookings(query: AdminBookingListQuery, ownership?
             },
           }
         : {},
+      searchWhere,
       departureRange
         ? {
             OR: [
@@ -211,6 +250,11 @@ export async function listAdminBookings(query: AdminBookingListQuery, ownership?
         booking: {
           include: {
             customer: {
+              select: {
+                fullName: true,
+              },
+            },
+            assignedTo: {
               select: {
                 fullName: true,
               },
