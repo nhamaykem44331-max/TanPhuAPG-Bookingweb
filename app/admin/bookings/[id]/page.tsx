@@ -21,6 +21,7 @@ import {
 } from "@/lib/auth/constants";
 import { requireRole } from "@/lib/auth/requireRole";
 import { getAdminBookingById, type AdminBookingCore } from "@/lib/bookings/admin";
+import { extractItinerary } from "@/lib/bookings/itinerary";
 
 export const dynamic = "force-dynamic";
 
@@ -142,6 +143,7 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
   };
 
   const passengers = extractPassengers(booking);
+  const itinerary = extractItinerary(booking);
   const headerSub =
     [formatDate(booking.departAt, ""), formatTime(booking.departAt, ""), booking.cabin].filter(Boolean).join(" · ") || "—";
 
@@ -223,6 +225,60 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
               ) : null}
             </div>
           </section>
+
+          {itinerary && itinerary.legs.length > 0 ? (
+            <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[24px]">
+              <div className="ofly-eyebrow mb-5">Chi tiết chuyến bay</div>
+              <div className="flex flex-col gap-5">
+                {itinerary.legs.map((leg, legIndex) => (
+                  <div
+                    key={`${leg.direction}-${leg.route}-${legIndex}`}
+                    className={legIndex > 0 ? "border-t border-[var(--line)] pt-5" : ""}
+                  >
+                    <div className="mb-[14px] flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-[10px]">
+                        <span className="rounded-full bg-[var(--surface-2)] px-[10px] py-[3px] text-[11px] font-semibold text-[var(--ink-soft)]">
+                          {leg.direction === "outbound" ? "Chiều đi" : "Chiều về"}
+                        </span>
+                        <span className="ofly-serif text-[18px] font-medium">{formatRoute(leg.route)}</span>
+                      </div>
+                      <span className="text-[12px] text-[var(--ink-soft)]">
+                        {[leg.airline, leg.cabin].filter(Boolean).join(" · ") || "—"}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-[10px]">
+                      {leg.segments.map((segment, segmentIndex) => (
+                        <div
+                          key={`${segment.flightNumber ?? "seg"}-${segmentIndex}`}
+                          className="flex items-center gap-[14px] rounded-[8px] border border-[var(--line)] bg-[var(--surface-2)] px-[14px] py-[12px]"
+                        >
+                          <div className="flex w-[68px] flex-none flex-col">
+                            <span className="ofly-sans text-[13px] font-semibold tracking-[0.5px] text-[var(--rust)]">
+                              {segment.flightNumber ?? "—"}
+                            </span>
+                            {segment.aircraft ? (
+                              <span className="mt-[2px] text-[10px] text-[var(--ink-faint)]">{segment.aircraft}</span>
+                            ) : null}
+                          </div>
+                          <div className="flex-1">
+                            <div className="ofly-serif text-[17px] font-medium leading-none">{formatTime(segment.departAt)}</div>
+                            <div className="mt-[4px] text-[12px] font-medium text-[var(--ink-soft)]">{segment.from ?? "—"}</div>
+                            <div className="text-[10px] text-[var(--ink-faint)]">{formatDate(segment.departAt, "")}</div>
+                          </div>
+                          <div className="flex-none text-[var(--ink-faint)]">→</div>
+                          <div className="flex-1 text-right">
+                            <div className="ofly-serif text-[17px] font-medium leading-none">{formatTime(segment.arrivalAt)}</div>
+                            <div className="mt-[4px] text-[12px] font-medium text-[var(--ink-soft)]">{segment.to ?? "—"}</div>
+                            <div className="text-[10px] text-[var(--ink-faint)]">{formatDate(segment.arrivalAt, "")}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[24px]">
             <div className="ofly-eyebrow mb-5">Dòng thời gian đơn</div>
