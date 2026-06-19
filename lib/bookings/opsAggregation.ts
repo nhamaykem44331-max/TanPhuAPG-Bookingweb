@@ -37,6 +37,7 @@ export function vnDateKey(date: Date): string {
 export interface OpsSummary {
   needTicketing: number;
   slaBreaches: number;
+  heldActive: number;
   heldExpiring: number;
   refundPending: number;
   issueRateToday: number | null;
@@ -65,6 +66,7 @@ export async function getOpsSummary(now: Date = new Date()): Promise<OpsSummary>
   const [
     needTicketing,
     slaBreaches,
+    heldActive,
     heldExpiring,
     refundPending,
     paidToday,
@@ -77,6 +79,7 @@ export async function getOpsSummary(now: Date = new Date()): Promise<OpsSummary>
   ] = await Promise.all([
     prisma.booking.count({ where: { status: { in: QUEUE_STATUSES } } }),
     prisma.booking.count({ where: { status: { in: QUEUE_STATUSES }, slaDueAt: { lt: now } } }),
+    prisma.booking.count({ where: { status: BookingStatus.HELD } }),
     prisma.booking.count({
       where: { status: BookingStatus.HELD, ttlExpiresAt: { gt: now, lte: heldThreshold } },
     }),
@@ -157,6 +160,7 @@ export async function getOpsSummary(now: Date = new Date()): Promise<OpsSummary>
   return {
     needTicketing,
     slaBreaches,
+    heldActive,
     heldExpiring,
     refundPending,
     issueRateToday: paidToday > 0 ? Number((ticketedFromPaidToday / paidToday).toFixed(3)) : null,

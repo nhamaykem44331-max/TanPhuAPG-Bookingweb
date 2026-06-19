@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { getAuditRequestMeta } from "@/lib/audit";
 import type { HoldInput, HoldPassengerInput } from "@/lib/bookings/schemas";
 import { generateUniqueOrderCode } from "@/lib/bookings/orderManagement";
+import { buildItinerary } from "@/lib/bookings/itinerary";
 import { syncNamThanhBookingStatus } from "@/lib/bookings/namthanhStatusSync";
 import { holdInputSchema } from "@/lib/bookings/schemas";
 import { holdNamThanhBooking, NamThanhApiError } from "@/lib/namthanh";
@@ -1060,6 +1061,7 @@ export async function POST(request: NextRequest) {
             quote: serializeQuote(quote),
             holdResult,
             priceDelta,
+            itinerary: buildItinerary(normalized.outboundFlight, normalized.inboundFlight, input.cabin),
           }),
         },
       });

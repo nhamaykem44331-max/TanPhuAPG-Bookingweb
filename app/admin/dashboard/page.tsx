@@ -70,6 +70,7 @@ export default async function AdminDashboardPage() {
 
   const rustSolid = toneVars("rust").solid;
   const redSolid = toneVars("red").solid;
+  const warnSolid = toneVars("warn").solid;
 
   // ----- KPI -----
   const issuePctLabel = summary.issueRateToday === null ? "—" : `${Math.round(summary.issueRateToday * 100)}%`;
@@ -169,7 +170,7 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
 
-      <div className="mb-5 grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
         <KpiCard
           label="Cần xuất gấp"
           value={formatNumber(summary.needTicketing)}
@@ -181,6 +182,12 @@ export default async function AdminDashboardPage() {
           value={formatNumber(summary.slaBreaches)}
           sub="đơn quá hạn 30 phút"
           color={summary.slaBreaches > 0 ? redSolid : undefined}
+        />
+        <KpiCard
+          label="Đang giữ chỗ"
+          value={formatNumber(summary.heldActive)}
+          sub="đơn chờ khách thanh toán"
+          color={summary.heldActive > 0 ? warnSolid : undefined}
         />
         <KpiCard label="Tỉ lệ xuất được" value={issuePctLabel} sub="vé xuất / đã trả · hôm nay" />
         <KpiCard label="TG trả → xuất" value={avgPaidLabel} sub="phút trung bình · hôm nay" />

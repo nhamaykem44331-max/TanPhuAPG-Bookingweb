@@ -2,13 +2,13 @@ import { BookingStatus } from "@prisma/client";
 import Link from "next/link";
 
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
-import { StatusChip } from "@/components/admin/ui/Chip";
+import { MiniChip, StatusChip } from "@/components/admin/ui/Chip";
 import { ADMIN_ROLES } from "@/lib/auth/constants";
 import { bookingListWhereForRole } from "@/lib/auth/ownership";
 import { requireRole } from "@/lib/auth/requireRole";
 import { ORDER_TAB_STATUSES, listAdminBookings, type AdminBookingRecord } from "@/lib/bookings/admin";
 import { adminBookingListQuerySchema, type OrderTabKey } from "@/lib/bookings/schemas";
-import { formatDate, formatNumber, formatRoute, formatVnd } from "@/lib/admin/ui/format";
+import { formatDate, formatDateTime, formatNumber, formatRoute, formatVnd } from "@/lib/admin/ui/format";
 import { prisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +31,47 @@ const TAB_ORDER: OrderTabKey[] = ["all", "queue", "held", "pending", "ticketed",
 
 function singleValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+// "1g45p" / "45p" — đếm ngược ngắn gọn cho hạn giữ chỗ.
+function formatHoldCountdown(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return hours > 0 ? `${hours}g${mins.toString().padStart(2, "0")}p` : `${mins}p`;
+}
+
+// Chỉ đơn còn giữ chỗ (HELD/PENDING_PAYMENT) mới có hạn giữ chỗ còn ý nghĩa.
+const HOLD_ACTIVE_STATUSES = new Set<BookingStatus>([BookingStatus.HELD, BookingStatus.PENDING_PAYMENT]);
+
+// Ô "Hạn giữ chỗ": PNR sắp hết hạn (dưới 2 tiếng) tô đỏ nổi bật để admin lưu ý.
+function HoldExpiryCell({ row }: { row: AdminBookingRecord }) {
+  if (!HOLD_ACTIVE_STATUSES.has(row.status as BookingStatus) || !row.holdExpiresAt) {
+    return <span className="text-[12px] text-[var(--ink-faint)]">—</span>;
+  }
+
+  const stamp = formatDateTime(row.holdExpiresAt);
+  const msLeft = new Date(row.holdExpiresAt).getTime() - Date.now();
+
+  if (msLeft < 0) {
+    return (
+      <div className="min-w-0">
+        <div className="text-[12px] font-medium text-[var(--ink-faint)]">Đã hết hạn</div>
+        <div className="mt-[2px] truncate text-[11px] text-[var(--ink-faint)]">{stamp}</div>
+      </div>
+    );
+  }
+
+  const minutesLeft = Math.floor(msLeft / 60_000);
+  return (
+    <div className="min-w-0">
+      {minutesLeft < 120 ? (
+        <MiniChip tone="red">Còn {formatHoldCountdown(minutesLeft)}</MiniChip>
+      ) : (
+        <div className="text-[12px] font-medium text-[var(--ink)]">Còn {formatHoldCountdown(minutesLeft)}</div>
+      )}
+      <div className="mt-[3px] truncate text-[11px] text-[var(--ink-soft)]">{stamp}</div>
+    </div>
+  );
 }
 
 export default async function AdminBookingsPage({ searchParams }: AdminBookingsPageProps) {
@@ -113,6 +154,12 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
       header: "TRẠNG THÁI",
       width: "168px",
       render: (row) => <StatusChip status={row.status as BookingStatus} />,
+    },
+    {
+      key: "holdExpiry",
+      header: "HẠN GIỮ CHỖ",
+      width: "150px",
+      render: (row) => <HoldExpiryCell row={row} />,
     },
     {
       key: "assignee",
