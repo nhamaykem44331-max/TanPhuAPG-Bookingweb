@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
   if (validErr) return NextResponse.json({ error: validErr }, { status: 400 });
 
   try {
-    const payload = await searchNamThanhFlights(body);
+    const payload = await searchNamThanhFlights(body, req.signal);
 
     // Apply markup ngay tại search → khách thấy giá B2C (đã cộng markup)
     // Channel 'web' → chỉ rule có channel='web' hoặc channel=null mới khớp
@@ -155,6 +155,11 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: unknown) {
+    // Client ngắt kết nối (đổi search/đóng tab) → fetch backend đã bị hủy ở trên.
+    // Không trả lỗi giả cũng không log nhiễu vì không còn ai nhận response.
+    if (req.signal.aborted) {
+      return new NextResponse(null, { status: 499 });
+    }
     const msg = error instanceof Error ? error.message : String(error);
     console.error('[search/route] Nam Thanh error:', msg);
     const partnerAirportUnsupported =

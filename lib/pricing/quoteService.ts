@@ -443,10 +443,13 @@ export async function quoteBooking(
   channel: QuoteChannel,
 ): Promise<QuoteServiceResult> {
   const rules = await loadActiveRules();
-  const legs: QuoteLegBreakdown[] = [];
+  const isRoundtrip = input.tripType === "ROUNDTRIP" && !!input.inbound;
 
-  legs.push(
-    await quoteLeg({
+  // Hai chân là 2 lượt gọi upstream /flights/price độc lập → định giá song song
+  // để cắt ~1 round-trip cho mỗi lần giữ chỗ khứ hồi. Thứ tự legs (outbound trước)
+  // được giữ nguyên vì các bước map PNR↔leg phía sau dựa vào index.
+  const [outboundLeg, inboundLeg] = await Promise.all([
+    quoteLeg({
       legKey: "outbound",
       flight: input.outbound as FlightResult,
       passengers: input.passengers,
@@ -454,20 +457,19 @@ export async function quoteBooking(
       channel,
       rules,
     }),
-  );
+    isRoundtrip
+      ? quoteLeg({
+          legKey: "inbound",
+          flight: input.inbound as FlightResult,
+          passengers: input.passengers,
+          tripType: input.tripType,
+          channel,
+          rules,
+        })
+      : Promise.resolve(null),
+  ]);
 
-  if (input.tripType === "ROUNDTRIP" && input.inbound) {
-    legs.push(
-      await quoteLeg({
-        legKey: "inbound",
-        flight: input.inbound as FlightResult,
-        passengers: input.passengers,
-        tripType: input.tripType,
-        channel,
-        rules,
-      }),
-    );
-  }
+  const legs: QuoteLegBreakdown[] = inboundLeg ? [outboundLeg, inboundLeg] : [outboundLeg];
 
   const totalNetPrice = legs.reduce((sum, leg) => sum.plus(leg.netPrice), toDecimal(0));
   const totalMarkupAmount = legs.reduce((sum, leg) => sum.plus(leg.markupAmount), toDecimal(0));
