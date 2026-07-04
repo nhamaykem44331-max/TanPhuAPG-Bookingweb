@@ -1,16 +1,11 @@
-node_modules
-.next
-.next.old
-.next-dev
-tsconfig.tsbuildinfo
-.env.local
-*.log
-logs
-debug
-.claude
-.kilo
-
-.vercel
-
-# Dev-only preview pages — không build lên production
-app/dev-preview/
+# monorepo root
+**/node_modules/
+**/.next/
+**/.next-dev/
+**/.next.old/
+**/.env
+**/.env.local
+**/.env*.local
+**/.turbo/
+**/dist/
+.DS_Store
