@@ -1131,6 +1131,9 @@ export interface StreamSearchEvent {
   totalCount?: number
   airlines?: string[]
   error?: string
+  /** Hết hạn phiên tìm kiếm upstream (nếu backend stream gửi kèm ở event 'session'/'done').
+   *  Frontend dùng để đặt đồng hồ giữ chỗ theo TTL thật thay vì mặc định phẳng 10 phút. */
+  expiresAt?: string
 }
 
 export async function* streamNamThanhSearch(

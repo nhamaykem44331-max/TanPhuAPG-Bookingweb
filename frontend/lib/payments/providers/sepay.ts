@@ -12,6 +12,8 @@
  *  - https://docs.sepay.vn/lap-trinh-webhooks.html
  */
 
+import { timingSafeEqual } from "node:crypto";
+
 export interface SepayWebhookPayload {
   /** ID giao dịch trên SePay (unique key chống trùng) */
   id: number | string;
@@ -92,12 +94,21 @@ export function isSepayIpAllowed(ip: string | null): boolean {
  * Verify Bearer token cho webhook (tự đặt khi cấu hình webhook trên SePay dashboard).
  * Trả `true` nếu match hoặc env không yêu cầu auth (dev mode).
  */
+function safeEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
+}
+
 export function verifySepayAuth(headers: Headers): boolean {
   const expected = process.env.SEPAY_WEBHOOK_API_KEY?.trim();
 
   if (!expected) {
-    // Không bắt buộc auth khi env chưa cấu hình — chỉ chấp nhận trong dev
-    return process.env.NODE_ENV !== "production";
+    // Fail closed: bỏ qua auth CHỈ khi chạy dev server (`next dev`). Mọi môi trường
+    // build/deploy (NODE_ENV=production, kể cả staging/preview chạy `next start`) bắt buộc
+    // phải cấu hình SEPAY_WEBHOOK_API_KEY — không nhận webhook giả mạo.
+    return process.env.NODE_ENV === "development";
   }
 
   const authHeader = headers.get("authorization")?.trim() || "";
@@ -106,7 +117,7 @@ export function verifySepayAuth(headers: Headers): boolean {
   const stripped =
     authHeader.replace(/^Bearer\s+/i, "").replace(/^Apikey\s+/i, "").trim();
 
-  return stripped === expected;
+  return safeEqual(stripped, expected);
 }
 
 export function assertSepayConfigured(): void {

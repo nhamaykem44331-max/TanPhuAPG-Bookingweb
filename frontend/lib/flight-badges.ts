@@ -1,9 +1,9 @@
 import type { FlightResult } from './types';
 
-export type FlightBadgeTone = 'cheapest' | 'business' | 'carryOn' | 'checked';
+export type FlightBadgeTone = 'cheapest' | 'business' | 'carryOn' | 'checked' | 'fareClass' | 'seats';
 
 export interface FlightBadge {
-  key: 'cheapest' | 'business' | 'carryOn' | 'checked';
+  key: 'cheapest' | 'business' | 'carryOn' | 'checked' | 'fareClass' | 'seats';
   label: string;
   tone: FlightBadgeTone;
 }
@@ -16,6 +16,7 @@ type FareMetadata = {
   class?: string;
   cabinClass?: string;
   fareBasis?: string;
+  seatAvailable?: number;
 };
 
 function cleanText(value: unknown): string {
@@ -39,7 +40,13 @@ function selectedFareMetadata(flight: FlightResult): FareMetadata {
     class: cleanText(selectedFare?.class || flight.namthanh?.class),
     cabinClass: cleanText(selectedFare?.cabinClass || flight.namthanh?.cabinClass),
     fareBasis: cleanText(selectedFare?.fareBasis || flight.namthanh?.fareBasis),
+    seatAvailable: Number(selectedFare?.seatAvailable ?? flight.namthanh?.seatAvailable ?? 0),
   };
+}
+
+// Nhãn hạng vé thân thiện — chỉ dựa trên dữ liệu thật (economy/business).
+function friendlyFareClass(meta: FareMetadata): string {
+  return isBusinessFare(meta) ? 'Thương gia' : 'Phổ thông';
 }
 
 function isBusinessFare(meta: FareMetadata): boolean {
@@ -100,5 +107,20 @@ export function buildFlightBadges(flight: FlightResult, dailyMinPrice?: number |
     badges.push({ key: 'checked', label: checkedLabel, tone: 'checked' });
   }
 
+  return badges;
+}
+
+// Badge điều kiện vé hiển thị trên MỌI thẻ chuyến (để so sánh trước khi chọn):
+// hạng vé + hành lý (chỉ khi có dữ liệu thật) + số ghế còn (thật). KHÔNG bịa số hành lý.
+export function buildFlightConditionBadges(flight: FlightResult, dailyMinPrice?: number | null): FlightBadge[] {
+  const meta = selectedFareMetadata(flight);
+  const badges: FlightBadge[] = [
+    { key: 'fareClass', label: friendlyFareClass(meta), tone: 'fareClass' },
+    ...buildFlightBadges(flight, dailyMinPrice),
+  ];
+  const seats = Number(meta.seatAvailable ?? 0);
+  if (seats > 0 && seats <= 9) {
+    badges.push({ key: 'seats', label: `Còn ${seats} chỗ`, tone: 'seats' });
+  }
   return badges;
 }

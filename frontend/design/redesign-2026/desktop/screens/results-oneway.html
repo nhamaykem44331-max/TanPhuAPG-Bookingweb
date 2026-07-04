@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Kết quả một chiều (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" />
+<link rel="stylesheet" href="../app-desktop.css" />
+<style>
+  .summarybar{position:sticky;top:56px;z-index:25;background:rgba(255,255,255,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--apg-hairline);}
+  .summarybar .in{max-width:1320px;margin:0 auto;padding:12px 28px;display:flex;align-items:center;gap:18px;}
+  .sb-route{display:flex;align-items:center;gap:10px;background:var(--apg-bg-surface);border:1px solid var(--apg-hairline);border-radius:980px;padding:9px 16px;cursor:pointer;}
+  .sb-route .r{font-size:15px;font-weight:600;}
+  .sb-route .m{font-size:12px;color:var(--apg-text-secondary);}
+  /* fare-detail drawer content reuse */
+  .seg-time{display:grid;grid-template-columns:60px 24px 1fr;margin:0 20px;}
+  .seg-time .col-t{text-align:right;padding-right:10px;}
+  .seg-time .col-t .hh{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .seg-time .col-t .ap{font-size:11px;color:var(--apg-text-tertiary);}
+  .seg-time .col-line{display:flex;flex-direction:column;align-items:center;}
+  .seg-time .col-line .dot{width:11px;height:11px;border-radius:50%;border:2.5px solid var(--apg-blue-500);background:#fff;margin-top:4px;}
+  .seg-time .col-line .bar{flex:1;width:2px;background:var(--apg-blue-200);min-height:30px;}
+  .seg-time .col-info{padding:0 0 10px 8px;}
+  .seg-time .col-info .city{font-size:14px;font-weight:600;}
+  .seg-time .col-info .meta{font-size:12px;color:var(--apg-text-secondary);}
+  .brk{display:flex;justify-content:space-between;padding:9px 0;font-size:14px;}
+  .brk + .brk{border-top:1px solid var(--apg-hairline);}
+  .brk.total{font-weight:700;font-size:16px;border-top:1.5px solid var(--apg-text-primary);}
+  .fareopt{display:flex;gap:12px;align-items:flex-start;padding:13px 14px;border:1.5px solid var(--apg-hairline);border-radius:var(--apg-radius-md);margin:0 20px 10px;cursor:pointer;}
+  .fareopt.on{border-color:var(--apg-blue-500);background:var(--apg-blue-50);}
+  .fareopt .fn{font-size:14px;font-weight:600;}
+  .fareopt .fb{font-size:12px;color:var(--apg-text-secondary);margin-top:3px;}
+  .fareopt .fp{margin-left:auto;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+  <div class="topnav">
+    <div class="in">
+      <a class="brand" href="../index.html"><img src="../../mobile/assets/logo-appicon.png" alt="" /> Tân Phú APG</a>
+      <nav><a class="on" href="home.html">Tìm vé</a><a href="quote.html">Báo giá</a><a href="#">Tra cứu đặt chỗ</a><a href="admin-dashboard.html">Quản trị</a></nav>
+      <div class="right"><span class="airmono" style="background:var(--apg-blue-500)">QT</span></div>
+    </div>
+  </div>
+
+  <div class="summarybar">
+    <div class="in">
+      <div class="sb-route" onclick="location.href='home.html'">
+        <div><div class="r">Hà Nội → TP. Hồ Chí Minh</div><div class="m">T4, 6 Th8 · 1 khách · Phổ thông · Một chiều</div></div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--apg-text-muted)" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:16px;">
+        <span class="results-top rc" style="margin:0;"><b id="resCount">6</b> <small>chuyến bay</small></span>
+        <div class="sortseg"><button class="on" onclick="setSort('price',this)">Giá tăng dần</button><button onclick="setSort('time',this)">Giờ đi sớm</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DEV state switcher -->
+  <div class="devbar"><span class="dl">Trạng thái</span>
+    <button onclick="setState('stream')" id="b-stream">Đang gom hãng</button>
+    <button class="on" onclick="setState('data')" id="b-data">Có dữ liệu</button>
+    <button onclick="setState('skeleton')" id="b-skeleton">Skeleton</button>
+    <button onclick="setState('empty')" id="b-empty">Rỗng</button>
+    <button onclick="setState('error')" id="b-error">Lỗi backend</button>
+  </div>
+
+  <div class="results-shell">
+    <!-- RAIL LEFT: filters -->
+    <aside class="rail-left">
+      <div class="filtercard">
+        <div class="fh">Bộ lọc <a class="link" onclick="resetFilters()" style="font-size:13px;">Đặt lại</a></div>
+        <div class="fg"><div class="fglabel">Điểm dừng</div><div class="fgchips"><button class="chip on">Bay thẳng</button><button class="chip">Tất cả</button></div></div>
+        <div class="fg"><div class="fglabel">Thời lượng</div><div class="fgchips"><button class="chip on">Tất cả</button><button class="chip">0–2h</button><button class="chip">2–4h</button><button class="chip">4–6h</button><button class="chip">6h+</button></div></div>
+        <div class="fg"><div class="fglabel">Khung giờ đi</div><div class="fgchips"><button class="chip">00–06</button><button class="chip on">06–12</button><button class="chip">12–18</button><button class="chip">18–24</button></div></div>
+        <div class="fg"><div class="fglabel">Hãng bay</div><div class="fgchips"><button class="chip on">Tất cả</button><button class="chip">VN</button><button class="chip">VJ</button><button class="chip">QH</button></div></div>
+      </div>
+    </aside>
+
+    <!-- CENTER: list -->
+    <main>
+      <div class="stream hide" id="streamBanner" style="margin:0 0 14px;"><span class="dots"><i></i><i></i><i></i></span><span class="txt" id="streamTxt" style="flex:1;">Đã có 4 chuyến · đang gom thêm (3/5 nguồn)…</span><span class="pbar" style="max-width:140px;"><i style="width:60%"></i></span></div>
+
+      <div class="results-list" id="list"></div>
+
+      <div id="skList" class="results-list hide">
+        <div class="fcard wide"><div class="sk" style="width:140px;height:38px;"></div><div class="sk" style="width:100%;height:46px;"></div><div class="sk" style="width:130px;height:46px;"></div></div>
+        <div class="fcard wide"><div class="sk" style="width:140px;height:38px;"></div><div class="sk" style="width:100%;height:46px;"></div><div class="sk" style="width:130px;height:46px;"></div></div>
+        <div class="fcard wide"><div class="sk" style="width:140px;height:38px;"></div><div class="sk" style="width:100%;height:46px;"></div><div class="sk" style="width:130px;height:46px;"></div></div>
+      </div>
+
+      <div id="emptyState" class="empty hide" style="background:var(--apg-bg-surface);border-radius:var(--apg-radius-lg);"><div class="em-ic"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg></div><h3>Không tìm thấy chuyến phù hợp</h3><p>Thử đổi ngày bay hoặc bỏ bớt bộ lọc bên trái.</p><button class="btn tint wauto" onclick="setState('data')">Bỏ bộ lọc</button></div>
+
+      <div id="errorState" class="hide">
+        <div class="banner error" style="margin:0 0 14px;"><span class="bi"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg></span><div><b>Lỗi tìm kiếm.</b> Không kết nối được hệ thống đặt vé (cổng 3100). Đang thử lại tự động…</div></div>
+        <button class="btn fill wauto" onclick="setState('stream')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg> Thử lại</button>
+      </div>
+
+      <div id="loadMore" style="margin-top:6px;"><button class="btn tint wauto" onclick="this.textContent='Đang tải…';setTimeout(()=>this.textContent='Tải thêm 40 chuyến',900)">Tải thêm 40 chuyến</button></div>
+    </main>
+
+    <!-- RAIL RIGHT: selection -->
+    <aside class="rail-right">
+      <div class="selcard hide" id="selCard">
+        <h4>Chuyến đã chọn</h4>
+        <div class="leg" id="selLeg">—</div>
+        <div class="tot tnum" id="selTot">—</div>
+        <button class="btn fill" onclick="location.href='quote.html'" style="margin-bottom:8px;">Tiếp tục báo giá</button>
+        <button class="btn ghost" onclick="clearSel()">Xóa lựa chọn</button>
+      </div>
+      <div class="helpcard" id="helpCard">
+        <b style="color:var(--apg-text-primary);">Mẹo:</b> Bấm vào một chuyến để xem chi tiết chặng, hành lý và các hạng vé. Chọn chuyến để tiếp tục báo giá.
+      </div>
+    </aside>
+  </div>
+
+  <!-- FARE DETAIL side-drawer -->
+  <div class="drawer-right-bd" id="fdBd" onclick="closeFd()"></div>
+  <aside class="drawer-right" id="fdDrawer">
+    <div class="dh"><span class="t">Chi tiết chuyến bay</span><button class="x" onclick="closeFd()">✕</button></div>
+    <div class="db">
+      <div style="padding:14px 20px;display:flex;align-items:center;gap:12px;"><span class="airmono lg" id="fdLogo" style="background:#1a3a6b">VN</span><div><div style="font-size:16px;font-weight:600;" id="fdName">Vietnam Airlines</div><div class="mono" style="font-size:13px;color:var(--apg-text-tertiary)" id="fdNo">VN213 · Airbus A321</div></div></div>
+      <div class="group-label" style="margin:6px 20px 8px;">Hành trình</div>
+      <div class="seg-time"><div class="col-t"><div class="hh" id="fdDep">07:05</div><div class="ap">HAN</div></div><div class="col-line"><span class="dot"></span><span class="bar"></span></div><div class="col-info"><div class="city">Hà Nội · Nội Bài</div><div class="meta">Thứ 4, 6 Th8 · Bay thẳng 1g 25m</div></div></div>
+      <div class="seg-time"><div class="col-t"><div class="hh" id="fdArr">09:20</div><div class="ap">SGN</div></div><div class="col-line"><span class="dot" style="border-color:var(--apg-success)"></span></div><div class="col-info"><div class="city">TP.HCM · Tân Sơn Nhất</div></div></div>
+      <div class="group-label" style="margin:6px 20px 8px;">Hành lý</div>
+      <div style="margin:0 20px;font-size:14px;color:var(--apg-text-secondary);line-height:1.9;">Xách tay 12kg · Ký gửi 23kg (đã bao gồm)</div>
+      <div class="group-label" style="margin:14px 20px 8px;">Chi tiết giá · 1 khách</div>
+      <div style="margin:0 20px;"><div class="brk"><span class="muted">Giá vé gốc</span><span class="tnum">1.980.000 ₫</span></div><div class="brk"><span class="muted">Thuế &amp; phí</span><span class="tnum">470.000 ₫</span></div><div class="brk total"><span>Tổng</span><span class="tnum" style="color:var(--apg-blue-600)">2.450.000 ₫</span></div></div>
+      <div class="group-label" style="margin:14px 20px 8px;">Hạng vé khác</div>
+      <div class="fareopt" onclick="pickFare(this)"><div><div class="fn">Phổ thông Tiết kiệm</div><div class="fb">Xách tay 7kg · không ký gửi</div></div><div class="fp">1.890.000 ₫</div></div>
+      <div class="fareopt on" onclick="pickFare(this)"><div><div class="fn">Phổ thông Tiêu chuẩn</div><div class="fb">Xách tay 12kg · ký gửi 23kg</div></div><div class="fp">2.450.000 ₫</div></div>
+      <div class="fareopt" onclick="pickFare(this)"><div><div class="fn"><span class="bdg business">Business</span> Thương gia</div><div class="fb">Ký gửi 32kg · phòng chờ</div></div><div class="fp">5.120.000 ₫</div></div>
+    </div>
+    <div class="df"><button class="btn fill" onclick="closeFd();selectFromDrawer()">Chọn vé này</button></div>
+  </aside>
+
+<script>
+  const ACOL={VN:'#1a3a6b',VJ:'#e30613',QH:'#1f7a4d',VU:'#0a74c0','9G':'#f59e0b'};
+  const alogo=(c,sz='')=>`<span class="airmono ${sz}" style="background:${ACOL[c]||'#0a74c0'}">${c}</span>`;
+  const fmt=n=>n.toLocaleString('vi-VN');
+  const FLIGHTS=[
+    {code:'VJ',name:'VietJet Air',no:'VJ139',dep:'08:15',arr:'10:25',dur:'2g 10m',price:1890000,usd:74,badges:[['cheapest','Rẻ nhất'],['carry','Xách tay 7kg']]},
+    {code:'VU',name:'Vietravel Airlines',no:'VU312',dep:'11:20',arr:'13:35',dur:'2g 15m',price:1990000,usd:78,badges:[['carry','Xách tay 7kg']]},
+    {code:'QH',name:'Bamboo Airways',no:'QH202',dep:'09:40',arr:'11:50',dur:'2g 10m',price:2150000,usd:85,badges:[['checked','Ký gửi 20kg']]},
+    {code:'9G',name:'Sun PhuQuoc Airways',no:'9G845',dep:'14:05',arr:'16:15',dur:'2g 10m',price:2290000,usd:90,badges:[['checked','Ký gửi 20kg']]},
+    {code:'VN',name:'Vietnam Airlines',no:'VN213',dep:'07:05',arr:'09:20',dur:'1g 25m',price:2450000,usd:96,badges:[['fast','Sớm nhất'],['checked','Ký gửi 23kg']]},
+    {code:'VN',name:'Vietnam Airlines',no:'VN251',dep:'18:30',arr:'20:40',dur:'2g 10m',price:2680000,usd:105,badges:[['business','Business'],['checked','Ký gửi 32kg']]}
+  ];
+  let sortKey='price';
+  function cardHTML(f,i){
+    const badges=f.badges.map(([t,l])=>`<span class="bdg ${t}">${l}</span>`).join('');
+    return `<div class="fcard wide" id="fc${i}" onclick="openFd(${i})">
+      <div class="top">${alogo(f.code)}<div class="alblock"><div class="alname">${f.name}</div><div class="alno mono">${f.no} · ${f.dur}</div></div></div>
+      <div class="center-col">
+        <div class="timeline"><div class="ep"><div class="t tnum">${f.dep}</div><div class="a">HAN</div></div><div class="mid"><div class="dur">${f.dur}</div><div class="path"><span class="line"></span><span class="plane"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2 16l9-3 9-3-9-3-9-3 2 6z"/></svg></span></div><div class="stops">Bay thẳng</div></div><div class="ep"><div class="t tnum">${f.arr}</div><div class="a">SGN</div></div></div>
+        ${badges?`<div class="badges">${badges}</div>`:''}
+      </div>
+      <div class="pricecol"><div class="price tnum">${fmt(f.price)}<span class="cur"> ₫</span></div><div class="usd tnum">≈ ${f.usd} USD</div><button class="btn fill" onclick="event.stopPropagation();selectFlight(${i})">Chọn</button></div>
+    </div>`;
+  }
+  function render(){let arr=[...FLIGHTS];if(sortKey==='price')arr.sort((a,b)=>a.price-b.price);else arr.sort((a,b)=>a.dep.localeCompare(b.dep));document.getElementById('list').innerHTML=arr.map(f=>cardHTML(f,FLIGHTS.indexOf(f))).join('');resCount.textContent=FLIGHTS.length;}
+  let lastSel=null;
+  function selectFlight(i){const f=FLIGHTS[i];lastSel=i;document.querySelectorAll('.fcard').forEach(c=>c.classList.remove('selected'));document.getElementById('fc'+i)?.classList.add('selected');document.getElementById('selLeg').textContent=`${f.name} ${f.no} · ${f.dep}→${f.arr}`;document.getElementById('selTot').textContent=fmt(f.price)+' ₫';document.getElementById('selCard').classList.remove('hide');document.getElementById('helpCard').classList.add('hide');}
+  function clearSel(){document.getElementById('selCard').classList.add('hide');document.getElementById('helpCard').classList.remove('hide');document.querySelectorAll('.fcard').forEach(c=>c.classList.remove('selected'));}
+  function setSort(k,btn){sortKey=k;document.querySelectorAll('.sortseg button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');render();}
+  function resetFilters(){document.querySelectorAll('.filtercard .fgchips').forEach(g=>{[...g.children].forEach((c,i)=>c.classList.toggle('on',i===0));});}
+  document.addEventListener('click',e=>{const c=e.target.closest('.fgchips .chip');if(c){[...c.parentNode.children].forEach(s=>s.classList.remove('on'));c.classList.add('on');}});
+
+  let fdIdx=null;
+  function openFd(i){fdIdx=i;const f=FLIGHTS[i];fdLogo.textContent=f.code;fdLogo.style.background=ACOL[f.code];fdName.textContent=f.name;fdNo.textContent=f.no+' · Airbus A321';fdDep.textContent=f.dep;fdArr.textContent=f.arr;fdDrawer.classList.add('open');fdBd.classList.add('open');}
+  function closeFd(){fdDrawer.classList.remove('open');fdBd.classList.remove('open');}
+  function selectFromDrawer(){if(fdIdx!=null)selectFlight(fdIdx);}
+  function pickFare(el){document.querySelectorAll('.fareopt').forEach(f=>f.classList.remove('on'));el.classList.add('on');}
+
+  function setState(s){
+    document.querySelectorAll('.devbar button').forEach(b=>b.classList.remove('on'));document.getElementById('b-'+s).classList.add('on');
+    ['streamBanner','list','skList','emptyState','errorState','loadMore'].forEach(id=>document.getElementById(id).classList.add('hide'));
+    const show={data:['list','loadMore'],stream:['streamBanner','list','loadMore'],skeleton:['skList'],empty:['emptyState'],error:['errorState']};
+    (show[s]||[]).forEach(id=>document.getElementById(id).classList.remove('hide'));
+    if(s==='stream'){let n=4;const t=document.getElementById('streamTxt');const iv=setInterval(()=>{n++;if(n>=12){clearInterval(iv);t.textContent='Đã gom xong 12 chuyến từ 5 nguồn';document.querySelector('#streamBanner .pbar i').style.width='100%';return;}t.textContent=`Đã có ${n} chuyến · đang gom thêm (${Math.min(5,Math.ceil(n/3))}/5 nguồn)…`;document.querySelector('#streamBanner .pbar i').style.width=(n/12*100)+'%';},500);}
+  }
+  render();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Admin Đăng nhập (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" />
+<link rel="stylesheet" href="../../mobile/screens/admin.css" />
+<link rel="stylesheet" href="../app-desktop.css" />
+<link rel="stylesheet" href="../admin-desktop.css" />
+<style>
+  .login-wrap{min-height:100vh;display:grid;grid-template-columns:1.1fr 1fr;}
+  .login-art{background:linear-gradient(150deg,#0a74c0,#0f3d6a);color:#fff;display:flex;flex-direction:column;justify-content:center;padding:60px;}
+  .login-art img{width:80px;height:80px;border-radius:20px;background:rgba(255,255,255,0.12);margin-bottom:28px;}
+  .login-art h2{font-size:38px;font-weight:600;letter-spacing:-0.02em;line-height:1.1;}
+  .login-art p{font-size:17px;opacity:.85;margin-top:14px;max-width:38ch;}
+  .login-form{display:flex;align-items:center;justify-content:center;padding:40px;}
+  .login-card{width:380px;max-width:100%;}
+  @media(max-width:860px){.login-wrap{grid-template-columns:1fr;}.login-art{display:none;}}
+</style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-art">
+      <img src="../../mobile/assets/logo-symbol-white.png" alt="" />
+      <h2>Bảng quản trị<br/>Tân Phú APG</h2>
+      <p>Quản lý đặt chỗ, thanh toán, markup và báo cáo — an toàn, nhanh, đầy đủ nhật ký kiểm toán.</p>
+    </div>
+    <div class="login-form">
+      <div class="login-card">
+        <h1 style="font-size:26px;font-weight:600;letter-spacing:-0.02em;">Đăng nhập</h1>
+        <p class="muted" style="font-size:15px;margin:4px 0 24px;">Truy cập nội bộ — Airlines Agent.</p>
+        <div style="margin-bottom:16px;"><label class="lbl">Email</label><input class="input" type="email" value="admin@tanphuapg.vn" /></div>
+        <div><label class="lbl">Mật khẩu</label><input class="input err" type="password" value="••••••••" /></div>
+        <div class="err-text">Email hoặc mật khẩu không đúng. Còn 4 lần thử.</div>
+        <label style="display:flex;align-items:center;gap:8px;margin-top:16px;font-size:14px;color:var(--apg-text-secondary);cursor:pointer;"><input type="checkbox" checked style="width:16px;height:16px;accent-color:var(--apg-blue-500);" /> Ghi nhớ thiết bị này</label>
+        <button class="btn fill" style="margin-top:20px;" onclick="location.href='admin-dashboard.html'">Đăng nhập</button>
+        <p class="muted" style="text-align:center;font-size:12px;margin-top:20px;">Mọi truy cập đều được ghi nhật ký kiểm toán.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

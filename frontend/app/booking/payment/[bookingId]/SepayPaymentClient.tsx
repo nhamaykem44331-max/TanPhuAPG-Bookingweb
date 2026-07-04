@@ -1,6 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import SiteGlobeHeader from "@/components/SiteGlobeHeader";
+import BookingStepper from "@/components/BookingStepper";
+import DownloadableTicket from "@/components/ticket/DownloadableTicket";
+import { bookingToTicketProps, type AirportName, type TicketSourceLeg } from "@/lib/ticket/bookingToTicketProps";
+import { isRealPnr, friendlyPnrIssue } from "@/lib/booking/pnrDisplay";
+import { TAX_ID } from "@/lib/site";
+import { useAirports } from "@/lib/useAirports";
 
 interface ItineraryLeg {
   legKey: string;
@@ -39,6 +47,7 @@ interface BookingInfo {
   balance: number;
   totalPaid: number;
   itinerary: ItineraryLeg[];
+  passengers: { type: string; firstName: string; lastName: string }[];
 }
 
 interface IntentInfo {
@@ -59,6 +68,7 @@ interface IntentInfo {
 interface Props {
   booking: BookingInfo;
   initialIntent: IntentInfo | null;
+  payLater?: boolean;
 }
 
 interface StatusResponse {
@@ -72,6 +82,20 @@ interface StatusResponse {
 
 function formatVnd(value: number): string {
   return new Intl.NumberFormat("vi-VN").format(value);
+}
+
+// Map trạng thái booking (GDS/hệ thống) sang nhãn tiếng Việt cho khách.
+function bookingStatusVi(status: string): string {
+  const map: Record<string, string> = {
+    HELD: "Đang giữ chỗ",
+    PENDING_PAYMENT: "Chờ thanh toán",
+    PAID: "Đã thanh toán",
+    TICKETING: "Đang xuất vé",
+    TICKETED: "Đã xuất vé",
+    EXPIRED: "Đã hết hạn",
+    CANCELLED: "Đã huỷ",
+  };
+  return map[status] ?? "Đang xử lý";
 }
 
 function pad(n: number): string {
@@ -115,7 +139,7 @@ function useCountdown(expiresAt: string | null): { label: string; expired: boole
   return { label, expired: false };
 }
 
-export function SepayPaymentClient({ booking, initialIntent }: Props) {
+export function SepayPaymentClient({ booking, initialIntent, payLater = false }: Props) {
   const [intent, setIntent] = useState<IntentInfo | null>(initialIntent);
   const [bookingStatus, setBookingStatus] = useState(booking.status);
   const [balance, setBalance] = useState(booking.balance);
@@ -129,7 +153,9 @@ export function SepayPaymentClient({ booking, initialIntent }: Props) {
 
   const ttl = useCountdown(intent?.expiresAt ?? booking.ttlExpiresAt);
 
-  const isFinalPaid = paymentStatus === "PAID" || (balance <= 0 && totalPaid > 0);
+  // balance <= 0 = không còn gì để trả (đã đủ tiền HOẶC đơn 0đ) → coi như xong, tránh kẹt
+  // ở màn "đang chuẩn bị QR" với nút bị khoá.
+  const isFinalPaid = paymentStatus === "PAID" || balance <= 0;
   const isPartial = paymentStatus === "PARTIAL";
   const isExpired = paymentStatus === "EXPIRED" || ttl.expired;
   const isManual = paymentStatus === "MANUAL_REVIEW";
@@ -153,12 +179,22 @@ export function SepayPaymentClient({ booking, initialIntent }: Props) {
     }
   }, [booking.id]);
 
-  // Polling: 4s khi PENDING, dừng khi PAID/EXPIRED
+  // Polling 4s. Chỉ DỪNG ở trạng thái kết thúc thật (đã thanh toán hoặc booking bị huỷ) —
+  // KHÔNG dừng khi QR vừa hết giờ đếm ngược, để một giao dịch chuyển sát hạn (webhook trễ)
+  // vẫn được bắt và lật trang sang "thành công". Tạm dừng khi tab ẩn, fetch ngay khi quay lại.
   useEffect(() => {
-    if (isFinalPaid || isExpired) return;
-    const id = setInterval(fetchStatus, 4000);
-    return () => clearInterval(id);
-  }, [fetchStatus, isFinalPaid, isExpired]);
+    if (isFinalPaid || bookingStatus === "CANCELLED") return;
+    let id: ReturnType<typeof setInterval> | null = null;
+    const start = () => { if (id === null) id = setInterval(fetchStatus, 4000); };
+    const stop = () => { if (id !== null) { clearInterval(id); id = null; } };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else { void fetchStatus(); start(); }
+    };
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => { stop(); document.removeEventListener("visibilitychange", onVisibility); };
+  }, [fetchStatus, isFinalPaid, bookingStatus]);
 
   const createIntent = useCallback(async () => {
     setCreating(true);
@@ -233,45 +269,119 @@ export function SepayPaymentClient({ booking, initialIntent }: Props) {
   const paxLabel = `${booking.adt} người lớn${booking.chd > 0 ? ` · ${booking.chd} trẻ em` : ""}${
     booking.inf > 0 ? ` · ${booking.inf} em bé` : ""
   }`;
-  const payableAmount = intent?.amount ?? balance;
+  // Số tiền hiển thị: trước khi trả xong = số CÒN THIẾU (balance) để không lệch khi trả thiếu;
+  // sau khi trả xong = tổng đã trả.
+  const payableAmount = isFinalPaid ? totalPaid : (balance > 0 ? balance : intent?.amount ?? 0);
+
+  const { airports } = useAirports();
+  const airportNames = useMemo(() => {
+    const m: Record<string, AirportName> = {};
+    for (const a of airports) m[a.code] = { city: a.city, name: a.name };
+    return m;
+  }, [airports]);
+
+  const ticketLegs = useMemo<TicketSourceLeg[]>(
+    () =>
+      booking.itinerary.map((l) => ({
+        direction: l.legKey === "inbound" || l.legLabel.includes("về") ? "return" : "outbound",
+        airline: l.airline,
+        flightNumber: l.flightNumber,
+        from: l.from,
+        to: l.to,
+        departureAt: l.departureAt,
+        arrivalAt: l.arrivalAt,
+        cabin: l.cabin,
+      })),
+    [booking.itinerary],
+  );
+
+  const paidTicket = useMemo(
+    () =>
+      bookingToTicketProps(
+        {
+          status: "paid",
+          referenceCode: booking.pnr || booking.orderCode,
+          legs: ticketLegs,
+          passengers: booking.passengers,
+          total: booking.saleAmount,
+          paid: { totalPaid: totalPaid || booking.saleAmount, paidAtIso: intent?.paidAt ?? null },
+        },
+        airportNames,
+      ),
+    [ticketLegs, booking.pnr, booking.orderCode, booking.passengers, booking.saleAmount, totalPaid, intent?.paidAt, airportNames],
+  );
+
+  const holdTicket = useMemo(() => {
+    if (!intent) return null;
+    const staticQr =
+      intent.bankCode && intent.accountNumber
+        ? `https://img.vietqr.io/image/${intent.bankCode}-${intent.accountNumber}-compact2.png?amount=${payableAmount}&addInfo=${encodeURIComponent(intent.transferContent)}`
+        : intent.qrCode || "";
+    return bookingToTicketProps(
+      {
+        status: "hold",
+        referenceCode: booking.pnr || booking.orderCode,
+        legs: ticketLegs,
+        passengers: booking.passengers,
+        total: booking.saleAmount,
+        hold: {
+          amountDue: payableAmount,
+          bankCode: intent.bankCode,
+          bankAccount: intent.accountNumber,
+          bankAccountName: intent.accountName ?? undefined,
+          transferContent: intent.transferContent,
+          qrImageUrl: staticQr,
+          deadlineIso: booking.ttlExpiresAt,
+        },
+      },
+      airportNames,
+    );
+  }, [intent, ticketLegs, booking.pnr, booking.orderCode, booking.passengers, booking.saleAmount, booking.ttlExpiresAt, payableAmount, airportNames]);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-gradient-to-b from-emerald-50 via-white to-white py-4 md:py-8">
-      <div className="mx-auto w-full max-w-6xl px-3 sm:px-4 lg:px-6">
+    <div className="min-h-screen overflow-x-hidden" style={{ background: 'linear-gradient(to bottom,#EAF0F6,#F4F2EC 42%)' }}>
+      <SiteGlobeHeader />
+      <div className="mx-auto w-full max-w-5xl px-3 py-4 sm:px-4 md:py-8 lg:px-6">
         <header className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end lg:mb-5">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-widest text-emerald-700">Thanh toán SePay</p>
-            <h1 className="mt-1 text-2xl font-bold leading-tight text-slate-950 md:text-3xl">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#1F7A54]">
+              {isFinalPaid ? "Đã thanh toán" : "Thanh toán an toàn · SePay"}
+            </p>
+            <h1 className="mt-1 text-[25px] font-semibold leading-[1.15] text-[#0B1E16] md:text-[28px]" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>
               {isFinalPaid ? "Thanh toán thành công" : "Quét mã QR để thanh toán"}
             </h1>
-            <p className="mt-1 text-xs text-slate-500 md:text-sm">
-              Mã đơn <span className="font-mono font-semibold text-slate-800">{booking.orderCode}</span>
-              {booking.pnr ? <> · PNR <span className="font-mono font-semibold text-emerald-700">{booking.pnr}</span></> : null}
+            <p className="mt-1 text-xs text-[#7A8893]">
+              Mã đơn <span className="font-mono font-semibold text-[#16212B]">{booking.orderCode}</span>
+              {booking.pnr ? <> · PNR <span className="font-mono font-bold text-[#1F7A54]">{booking.pnr}</span></> : null}
             </p>
           </div>
-          <div className="rounded-xl bg-emerald-700 px-4 py-3 text-white shadow-sm sm:min-w-[220px] sm:text-right">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-100">Cần thanh toán</p>
-            <p className="text-2xl font-black tabular-nums md:text-3xl">{formatVnd(payableAmount)} ₫</p>
+          <div className="rounded-xl px-4 py-2.5 text-white shadow-sm sm:min-w-[200px] sm:text-right" style={{ background: isFinalPaid ? 'linear-gradient(135deg,#1f5f44,#248a3d)' : 'linear-gradient(135deg,#0C2740,#143A5C,#1A4E78)' }}>
+            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/70">{isFinalPaid ? "Đã thanh toán" : "Cần thanh toán"}</p>
+            <p className="text-[24px] font-semibold tabular-nums" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>{formatVnd(payableAmount)} ₫</p>
+            <p className="mt-0.5 text-[9.5px] text-white/60">Đã gồm thuế &amp; phí</p>
           </div>
         </header>
 
-        <main className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_430px] lg:items-start">
+        <div className="mb-4"><BookingStepper stage={isFinalPaid ? "done" : "pay"} /></div>
+
+        <main className="flex flex-col gap-4">
+          {!isFinalPaid && !(payLater && holdTicket) && (
           <div className="order-2 min-w-0 lg:order-1">
-            <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <section className="overflow-hidden rounded-[18px] border border-[#E5E2D9] bg-white shadow-sm">
+              <div className="flex flex-col gap-2 border-b border-[#EDEAE1] bg-[#FAF8F3] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-widest text-emerald-700">Hành trình</span>
-                  <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9C7B3E]">Hành trình</span>
+                  <span className="rounded-[5px] border border-[#E5E2D9] bg-white px-2.5 py-0.5 text-[10.5px] font-semibold text-[#586675]">
                     {booking.tripType === "ROUNDTRIP" ? "Khứ hồi" : "Một chiều"}
                   </span>
-                  <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider ${
+                  <span className={`rounded-full border px-2.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wider ${
                     bookingStatus === "TICKETED"
-                      ? "border-emerald-300 bg-emerald-50 text-emerald-700"
+                      ? "border-[#A7E8C7] bg-[#EBFBF2] text-[#1F7A54]"
                       : bookingStatus === "HELD"
                       ? "border-amber-300 bg-amber-50 text-amber-700"
                       : "border-slate-300 bg-slate-50 text-slate-700"
                   }`}>
-                    {bookingStatus}
+                    {bookingStatusVi(bookingStatus)}
                   </span>
                 </div>
                 {ttlBookingLabel ? (
@@ -285,7 +395,7 @@ export function SepayPaymentClient({ booking, initialIntent }: Props) {
                 <div className="space-y-1.5">
                   <InfoLine label="Mã đơn hàng" value={booking.orderCode} mono strong />
                   {booking.sessionId ? <InfoLine label="Phiên booking" value={String(booking.sessionId)} mono /> : null}
-                  {booking.pnr ? <InfoLine label="PNR chính" value={booking.pnr} mono strong tone="emerald" /> : null}
+                  {booking.pnr ? <InfoLine label="PNR chính" value={booking.pnr} mono strong tone="brand" /> : null}
                 </div>
                 <div className="space-y-1.5">
                   {booking.customer?.fullName ? <InfoLine label="Hành khách" value={booking.customer.fullName} strong /> : null}
@@ -293,7 +403,7 @@ export function SepayPaymentClient({ booking, initialIntent }: Props) {
                   {booking.customer?.phone ? (
                     <div className="flex min-w-0 items-center justify-between gap-3">
                       <span className="shrink-0 text-xs text-slate-500">Điện thoại</span>
-                      <a className="min-w-0 truncate font-mono text-xs text-emerald-700 hover:underline" href={`tel:${booking.customer.phone}`}>
+                      <a className="min-w-0 truncate font-mono text-xs text-brand-700 hover:underline" href={`tel:${booking.customer.phone}`}>
                         {booking.customer.phone}
                       </a>
                     </div>
@@ -313,167 +423,238 @@ export function SepayPaymentClient({ booking, initialIntent }: Props) {
               </div>
             </section>
           </div>
+          )}
 
-          <div className="order-1 min-w-0 lg:order-2 lg:sticky lg:top-6">
+          <div className="order-1 min-w-0 lg:order-2">
             {!intent ? (
-              <section className="rounded-2xl border border-amber-200 bg-amber-50/70 p-5 text-center shadow-sm">
-                <p className="text-sm font-semibold text-amber-900">Đang chuẩn bị mã QR cho booking này.</p>
+              <section className="rounded-[18px] border border-[#ECD9AE] bg-[#FCF8EE] p-6 text-center shadow-sm">
+                <div className="flex items-center justify-center gap-2 text-sm font-semibold text-[#86671F]">
+                  {creating && <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.2-8.6" strokeLinecap="round" /></svg>}
+                  <span>{creating ? "Đang tạo mã QR thanh toán…" : "Đang chuẩn bị mã QR cho booking này."}</span>
+                </div>
                 <button
                   type="button"
                   onClick={createIntent}
                   disabled={creating || balance <= 0}
-                  className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-emerald-700 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-4 inline-flex h-11 items-center justify-center rounded-lg px-6 text-sm font-bold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg,#1f5f44,#248a3d)' }}
                 >
                   {creating ? "Đang tạo..." : "Tạo mã QR thanh toán"}
                 </button>
-                {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
+                {error ? <p role="alert" className="mt-3 text-sm text-red-600">{error}</p> : null}
               </section>
             ) : isFinalPaid ? (
-              <section className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-6 text-center shadow-sm">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-700 text-white">
-                  <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+              <section role="status" aria-live="polite" className="rounded-[18px] border border-[#A7E8C7] bg-[#F2FBF6] px-4 py-6 shadow-sm sm:px-6">
+                <div className="mx-auto mb-4 flex max-w-[600px] flex-col items-center text-center">
+                  <div className="mb-3 grid h-[54px] w-[54px] place-items-center rounded-full border-[1.5px] border-[#A7E8C7] bg-[#DCF5E7]">
+                    <div className="grid h-9 w-9 place-items-center rounded-full bg-[#1F7A54]">
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="#fff" strokeWidth="2.6"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    </div>
+                  </div>
+                  <h2 className="text-[21px] font-semibold text-[#0B5337]" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>
+                    {bookingStatus === "TICKETED" ? "Đã xuất vé" : "Thanh toán thành công"}
+                  </h2>
+                  <p className="mt-1 text-[13.5px] leading-relaxed text-[#0B5337]">
+                    {bookingStatus === "TICKETED" ? (
+                      <>Đã ghi nhận đủ <b>{formatVnd(totalPaid)} ₫</b> · vé điện tử sẵn sàng bên dưới.</>
+                    ) : (
+                      <>Đã ghi nhận đủ <b>{formatVnd(totalPaid)} ₫</b>. Vé đang được xuất — số vé sẽ hiện trên mặt vé khi hoàn tất.</>
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs text-[#3B6D57]">
+                    Mã đơn <span className="font-mono font-semibold text-[#0B5337]">{booking.orderCode}</span>
+                    {booking.pnr ? <> · PNR <span className="font-mono font-semibold text-[#0B5337]">{booking.pnr}</span></> : null}
+                  </p>
+                  {booking.customer?.email ? (
+                    <p className="mt-0.5 text-xs text-[#3B6D57]">Bản vé cũng được gửi tới <b>{booking.customer.email}</b>.</p>
+                  ) : null}
                 </div>
-                <h2 className="mt-3 text-lg font-bold text-emerald-900">Thanh toán đã được xác nhận</h2>
-                <p className="mt-1 text-sm text-emerald-700">
-                  Hệ thống đã ghi nhận đủ {formatVnd(totalPaid)} ₫. Vé sẽ được xuất tự động.
-                </p>
-                {bookingStatus === "TICKETED" ? (
-                  <p className="mt-2 text-xs text-emerald-600">Booking đã chuyển sang trạng thái TICKETED.</p>
-                ) : null}
+
+                <DownloadableTicket ticket={paidTicket} fileBaseName={`Ve-${booking.orderCode}`} />
+
+                <div className="mx-auto mt-5 flex max-w-[600px] flex-wrap items-center justify-center gap-2">
+                  <Link href="/tra-cuu" className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#CBD8E4] bg-white px-4 text-sm font-semibold text-[#143A5C] transition hover:border-[#143A5C]">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+                    Chuyến bay của tôi
+                  </Link>
+                  <Link href="/dat-ve" className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#CBD8E4] bg-white px-4 text-sm font-semibold text-[#143A5C] transition hover:border-[#143A5C]">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M2.5 19l19-7L2.5 5l0 6 13 1-13 1z" /></svg>
+                    Đặt vé khác
+                  </Link>
+                  <Link href="/" className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#CBD8E4] bg-white px-4 text-sm font-semibold text-[#143A5C] transition hover:border-[#143A5C]">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></svg>
+                    Về trang chủ
+                  </Link>
+                </div>
               </section>
             ) : isExpired ? (
-              <section className="rounded-2xl border border-red-200 bg-red-50/80 p-6 text-center shadow-sm">
+              <section className="rounded-[18px] border border-red-200 bg-red-50 px-5 py-8 text-center shadow-sm">
                 <h2 className="text-lg font-bold text-red-700">QR thanh toán đã hết hạn</h2>
-                <p className="mt-2 text-sm text-red-600">
-                  Vui lòng liên hệ chăm sóc khách hàng hoặc tạo mã QR mới nếu booking còn hiệu lực.
-                </p>
+                <p className="mt-2 text-sm text-red-600">Vui lòng liên hệ chăm sóc khách hàng hoặc tạo mã QR mới nếu booking còn hiệu lực.</p>
+                <p className="mt-2 text-[12.5px] text-slate-500">Nếu bạn vừa chuyển khoản, hệ thống vẫn đang tự kiểm tra — vui lòng đợi vài phút, trang sẽ tự cập nhật khi nhận được tiền.</p>
                 <button
                   type="button"
                   onClick={createIntent}
                   disabled={creating || bookingStatus === "EXPIRED" || bookingStatus === "CANCELLED"}
-                  className="mt-4 inline-flex h-11 items-center justify-center rounded-xl bg-emerald-700 px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-4 inline-flex h-11 items-center justify-center rounded-lg px-6 text-sm font-bold text-white shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60"
+                  style={{ background: 'linear-gradient(135deg,#1f5f44,#248a3d)' }}
                 >
                   Tạo mã QR mới
                 </button>
               </section>
-            ) : (
-              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 bg-emerald-50/70 px-4 py-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-widest text-emerald-700">Thanh toán bằng QR</p>
-                  <div className="mt-1 flex items-end justify-between gap-3">
-                    <div>
-                      <p className="text-xs text-slate-500">Số tiền</p>
-                      <p className="text-2xl font-black tabular-nums text-emerald-800">{formatVnd(intent.amount)} ₫</p>
-                    </div>
-                    <div className="rounded-lg border border-emerald-200 bg-white px-2.5 py-1.5 text-right">
-                      <p className="text-[10px] text-slate-500">Còn lại</p>
-                      <p className={`font-mono text-sm font-bold tabular-nums ${ttl.label === "--:--" ? "text-slate-400" : "text-emerald-700"}`}>
-                        {ttl.label}
-                      </p>
-                    </div>
-                  </div>
+            ) : payLater && holdTicket ? (
+              <section className="rounded-[18px] border border-[#ECD9AE] bg-[#FCFAF4] px-4 py-6 shadow-sm sm:px-6">
+                <div className="mx-auto mb-4 max-w-[600px] rounded-xl border border-[#ECD9AE] bg-[#FDF6E7] px-4 py-3 text-center">
+                  <p className="text-[13.5px] font-semibold text-[#86671F]">
+                    Chỗ của bạn đang được giữ{ttlBookingLabel ? <> đến <span className="font-mono">{ttlBookingLabel}</span></> : null}.
+                  </p>
+                  <p className="mt-0.5 text-xs text-[#86671F]">
+                    Tải mặt vé để lưu, quét QR trên mặt vé để thanh toán, hoặc quay lại bất cứ lúc nào ở mục Chuyến bay của tôi (mã <span className="font-mono">{booking.orderCode}</span> + số điện thoại).
+                  </p>
                 </div>
 
-                <div className="grid min-w-0 gap-4 p-4 md:grid-cols-[minmax(0,1fr)]">
-                  <div className="flex min-w-0 flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    {intent.qrCode ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        src={intent.qrCode}
-                        alt="VietQR SePay"
-                        className="aspect-square w-full max-w-[260px] rounded-md bg-white object-contain sm:max-w-[300px] lg:max-w-[320px]"
-                      />
-                    ) : (
-                      <div className="flex aspect-square w-full max-w-[260px] items-center justify-center text-xs text-slate-400 sm:max-w-[300px]">
-                        Đang tạo QR...
-                      </div>
-                    )}
-                    <p className="mt-2 text-center text-[11px] text-slate-500">
-                      Quét bằng app ngân hàng để thanh toán
-                    </p>
+                <DownloadableTicket ticket={holdTicket} fileBaseName={`GiuCho-${booking.orderCode}`} />
+
+                <div className="mx-auto mt-5 flex max-w-[600px] flex-wrap items-center justify-center gap-2">
+                  <a
+                    href={`/booking/payment/${booking.id}`}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg px-5 text-sm font-bold text-white shadow-sm"
+                    style={{ background: 'linear-gradient(135deg,#1f5f44,#248a3d)' }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="5" width="18" height="14" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    Thanh toán ngay
+                  </a>
+                  <Link
+                    href="/tra-cuu"
+                    className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#CBD8E4] bg-white px-4 text-sm font-semibold text-[#143A5C] transition hover:border-[#143A5C]"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+                    Chuyến bay của tôi
+                  </Link>
+                </div>
+              </section>
+            ) : (
+              <div className="grid items-start gap-4 sm:grid-cols-2">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#586675] sm:col-span-2">Chọn cách thanh toán</p>
+                {/* QR card (green) */}
+                <section className="min-w-0 overflow-hidden rounded-[18px] border border-[#E5E2D9] bg-white shadow-sm">
+                  <div className="flex items-end justify-between border-b border-[#CFF0DD] bg-[#EBFBF2] px-4 py-3">
+                    <div>
+                      <p className="text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#1F7A54]">Quét QR để thanh toán</p>
+                      <p className="text-[21px] font-semibold tabular-nums text-[#0B5337]" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>{formatVnd(intent.amount)} ₫</p>
+                    </div>
+                    <div className="rounded-[10px] border border-[#A7E8C7] bg-white px-2.5 py-1.5 text-right">
+                      <p className="text-[9px] text-[#93A0AC]">Còn lại</p>
+                      <p className={`font-mono text-[15px] font-bold tabular-nums ${ttl.label === "--:--" ? "text-slate-400" : "text-[#1F7A54]"}`}>{ttl.label === "--:--" ? "Đang tạo…" : ttl.label}</p>
+                    </div>
                   </div>
+                  <div className="p-4">
+                    <div className="flex flex-col items-center rounded-[14px] border border-[#E8E5DC] bg-[#FAF9F6] p-4">
+                      {intent.qrCode ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img src={intent.qrCode} alt="VietQR SePay" className="aspect-square w-full max-w-[230px] rounded-md bg-white object-contain" />
+                      ) : (
+                        <div className="flex aspect-square w-full max-w-[230px] items-center justify-center text-xs text-slate-400">Đang tạo QR...</div>
+                      )}
+                      <p className="mt-2.5 text-center text-[11.5px] text-[#93A0AC]">Quét bằng app ngân hàng để thanh toán</p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-[11px] font-extrabold text-[#0A4EA3]">VietQR</span>
+                        <span className="border-l border-[#DCD9D0] pl-2 text-[11px] font-extrabold text-[#1F7A54]">SePay</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
 
-                  <div className="min-w-0 space-y-3 text-sm">
-                    <CopyRow
-                      label="Ngân hàng"
-                      value={intent.bankCode || ""}
-                      onCopy={() => copy(intent.bankCode || "", "bank")}
-                      copied={copied === "bank"}
-                    />
-                    <CopyRow
-                      label="Số tài khoản"
-                      value={intent.accountNumber || ""}
-                      onCopy={() => copy(intent.accountNumber || "", "acc")}
-                      copied={copied === "acc"}
-                      mono
-                    />
+                {/* Bank transfer card (gold) */}
+                <section className="min-w-0 overflow-hidden rounded-[18px] border border-[#E5E2D9] bg-white shadow-sm">
+                  <div className="border-b border-[#EDEAE1] px-4 py-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#9C7B3E]">Hoặc chuyển khoản thủ công</p>
+                  </div>
+                  <div className="flex flex-col px-4 pb-4 pt-0.5">
+                    <CopyRow label="Ngân hàng" value={intent.bankCode || ""} onCopy={() => copy(intent.bankCode || "", "bank")} copied={copied === "bank"} />
+                    <CopyRow label="Số tài khoản" value={intent.accountNumber || ""} onCopy={() => copy(intent.accountNumber || "", "acc")} copied={copied === "acc"} mono />
                     {intent.accountName ? (
-                      <CopyRow
-                        label="Chủ tài khoản"
-                        value={intent.accountName}
-                        onCopy={() => copy(intent.accountName || "", "name")}
-                        copied={copied === "name"}
-                      />
+                      <CopyRow label="Chủ tài khoản" value={intent.accountName} onCopy={() => copy(intent.accountName || "", "name")} copied={copied === "name"} />
                     ) : null}
-                    <CopyRow
-                      label="Số tiền"
-                      value={`${formatVnd(intent.amount)} ₫`}
-                      rawCopy={String(intent.amount)}
-                      onCopy={() => copy(String(intent.amount), "amount")}
-                      copied={copied === "amount"}
-                      highlight
-                    />
-                    <CopyRow
-                      label="Nội dung CK"
-                      value={intent.transferContent}
-                      onCopy={() => copy(intent.transferContent, "content")}
-                      copied={copied === "content"}
-                      mono
-                      highlight
-                    />
+                    <CopyRow label="Số tiền" value={`${formatVnd(intent.amount)} ₫`} rawCopy={String(intent.amount)} onCopy={() => copy(String(intent.amount), "amount")} copied={copied === "amount"} highlight />
+                    <CopyRow label="Nội dung CK" value={intent.transferContent} onCopy={() => copy(intent.transferContent, "content")} copied={copied === "content"} mono highlight />
 
-                    <div className="rounded-xl bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
-                      <p className="font-semibold">Lưu ý quan trọng</p>
-                      <p className="mt-1">
-                        Vui lòng chuyển đúng số tiền và giữ nguyên nội dung{" "}
-                        <span className="break-all font-mono font-semibold">{intent.transferContent}</span> để hệ thống tự động đối soát.
-                      </p>
+                    <div className="mt-3 flex items-start gap-2 rounded-[12px] border border-[#ECD9AE] bg-[#FCF8EE] px-3 py-2.5 text-[11.5px] leading-relaxed text-[#86671F]">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#B5862B" strokeWidth="2" className="mt-px shrink-0"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+                      <span>Giữ nguyên nội dung <b className="font-mono font-bold text-[#7A4F0A]">{intent.transferContent}</b> để hệ thống <b>tự động đối soát</b> &amp; xuất vé.</span>
                     </div>
 
                     {isPartial ? (
-                      <div className="rounded-xl bg-orange-50 p-3 text-xs text-orange-800">
-                        Đã thanh toán một phần ({formatVnd(totalPaid)} ₫). Còn thiếu{" "}
-                        <strong>{formatVnd(balance)} ₫</strong>.
+                      <div className="mt-2 rounded-[12px] bg-orange-50 px-3 py-2.5 text-xs text-orange-800">
+                        Đã thanh toán một phần ({formatVnd(totalPaid)} ₫). Còn thiếu <strong>{formatVnd(balance)} ₫</strong>.
+                        <button
+                          type="button"
+                          onClick={createIntent}
+                          disabled={creating}
+                          className="mt-2 block w-full rounded-md border border-orange-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-orange-800 transition hover:bg-orange-100 disabled:opacity-60"
+                        >
+                          {creating ? "Đang cập nhật…" : "Cập nhật mã QR cho số còn lại"}
+                        </button>
                       </div>
+                    ) : null}
+                    {isManual ? (
+                      <div className="mt-2 rounded-[12px] bg-orange-50 px-3 py-2.5 text-xs text-orange-800">Hệ thống đã nhận giao dịch nhưng cần kiểm tra thủ công. Đại lý sẽ kiểm tra và liên hệ lại sớm nhất — hoặc gọi ngay 0918.752.686.</div>
                     ) : null}
 
-                    {isManual ? (
-                      <div className="rounded-xl bg-orange-50 p-3 text-xs text-orange-800">
-                        Hệ thống nhận được giao dịch nhưng cần kiểm tra thủ công. Đại lý sẽ liên hệ trong ít phút.
-                      </div>
-                    ) : null}
+                    <p className="mt-2.5 text-center text-[11px] text-[#93A0AC]">Hệ thống tự kiểm tra mỗi 4 giây — không cần bấm gì thêm.</p>
                   </div>
-                </div>
-              </section>
+                </section>
+              </div>
             )}
           </div>
         </main>
 
+        <PaymentAssurance finalPaid={isFinalPaid} />
+
         {/* CSKH footer */}
-        <footer className="mt-5 text-center text-xs text-slate-500">
+        <footer className="mt-5 text-center text-xs text-[#93A0AC]">
           Cần hỗ trợ?{" "}
-          <a className="font-semibold text-emerald-700 hover:underline" href="tel:0903456789">
-            Gọi 090 345 6789
+          <a className="font-semibold text-[#1F7A54] hover:underline" href="tel:0918752686">
+            0918.752.686
           </a>{" "}
           hoặc{" "}
-          <a className="font-semibold text-emerald-700 hover:underline" href="https://zalo.me/0903456789">
+          <a className="font-semibold text-[#1F7A54] hover:underline" href="https://zalo.me/0918752686">
             chat Zalo
           </a>
         </footer>
       </div>
     </div>
+  );
+}
+
+function PaymentAssurance({ finalPaid }: { finalPaid: boolean }) {
+  return (
+    <section className="mt-4">
+      {!finalPaid ? (
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 rounded-2xl border border-[#BFE0CC] bg-[#F2FBF6] px-4 py-3 text-[12px] font-medium text-[#0F7B43]">
+          <a href="/huong-dan-dat-ve" className="inline-flex items-center gap-1.5 hover:underline">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>
+            Xuất vé tự động ngay khi nhận đủ tiền
+          </a>
+          <span className="inline-flex items-center gap-1.5">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M3 21h18M5 21V10l7-5 7 5v11M9 21v-6h6v6" /></svg>
+            HTX Tân Phú APG · MST {TAX_ID}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+            Không nhập thẻ trên web · trả trong app ngân hàng · SePay đối soát tự động
+          </span>
+        </div>
+      ) : null}
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11.5px] text-[#93A0AC]">
+        <span>{finalPaid ? "Bạn đã đồng ý" : "Khi thanh toán, bạn đồng ý"}</span>
+        <a href="/hoan-doi-huy-ve" className="text-[#143A5C] hover:underline">Điều kiện hoàn/đổi/hủy</a>
+        <span>·</span>
+        <a href="/huong-dan-dat-ve" className="text-[#143A5C] hover:underline">Hướng dẫn đặt vé</a>
+        <span>·</span>
+        <a href="/cau-hoi-thuong-gap" className="text-[#143A5C] hover:underline">Câu hỏi thường gặp</a>
+      </div>
+    </section>
   );
 }
 
@@ -501,11 +682,11 @@ function FlightLegRow({ leg }: { leg: ItineraryLeg }) {
   return (
     <div className="px-4 py-3.5">
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="rounded-full bg-emerald-700 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white">
+        <span className="rounded bg-[#143A5C] px-2.5 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.08em] text-white">
           {leg.legLabel}
         </span>
         {leg.airline ? (
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+          <span className="text-[11px] font-semibold text-[#586675]">
             {leg.airline}
             {leg.flightNumber ? ` ${leg.flightNumber}` : ""}
           </span>
@@ -513,9 +694,13 @@ function FlightLegRow({ leg }: { leg: ItineraryLeg }) {
         {leg.cabin ? (
           <span className="text-[11px] text-slate-500">{leg.cabin}</span>
         ) : null}
-        {leg.pnr ? (
-          <span className="max-w-full rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold tracking-wider text-emerald-700 sm:ml-auto">
+        {leg.pnr && isRealPnr(leg.pnr) ? (
+          <span className="max-w-full rounded-full border border-[#CBD8E4] bg-[#EEF3F8] px-2.5 py-0.5 font-mono text-[10.5px] font-bold tracking-wider text-[#143A5C] sm:ml-auto">
             PNR · {leg.pnr}
+          </span>
+        ) : friendlyPnrIssue(leg.pnr) ? (
+          <span className="max-w-full rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[10.5px] font-semibold text-amber-800 sm:ml-auto">
+            {friendlyPnrIssue(leg.pnr)}
           </span>
         ) : null}
       </div>
@@ -533,7 +718,7 @@ function FlightLegRow({ leg }: { leg: ItineraryLeg }) {
         {/* Plane separator */}
         <div className="flex shrink-0 flex-col items-center px-1 text-slate-400 sm:px-2">
           <div className="h-px w-8 bg-slate-300 sm:w-12" />
-          <svg className="my-1 h-4 w-4 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
+          <svg className="my-1 h-4 w-4 text-brand-600" viewBox="0 0 24 24" fill="currentColor">
             <path d="M2.5 19l19-7L2.5 5l0 6 13 1-13 1z" />
           </svg>
           <div className="h-px w-8 bg-slate-300 sm:w-12" />
@@ -578,7 +763,7 @@ function InfoLine({
   value: string;
   mono?: boolean;
   strong?: boolean;
-  tone?: "slate" | "emerald";
+  tone?: "slate" | "brand";
 }) {
   return (
     <div className="flex min-w-0 items-center justify-between gap-3">
@@ -586,7 +771,7 @@ function InfoLine({
       <span
         className={`min-w-0 truncate text-right text-xs ${
           strong ? "font-bold" : "font-medium"
-        } ${mono ? "font-mono tracking-wide" : ""} ${tone === "emerald" ? "text-emerald-700" : "text-slate-900"}`}
+        } ${mono ? "font-mono tracking-wide" : ""} ${tone === "brand" ? "text-brand-700" : "text-slate-900"}`}
       >
         {value}
       </span>
@@ -612,12 +797,12 @@ function CopyRow({
   rawCopy?: string;
 }) {
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-[#F1EEE6] py-2.5 last:border-b-0">
       <div className="min-w-0">
-        <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+        <p className="text-[10px] uppercase tracking-[0.04em] text-[#93A0AC]">{label}</p>
         <p
-          className={`min-w-0 break-words text-base font-semibold leading-snug ${
-            highlight ? "text-emerald-700" : "text-slate-900"
+          className={`min-w-0 break-words text-[15px] font-semibold leading-snug ${
+            highlight ? "text-[#1F7A54]" : "text-[#16212B]"
           } ${mono ? "break-all font-mono" : ""}`}
         >
           {value || "—"}
@@ -626,7 +811,7 @@ function CopyRow({
       <button
         type="button"
         onClick={onCopy}
-        className="h-10 shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:border-emerald-400 hover:text-emerald-700"
+        className="h-11 shrink-0 rounded-lg border border-[#E5E2D9] bg-white px-3.5 text-xs font-semibold text-[#586675] transition hover:border-[#1F7A54] hover:text-[#1F7A54]"
         aria-label={`Sao chép ${label}`}
         title={rawCopy ?? value}
       >

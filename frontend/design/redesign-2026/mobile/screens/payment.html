@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Tân Phú APG — Thanh toán</title>
+<link rel="stylesheet" href="app.css" />
+<style>
+  .pay-hero{text-align:center;padding:14px 16px 4px;}
+  .pay-hero .cd{font-size:34px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-0.02em;color:var(--apg-warning);}
+  .pay-hero .cdl{font-size:13px;color:var(--apg-text-secondary);}
+  .qr-card{background:#fff;border-radius:var(--apg-radius-lg);box-shadow:var(--apg-shadow-sm);margin:10px 16px;padding:18px;text-align:center;}
+  .qr-card .sepay{display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;color:var(--apg-text-secondary);margin-bottom:14px;}
+  .qr-box{width:200px;height:200px;margin:0 auto;border-radius:14px;padding:10px;background:#fff;box-shadow:0 0 0 1px var(--apg-hairline);display:grid;grid-template-columns:repeat(25,1fr);gap:0;}
+  .qr-box i{background:#0b1a2b;}
+  .qr-amt{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:14px;color:var(--apg-text-primary);}
+  .qr-hint{font-size:12px;color:var(--apg-text-tertiary);margin-top:4px;}
+  .bank-row{display:flex;align-items:center;gap:12px;padding:13px 16px;}
+  .bank-row + .bank-row{border-top:1px solid var(--apg-hairline);}
+  .bank-row .k{font-size:12px;color:var(--apg-text-tertiary);}
+  .bank-row .v{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .bank-row .cp{margin-left:auto;color:var(--apg-blue-600);font-size:13px;font-weight:600;cursor:pointer;display:flex;gap:4px;align-items:center;flex:none;}
+  .statusline{display:flex;align-items:center;gap:10px;margin:12px 16px;padding:14px;border-radius:var(--apg-radius-md);font-size:14px;font-weight:500;}
+  .statusline.wait{background:var(--apg-warning-soft);color:#8a4b00;}
+  .statusline.paid{background:var(--apg-success-soft);color:#1c6b32;}
+  .spin{width:18px;height:18px;border:2.5px solid #e8c98a;border-top-color:#b25e00;border-radius:50%;animation:sp 0.9s linear infinite;flex:none;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+  .succ-ic{width:84px;height:84px;border-radius:50%;background:var(--apg-success);display:grid;place-items:center;margin:30px auto 18px;animation:pop .4s cubic-bezier(.32,.72,0,1);}
+  @keyframes pop{0%{transform:scale(0);}100%{transform:scale(1);}}
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <div class="statusbar"><span>9:41</span><span class="right"><svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1.5" width="3" height="10.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity="0.3"/></svg><svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor"/></svg></span></div>
+
+  <div class="appbar">
+    <button class="back" onclick="location.href='hold.html'"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div><div class="title">Thanh toán</div><div class="sub">APG-250530-7741</div></div>
+  </div>
+
+  <div class="devbar"><span class="dl">Trạng thái</span>
+    <button class="on" id="b-wait" onclick="setState('wait')">Chờ thanh toán</button>
+    <button id="b-paid" onclick="setState('paid')">Đã thanh toán</button>
+    <button id="b-exp" onclick="setState('exp')">Hết hạn</button>
+  </div>
+
+  <div class="screen" id="screen">
+
+    <!-- WAIT STATE -->
+    <div id="waitView">
+      <div class="pay-hero">
+        <div class="cd" id="countdown">14:58</div>
+        <div class="cdl">Vui lòng thanh toán trước khi hết giờ</div>
+      </div>
+
+      <div class="qr-card">
+        <div class="sepay"><span style="width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#e30613,#ff6a4d);display:inline-block;"></span> Quét mã QR · SePay</div>
+        <div class="qr-box" id="qr"></div>
+        <div class="qr-amt tnum">2.505.000 ₫</div>
+        <div class="qr-hint">Mở app ngân hàng → quét QR → giữ nguyên nội dung CK</div>
+      </div>
+
+      <div class="group-label">Hoặc chuyển khoản thủ công</div>
+      <div class="group">
+        <div class="bank-row"><div><div class="k">Số tài khoản</div><div class="v">8869414319</div></div><span class="cp" onclick="copied(this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg> Sao chép</span></div>
+        <div class="bank-row"><div><div class="k">Ngân hàng</div><div class="v">BIDV</div></div></div>
+        <div class="bank-row"><div><div class="k">Chủ tài khoản</div><div class="v">VU DUC ANH</div></div></div>
+        <div class="bank-row"><div><div class="k">Nội dung chuyển khoản</div><div class="v mono">APG2505307741</div></div><span class="cp" onclick="copied(this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg> Sao chép</span></div>
+        <div class="bank-row"><div><div class="k">Số tiền</div><div class="v" style="color:var(--apg-blue-600)">2.505.000 ₫</div></div><span class="cp" onclick="copied(this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg> Sao chép</span></div>
+      </div>
+
+      <div class="statusline wait"><span class="spin"></span> Đang chờ xác nhận thanh toán… hệ thống tự đối soát qua SePay</div>
+
+      <div class="group-label">Tóm tắt đặt chỗ</div>
+      <div class="card flat" style="padding:4px 16px;margin-bottom:24px;">
+        <div class="bank-row" style="padding-left:0;padding-right:0;"><div><div class="k">Chuyến bay</div><div class="v" style="font-size:14px;">VN213 · HAN → SGN · 6 Th8</div></div></div>
+        <div class="bank-row" style="padding-left:0;padding-right:0;"><div><div class="k">Hành khách</div><div class="v" style="font-size:14px;">Nguyễn Văn An · 1 người lớn</div></div></div>
+        <div class="bank-row" style="padding-left:0;padding-right:0;"><div><div class="k">Mã PNR</div><div class="v mono" style="font-size:14px;">QH7X2P</div></div></div>
+      </div>
+    </div>
+
+    <!-- PAID STATE -->
+    <div id="paidView" class="hide">
+      <div class="succ-ic"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+      <div style="text-align:center;padding:0 24px;"><div style="font-size:22px;font-weight:600;">Thanh toán thành công</div><p class="muted" style="font-size:14px;margin-top:6px;">Vé đã được xuất. Thông tin đã gửi tới email của bạn.</p></div>
+      <div class="card" style="margin-top:20px;padding:4px 16px;">
+        <div class="bank-row" style="padding-left:0;padding-right:0;"><div><div class="k">Mã đặt chỗ</div></div><span class="v" style="margin-left:auto;font-size:15px;" class="mono">APG-250530-7741</span></div>
+        <div class="bank-row" style="padding-left:0;padding-right:0;"><div><div class="k">Số tiền đã thanh toán</div></div><span class="v tnum" style="margin-left:auto;color:var(--apg-success)">2.505.000 ₫</span></div>
+        <div class="bank-row" style="padding-left:0;padding-right:0;"><div><div class="k">Thời gian</div></div><span class="v" style="margin-left:auto;font-size:14px;">30/05/2026 · 09:46</span></div>
+      </div>
+      <div class="statusline paid"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg> Đã thanh toán &amp; xuất vé</div>
+      <div style="padding:6px 16px 24px;display:flex;flex-direction:column;gap:10px;">
+        <button class="btn fill">Xem vé điện tử</button>
+        <button class="btn ghost" onclick="location.href='home.html'">Về trang chủ</button>
+      </div>
+    </div>
+
+    <!-- EXPIRED STATE -->
+    <div id="expView" class="hide">
+      <div class="empty" style="padding-top:50px;">
+        <div class="em-ic" style="color:var(--apg-danger)"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5M12 16h.01"/></svg></div>
+        <h3>Đã hết hạn thanh toán</h3>
+        <p>Giữ chỗ APG-250530-7741 đã quá thời hạn và bị hủy. Vui lòng tìm và đặt lại chuyến bay.</p>
+        <button class="btn fill wauto" onclick="location.href='home.html'">Tìm chuyến bay mới</button>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+<script>
+  // QR-like pattern (25x25) with finder squares
+  (function(){
+    const N=25,cells=[];
+    function finder(r,c){return (r<7&&c<7)||(r<7&&c>=N-7)||(r>=N-7&&c<7);}
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+      let on=false;
+      if(finder(r,c)){const rr=r%((r<7)?7:7);} 
+      if((r<7&&c<7)||(r<7&&c>N-8)||(r>N-8&&c<7)){
+        const lr=r<7?r:(r>N-8?r-(N-7):r), lc=c<7?c:(c>N-8?c-(N-7):c);
+        const er=(r<7?r:r-(N-7)),ec=(c<7?c:c-(N-7));
+        const x=c<7?c:(c-(N-7)),y=r<7?r:(r-(N-7));
+        on=(x===0||x===6||y===0||y===6||(x>=2&&x<=4&&y>=2&&y<=4));
+      } else {
+        on=((r*7+c*13+((r*c)%5))%3===0);
+      }
+      cells.push(on);
+    }
+    document.getElementById('qr').innerHTML=cells.map(o=>`<i style="background:${o?'#0b1a2b':'transparent'}"></i>`).join('');
+  })();
+
+  let secs=14*60+58,timer;
+  function tick(){const m=Math.floor(secs/60),s=secs%60;document.getElementById('countdown').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;if(secs>0)secs--;}
+  function setState(s){
+    document.querySelectorAll('.devbar button').forEach(b=>b.classList.remove('on'));
+    document.getElementById('b-'+s).classList.add('on');
+    document.getElementById('waitView').classList.toggle('hide',s!=='wait');
+    document.getElementById('paidView').classList.toggle('hide',s!=='paid');
+    document.getElementById('expView').classList.toggle('hide',s!=='exp');
+    document.getElementById('screen').scrollTop=0;
+  }
+  timer=setInterval(tick,1000);tick();
+  function copied(el){const o=el.innerHTML;el.innerHTML='✓ Đã chép';setTimeout(()=>el.innerHTML=o,1200);}
+</script>
+</body>
+</html>

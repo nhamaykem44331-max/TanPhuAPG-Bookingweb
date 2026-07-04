@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Markup Rules (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" /><link rel="stylesheet" href="../../mobile/screens/admin.css" /><link rel="stylesheet" href="../app-desktop.css" /><link rel="stylesheet" href="../admin-desktop.css" />
+</head>
+<body>
+  <div class="admin-shell"><div class="admin-main"><div class="admin-body narrow">
+    <div class="page-head"><div><h1>Quy tắc markup</h1><p>Áp dụng theo thứ tự ưu tiên từ trên xuống</p></div><button class="btn fill wauto" style="padding:0 18px;height:40px;" onclick="openDlg()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Tạo quy tắc</button></div>
+    <div class="tablecard">
+      <table class="table">
+        <thead><tr><th>Ưu tiên</th><th>Tên quy tắc</th><th>Phạm vi</th><th>Markup</th><th>Trạng thái</th><th class="right"></th></tr></thead>
+        <tbody>
+          <tr onclick="openDlg()"><td class="mono">10</td><td class="cellmain">Nội địa tiêu chuẩn</td><td>Tuyến nội địa · mọi hãng</td><td style="font-weight:600;">+8%</td><td><span class="sbadge ok">Bật</span></td><td class="right rowact">✎</td></tr>
+          <tr onclick="openDlg()"><td class="mono">20</td><td class="cellmain">Quốc tế Đông Bắc Á</td><td>ICN/NRT/HND · VN, OZ, KE</td><td style="font-weight:600;">+150.000 ₫</td><td><span class="sbadge ok">Bật</span></td><td class="right rowact">✎</td></tr>
+          <tr onclick="openDlg()"><td class="mono">30</td><td class="cellmain">Khuyến mãi VietJet</td><td>VJ · tuyến nội địa</td><td style="font-weight:600;">+5%</td><td><span class="sbadge muted">Tắt</span></td><td class="right rowact">✎</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div></div></div>
+
+  <div class="dialog-bd" id="dlg"><div class="dialog" style="width:520px;">
+    <div class="dgh">Quy tắc markup</div>
+    <div class="dgb">
+      <div style="margin-bottom:14px;"><label class="lbl">Tên quy tắc</label><input class="input" value="Nội địa tiêu chuẩn" /></div>
+      <div style="margin-bottom:14px;"><label class="lbl">Phạm vi áp dụng</label><div class="seg"><button class="on">Nội địa</button><button>Quốc tế</button><button>Tất cả</button></div></div>
+      <div class="formgrid" style="margin-bottom:14px;"><div><label class="lbl">Hãng (mã)</label><input class="input" placeholder="Bỏ trống = tất cả" /></div><div><label class="lbl">Ưu tiên</label><input class="input" value="10" /></div></div>
+      <div class="formgrid" style="margin-bottom:14px;"><div><label class="lbl">Kiểu</label><div class="seg"><button class="on">%</button><button>₫</button></div></div><div><label class="lbl">Giá trị</label><input class="input" value="8" /></div></div>
+      <label style="display:flex;align-items:center;gap:10px;font-size:15px;"><input type="checkbox" checked style="width:16px;height:16px;accent-color:var(--apg-blue-500);" /> Kích hoạt quy tắc</label>
+    </div>
+    <div class="dgf"><button class="btn ghost wauto" onclick="dlg.classList.remove('open')">Hủy</button><button class="btn fill wauto" onclick="dlg.classList.remove('open')">Lưu quy tắc</button></div>
+  </div></div>
+<script src="admin-desktop-shell.js"></script><script>initAdminDesktop('markup-rules','Quy tắc markup');function openDlg(){dlg.classList.add('open');}</script>
+</body>
+</html>

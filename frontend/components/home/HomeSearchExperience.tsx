@@ -1,12 +1,12 @@
 ﻿"use client";
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { AirportLabelMap } from '@/components/flight/FlightRow';
 import FloatingQuoteDock from '@/components/flight/FloatingQuoteDock';
+import SiteGlobeHeader from '@/components/SiteGlobeHeader';
 import OneWayResultsSection from '@/components/flight/OneWayResultsSection';
 import RoundtripResultsSection from '@/components/flight/RoundtripResultsSection';
 import HomeFooter from '@/components/home/HomeFooter';
-import HomeHeroSummary from '@/components/home/HomeHeroSummary';
 import HomeSearchPanel from '@/components/home/HomeSearchPanel';
 import type { AirportOption, AirportSelection, Cabin, FlightResult, RoundtripPairOption, SearchResponse } from '@/lib/types';
 import { buildAirportSelection, legacyAirportCodeFromText, useAirports } from '@/lib/useAirports';
@@ -131,6 +131,8 @@ function effectiveRouteFilter(filter: FilterState, isDomesticRoute: boolean): Fi
 // Main
 export default function HomeSearchExperience() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoSearchedRef = useRef(false);
   const { airports } = useAirports();
   const footerRef = useRef<HTMLElement | null>(null);
   const floatingQuoteDockRef = useRef<HTMLDivElement | null>(null);
@@ -167,6 +169,8 @@ export default function HomeSearchExperience() {
   const [isReloading, setIsReloading] = useState(false);
   const [resultsGen, setResultsGen]   = useState(0);
   const [searchedRoute, setSearchedRoute] = useState<{from:string;to:string;tripType:'oneway'|'roundtrip'}|null>(null);
+  // Khi đã có ngữ cảnh tìm kiếm, form thu gọn thành thanh tóm tắt; bấm "Chọn lại" để mở lại.
+  const [editingSearch, setEditingSearch] = useState(false);
   const searchAbortRef = useRef<AbortController | null>(null);
   const streamPairQueueRef = useRef<RoundtripPairOption[]>([]);
   const streamPairTimerRef = useRef<number | null>(null);
@@ -281,6 +285,17 @@ export default function HomeSearchExperience() {
       if (next && (next.code !== toSel.code || next.label !== toSel.label)) setToSel(next);
     }
   }, [airports, fromSel, setFromSel, setToSel, toSel]);
+
+  // Autosearch: khi điều hướng từ landing với ?go=1, tự chạy tìm kiếm 1 lần
+  // sau khi đã hydrate state từ localStorage và nạp xong danh sách sân bay.
+  useEffect(() => {
+    if (autoSearchedRef.current) return;
+    if (searchParams?.get('go') !== '1') return;
+    if (!hydrated || !airports.length) return;
+    autoSearchedRef.current = true;
+    void search();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, airports, searchParams]);
 
   // Fire-and-forget warm-up khi user vừa mở trang: backend sẽ kiểm tra/refresh
   // session và nạp tỷ giá trước. Giúp lần bấm "Tìm vé" đầu tiên khỏi gánh cold-login.
@@ -518,11 +533,6 @@ export default function HomeSearchExperience() {
     [displayablePairOptions, pairDisplayLimit]
   );
   const hasMorePairOptions = displayablePairOptions.length > visiblePairOptions.length;
-  const visibleResultCount = useMemo(() => {
-    if (tripType === 'oneway') return meta?.totalResults ?? results.length;
-    if (roundtripViewMode === 'pair' && pairOptions.length > 0) return visiblePairOptions.length;
-    return outboundResults.length + inboundResults.length;
-  }, [tripType, roundtripViewMode, pairOptions.length, visiblePairOptions.length, outboundResults.length, inboundResults.length, meta?.totalResults, results.length]);
   const totalPairCount = meta?.pairCount ?? pairOptions.length;
   const pairLoadedNotice = totalPairCount > pairOptions.length ? ` · tổng ${totalPairCount} cặp` : '';
   const streamErrorCount = Object.keys(streamState.errors).length;
@@ -623,6 +633,9 @@ export default function HomeSearchExperience() {
   }, [tripType, selectedOneway, selectedOutbound, selectedInbound, fromCode, toCode, date, returnDate, adults, children, infants, cabin]);
 
   function goQuote(outbound:FlightResult, inbound?:FlightResult) {
+    const createdAt = new Date().toISOString();
+    // Một mã tham chiếu duy nhất cho cả /quote (báo giá) và /dat-cho (đặt vé).
+    const quoteCode = `APG-${new Date(createdAt).getTime().toString(36).toUpperCase().slice(-6)}`;
     localStorage.setItem('apg_quote_selection', JSON.stringify({
       tripType: inbound ? 'roundtrip' : 'oneway',
       outbound,
@@ -633,9 +646,10 @@ export default function HomeSearchExperience() {
       cabin,
       search: { from: fromCode, to: toCode, date, returnDate: returnDate || toYmd(10) },
       searchExpiresAt: meta?.expiresAt,
-      createdAt: new Date().toISOString(),
+      createdAt,
+      quoteCode,
     }));
-    router.push('/quote');
+    router.push('/dat-cho');
   }
 
   function selectRoundtripPair(pair: RoundtripPairOption) {
@@ -743,6 +757,7 @@ export default function HomeSearchExperience() {
           totalCount?: number;
           airlines?: string[];
           error?: string;
+          expiresAt?: string;
         };
         try {
           event = JSON.parse(dataLine.slice(5).trim());
@@ -770,7 +785,12 @@ export default function HomeSearchExperience() {
             completed: 0,
             total: event.airlines?.length ?? 0,
           }));
-          setMeta((prev) => prev || baseMeta());
+          setMeta((prev) => {
+            const base = prev || baseMeta();
+            // Bắt expiry phiên tìm kiếm nếu stream gửi kèm → đồng hồ giữ chỗ phản ánh TTL thật
+            // (nếu không có thì rơi về mặc định phẳng 10 phút).
+            return event.expiresAt ? { ...base, expiresAt: event.expiresAt } : base;
+          });
           continue;
         }
 
@@ -852,6 +872,7 @@ export default function HomeSearchExperience() {
     const searchDate = overrides.date ?? date;
     const searchReturnDate = overrides.returnDate ?? returnDate;
     const keepResults = !!overrides.keepResults;
+    setEditingSearch(false); // tìm xong → thu gọn form lại
 
     // Hủy fetch trước đó nếu user đổi ngày liên tục → tránh race condition
     searchAbortRef.current?.abort();
@@ -971,16 +992,28 @@ export default function HomeSearchExperience() {
       (tripType === 'roundtrip' && !!selectedOutbound && !!selectedInbound)
     );
 
+  // Đổi ngày → bỏ lựa chọn cũ: chuyến của ngày cũ không còn hợp lệ cho ngày mới.
+  // Quan trọng vì nhánh tìm kiếm streaming không chạy lại bước validate selection, nên nếu
+  // không xóa, dock vẫn hiện chuyến cũ và "Tiếp tục đặt vé" sẽ mang nhầm chuyến sai ngày.
+  function clearFlightSelections() {
+    setSelectedOneway(null);
+    setSelectedOutbound(null);
+    setSelectedInbound(null);
+    setSelectedPairId('');
+  }
+
   function selectDepartDate(nextDate: string) {
     const adjustedReturnDate = tripType === 'roundtrip' && returnDate && returnDate < nextDate ? nextDate : returnDate;
 
     setDate(nextDate);
     if (adjustedReturnDate !== returnDate) setReturnDate(adjustedReturnDate);
+    clearFlightSelections();
     if (hasResults) void search({ date: nextDate, returnDate: adjustedReturnDate, keepResults: true });
   }
 
   function selectReturnDate(nextDate: string) {
     setReturnDate(nextDate);
+    clearFlightSelections();
     if (hasResults) void search({ returnDate: nextDate, keepResults: true });
   }
 
@@ -1038,56 +1071,93 @@ export default function HomeSearchExperience() {
     };
   }, [showFloatingQuoteDock, isDesktopViewport]);
 
+  // Đã có ngữ cảnh tìm (đến từ landing ?go=1 hoặc đã tìm) + không đang sửa → thu gọn form.
+  const cameFromLanding = searchParams?.get('go') === '1';
+  const searchCollapsed = (!!searchedRoute || cameFromLanding) && !editingSearch;
+  const fmtD = (d?: string) => (d && d.length >= 10 ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '');
+  const paxSummaryText = `${adults} người lớn${children ? ` · ${children} trẻ em` : ''}${infants ? ` · ${infants} em bé` : ''}`;
+  const cabinSummaryText = ({ economy: 'Phổ thông', premium_economy: 'Phổ thông đặc biệt', premium: 'Phổ thông đặc biệt', business: 'Thương gia', first: 'Hạng nhất' } as Record<string, string>)[String(cabin).toLowerCase()] || 'Phổ thông';
+
   return (
-    <main className="min-h-screen" style={{ backgroundColor: 'var(--apg-bg-page)' }}>
-      <div className="mx-auto max-w-[1440px] lg:px-6 lg:pb-8 xl:px-8">
+    <main className="apgx min-h-screen" style={{ backgroundColor: 'var(--apg-bg-page)' }}>
+        <SiteGlobeHeader />
 
-        {/* Header */}
-        <HomeHeroSummary
-          fromCode={fromCode}
-          hasMeta={!!meta}
-          loading={loading}
-          resultCount={visibleResultCount}
-          toCode={toCode}
-          onHomeClick={() => router.push('/')}
-        />
+        {searchCollapsed ? (
+          <>
+            {/* Thanh tóm tắt tìm kiếm (thay form đầy đủ khi đã có ngữ cảnh tìm) */}
+            <div className="sticky top-[60px] z-30 mx-auto w-full max-w-[1320px] bg-[var(--apg-bg-page)] px-3 pb-1 pt-3 lg:px-7">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--apg-border-default)] bg-white px-4 py-2.5 shadow-sm">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px]">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="shrink-0 text-[var(--apg-aviation-navy)]"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" /></svg>
+                  <span className="font-bold text-[var(--apg-aviation-navy)]">{fromSel?.label || fromCode} {tripType === 'roundtrip' ? '⇄' : '→'} {toSel?.label || toCode}</span>
+                  <span className="text-[var(--apg-text-secondary)]">· {tripType === 'roundtrip' ? 'Khứ hồi' : 'Một chiều'}</span>
+                  <span className="text-[var(--apg-text-secondary)]">· {fmtD(date)}{tripType === 'roundtrip' ? ` → ${fmtD(returnDate || defaultReturnDate)}` : ''}</span>
+                  <span className="text-[var(--apg-text-secondary)]">· {paxSummaryText} · {cabinSummaryText}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setEditingSearch(true); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                  className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-[var(--apg-aviation-navy)] px-4 text-[13px] font-semibold text-[var(--apg-aviation-navy)] transition hover:bg-[var(--apg-aviation-navy)] hover:text-white"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>
+                  Chọn lại chuyến bay
+                </button>
+              </div>
+            </div>
+            {loading && !hasResults && (
+              <div className="mx-auto w-full max-w-[1320px] px-4 pt-6 text-center text-sm text-[var(--apg-text-secondary)] lg:px-7">Đang tìm chuyến bay…</div>
+            )}
+          </>
+        ) : (
+          /* Search form (design header navy is inside HomeSearchPanel) */
+          <HomeSearchPanel
+            adults={adults}
+            airports={airports}
+            cabin={cabin}
+            children={children}
+            date={date}
+            defaultReturnDate={defaultReturnDate}
+            error={error}
+            fromSel={fromSel}
+            infants={infants}
+            isDesktopViewport={isDesktopViewport}
+            isReloading={isReloading}
+            loading={loading}
+            loadingHintText={`${LOADING_HINTS[loadingHintIdx]}${loadingDots}`}
+            minReturnDate={minReturnDate}
+            quickRoutes={quickRoutes}
+            returnDate={returnDate}
+            todayYmd={todayYmd}
+            toSel={toSel}
+            tripType={tripType}
+            showHero={!hasResults}
+            onCabinChange={setCabin}
+            onDateChange={setDate}
+            onFromSelect={setFromSel}
+            onPassengerCountsChange={applyPassengerCounts}
+            onQuickRouteSelect={(from, to) => { setFromSel(from); setToSel(to); }}
+            onReturnDateChange={setReturnDate}
+            onSearch={() => search()}
+            onSwapRoute={() => { const currentFrom = fromSel; setFromSel(toSel); setToSel(currentFrom); }}
+            onToSelect={setToSel}
+            onTripTypeChange={(nextTripType) => {
+              setTripType(nextTripType);
+              if (nextTripType === 'roundtrip' && !returnDate) setReturnDate(defaultReturnDate);
+            }}
+          />
+        )}
 
-        {/* Search form - compact */}
-        <HomeSearchPanel
-          adults={adults}
-          airports={airports}
-          cabin={cabin}
-          children={children}
-          date={date}
-          defaultReturnDate={defaultReturnDate}
-          error={error}
-          fromSel={fromSel}
-          infants={infants}
-          isDesktopViewport={isDesktopViewport}
-          isReloading={isReloading}
-          loading={loading}
-          loadingHintText={`${LOADING_HINTS[loadingHintIdx]}${loadingDots}`}
-          minReturnDate={minReturnDate}
-          quickRoutes={quickRoutes}
-          returnDate={returnDate}
-          todayYmd={todayYmd}
-          toSel={toSel}
-          tripType={tripType}
-          onCabinChange={setCabin}
-          onDateChange={setDate}
-          onFromSelect={setFromSel}
-          onPassengerCountsChange={applyPassengerCounts}
-          onQuickRouteSelect={(from, to) => { setFromSel(from); setToSel(to); }}
-          onReturnDateChange={setReturnDate}
-          onSearch={() => search()}
-          onSwapRoute={() => { const currentFrom = fromSel; setFromSel(toSel); setToSel(currentFrom); }}
-          onToSelect={setToSel}
-          onTripTypeChange={(nextTripType) => {
-            setTripType(nextTripType);
-            if (nextTripType === 'roundtrip' && !returnDate) setReturnDate(defaultReturnDate);
-          }}
-        />
-
+        <div className="mx-auto w-full max-w-[1320px] px-4 pb-8 lg:px-7">
+        {/* Empty state — tìm xong cho đúng chặng hiện tại nhưng không có chuyến nào */}
+        {routeMatchesResults && !loading && !isReloading && !error && !hasResults && (
+          <div className="mx-auto mt-2 max-w-xl rounded-2xl border border-[var(--apg-border-default)] bg-white px-6 py-10 text-center shadow-sm">
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-[var(--apg-bg-surface-soft)]">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--apg-aviation-navy)" strokeWidth="1.8"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+            </div>
+            <h3 className="text-[16px] font-bold text-[var(--apg-aviation-navy)]">Không tìm thấy chuyến bay phù hợp</h3>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-[var(--apg-text-secondary)]">Chặng <b>{searchedRoute?.from} → {searchedRoute?.to}</b> chưa có chuyến cho ngày bạn chọn. Hãy thử đổi ngày bay hoặc kiểm tra lại sân bay.</p>
+          </div>
+        )}
         {/* One-way results */}
         {tripType==='oneway' && results.length>0 && (
           <OneWayResultsSection
@@ -1110,6 +1180,8 @@ export default function HomeSearchExperience() {
             toCode={toCode}
             visibleFlights={visibleOneway}
             onClearSelected={() => setSelectedOneway(null)}
+            onContinue={() => { if (selectedOneway) goQuote(selectedOneway); }}
+            selectionTotal={totalOneway}
             onFilterChange={setFilterOneway}
             onLoadMore={() => setOnewayDisplayLimit((value) => value + FLIGHT_LOAD_MORE_STEP)}
             onSelectDate={selectDepartDate}
@@ -1150,6 +1222,8 @@ export default function HomeSearchExperience() {
             onSelectFlight={(flight, direction) => selectFlight(flight, direction)}
             onSelectPair={selectRoundtripPair}
             onSelectReturnDate={selectReturnDate}
+            onContinue={() => { if (selectedOutbound && selectedInbound) goQuote(selectedOutbound, selectedInbound); }}
+            selectionTotal={totalRoundtrip}
             onSortDepartChange={setSortDepart}
             onSortReturnChange={setSortReturn}
             outboundDailyMinPrice={outboundDailyMinPrice}
@@ -1183,8 +1257,10 @@ export default function HomeSearchExperience() {
             visiblePairOptions={visiblePairOptions}
           />
         )}
+        </div>
 
         {showFloatingQuoteDock && (
+          <div>
           <FloatingQuoteDock
             tripType={tripType}
             onewayFlight={selectedOneway}
@@ -1216,6 +1292,7 @@ export default function HomeSearchExperience() {
               }
             }}
           />
+          </div>
         )}
 
         <div
@@ -1225,7 +1302,6 @@ export default function HomeSearchExperience() {
         />
 
         <HomeFooter footerRef={footerRef} />
-      </div>
     </main>
   );
 }

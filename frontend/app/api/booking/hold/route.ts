@@ -332,6 +332,18 @@ function normalizeHoldBody(rawBody: unknown, request: NextRequest): NormalizedHo
       phone: normalizePhone(recordOf(body.contact).phone),
       email: String(recordOf(body.contact).email || "").trim(),
     },
+    vatInvoice: (() => {
+      const v = recordOf(body.vatInvoice);
+      const companyName = String(v.companyName || "").trim();
+      const taxId = String(v.taxId || "").trim();
+      if (!companyName && !taxId) return null; // khách không yêu cầu hóa đơn
+      return {
+        companyName,
+        taxId,
+        address: String(v.address || "").trim(),
+        email: String(v.email || "").trim(),
+      };
+    })(),
     outbound: outboundFlight,
     inbound: inboundFlight,
     cabin: String(body.cabin || "").trim() || undefined,
@@ -906,7 +918,9 @@ export async function POST(request: NextRequest) {
     }
 
     const quote = await quoteBooking(input, channel);
-    const priceDelta = toPriceDeltaPayload(comparePrices(input.displayedNetPrice, quote.totalNetPrice));
+    // Compare the customer's displayed SELL total against the fresh SELL total (same basis,
+    // baggage-free on both sides) so the >5% warning reflects a real airline fare move, not markup.
+    const priceDelta = toPriceDeltaPayload(comparePrices(input.displayedNetPrice, quote.totalSellPrice));
     const markupRuleApplied = firstMarkupRule(quote);
     // Phụ phí hành lý ký gửi: pass-through (không markup).
     // Chỉ tính các gói khớp route/airline của itinerary để tránh charge nhầm ancillary của hãng khác.
@@ -1057,6 +1071,7 @@ export async function POST(request: NextRequest) {
                 dob: passenger.dob,
               })),
               contact: input.contact,
+              vatInvoice: input.vatInvoice ?? null,
             },
             quote: serializeQuote(quote),
             holdResult,

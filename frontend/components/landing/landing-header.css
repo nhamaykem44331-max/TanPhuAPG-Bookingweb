@@ -1,0 +1,62 @@
+/* Phần bổ sung cho header landing dùng base .apgx-topnav (redesign.css):
+   nút "Đặt vé", nút menu mobile + dropdown. Header render NGOÀI .lp. */
+
+.apgx-topnav .apgx-cta {
+  display: inline-flex; align-items: center; height: 38px; padding: 0 16px;
+  border-radius: 980px; background: #0f7b43; color: #fff;
+  font-size: 14px; font-weight: 700; text-decoration: none; white-space: nowrap;
+  transition: filter .15s;
+}
+.apgx-topnav .apgx-cta:hover { filter: brightness(1.08); }
+
+/* Nút hamburger: hiện ở mobile/tablet, ẩn ở desktop (nav hiện ở >=1024px) */
+.apgx-topnav .menu-btn { display: grid; }
+
+.apgx-mobnav {
+  display: none; flex-direction: column; gap: 2px; padding: 6px 16px 14px;
+  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  position: sticky; top: 56px; z-index: 39;
+}
+.apgx-mobnav.open { display: flex; }
+.apgx-mobnav a {
+  padding: 11px 12px; border-radius: 10px; font-size: 15px; font-weight: 500;
+  color: var(--apg-text-primary, #0a2547); text-decoration: none;
+}
+.apgx-mobnav a:hover { background: rgba(0, 0, 0, 0.05); }
+
+@media (min-width: 1024px) {
+  .apgx-topnav .menu-btn { display: none; }
+  .apgx-mobnav { display: none !important; }
+}
+
+/* ===== Header nền quả cầu đường bay động (landing) ===== */
+.apgx-topnav.apgx-globe {
+  background: linear-gradient(180deg, #0e3157 0%, #0a2342 55%, #081c34 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+  overflow: hidden;
+}
+.apgx-topnav.apgx-globe .apgx-globe-canvas {
+  position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;
+}
+/* lớp phủ nhẹ giúp chữ dễ đọc nhưng vẫn thấy quả cầu (giữa nhạt để lộ quả cầu;
+   hai mép đậm hơn để bảo vệ logo bên trái & cụm nút bên phải) */
+.apgx-topnav.apgx-globe::after {
+  content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(90deg, rgba(8,24,46,.50) 0%, rgba(8,24,46,.13) 44%, rgba(8,24,46,.17) 64%, rgba(8,24,46,.40) 100%);
+}
+.apgx-topnav.apgx-globe .in { position: relative; z-index: 2; min-height: 64px; }
+.apgx-topnav.apgx-globe .brand { color: #fff; }
+.apgx-topnav.apgx-globe .brand .sub { color: rgba(255, 255, 255, 0.72); }
+.apgx-topnav.apgx-globe nav a { color: rgba(255, 255, 255, 0.86); }
+.apgx-topnav.apgx-globe nav a:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+.apgx-topnav.apgx-globe nav a.on { color: #7fe3a8; }
+.apgx-topnav.apgx-globe .iconbtn { color: #fff; }
+.apgx-topnav.apgx-globe .iconbtn:hover { background: rgba(255, 255, 255, 0.14); }
+.apgx-topnav.apgx-globe .apgx-mobnav {
+  top: 64px; background: rgba(10, 35, 66, 0.96); border-bottom-color: rgba(255, 255, 255, 0.12);
+}
+.apgx-topnav.apgx-globe .apgx-mobnav a { color: rgba(255, 255, 255, 0.9); }
+.apgx-topnav.apgx-globe .apgx-mobnav a:hover { background: rgba(255, 255, 255, 0.1); }

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Tân Phú APG — Giữ chỗ</title>
+<link rel="stylesheet" href="app.css" />
+<style>
+  .pcard{background:var(--apg-bg-surface);border-radius:var(--apg-radius-lg);box-shadow:var(--apg-shadow-xs);margin:0 16px 14px;overflow:hidden;}
+  .pcard .ph{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--apg-hairline);}
+  .pcard .ph .ttl{font-size:16px;font-weight:600;}
+  .pcard .ph .tag{font-size:11px;font-weight:700;padding:3px 8px;border-radius:980px;background:var(--apg-blue-50);color:var(--apg-blue-700);}
+  .pcard .pb{padding:14px 16px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .seg.title-seg button{font-size:13px;padding:8px 6px;}
+  .collap{border-top:1px solid var(--apg-hairline);}
+  .collap .ch{display:flex;align-items:center;gap:8px;padding:13px 16px;cursor:pointer;font-size:14px;font-weight:600;color:var(--apg-blue-600);}
+  .collap .cb{padding:0 16px 14px;}
+  .collap.closed .cb{display:none;}
+  .svc{display:flex;align-items:center;gap:12px;padding:13px 0;border-bottom:1px solid var(--apg-hairline);}
+  .svc:last-child{border-bottom:none;}
+  .svc .si{width:36px;height:36px;border-radius:9px;background:var(--apg-blue-50);display:grid;place-items:center;color:var(--apg-blue-600);flex:none;}
+  .svc .sv{font-size:15px;font-weight:500;}
+  .svc .sp{font-size:13px;color:var(--apg-text-secondary);}
+  .svc .price{margin-left:auto;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;flex:none;}
+  .toggle{width:50px;height:30px;border-radius:980px;background:#e3e3e6;position:relative;flex:none;cursor:pointer;transition:background .2s;}
+  .toggle.on{background:var(--apg-success-vivid);}
+  .toggle i{position:absolute;top:2px;left:2px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:left .2s;}
+  .toggle.on i{left:22px;}
+  .bagchip{display:inline-flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 14px;border:1.5px solid var(--apg-hairline);border-radius:var(--apg-radius-md);cursor:pointer;flex:none;min-width:120px;}
+  .bagchip.on{border-color:var(--apg-blue-500);background:var(--apg-blue-50);}
+  .bagchip .bk{font-size:14px;font-weight:600;}
+  .bagchip .bp{font-size:12px;color:var(--apg-text-secondary);}
+  /* overlay */
+  .overlay{position:absolute;inset:0;z-index:60;background:rgba(245,245,247,0.96);backdrop-filter:blur(8px);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;}
+  .overlay.hide{display:none;}
+  .overlay .pbig{font-size:20px;font-weight:600;margin-bottom:24px;}
+  .overlay .steps{width:100%;max-width:300px;text-align:left;}
+  .succ-ic{width:84px;height:84px;border-radius:50%;background:var(--apg-success);display:grid;place-items:center;margin:0 auto 20px;animation:pop .4s var(--apg-ease-spring,cubic-bezier(.32,.72,0,1));}
+  @keyframes pop{0%{transform:scale(0);}100%{transform:scale(1);}}
+  .succ-card{background:#fff;border-radius:var(--apg-radius-lg);box-shadow:var(--apg-shadow-sm);padding:18px;width:100%;max-width:330px;margin:8px auto 0;text-align:left;}
+  .succ-row{display:flex;justify-content:space-between;padding:9px 0;font-size:14px;}
+  .succ-row + .succ-row{border-top:1px solid var(--apg-hairline);}
+  .pnrchip{font-family:var(--apg-font-mono);font-weight:700;letter-spacing:0.12em;background:var(--apg-blue-50);color:var(--apg-blue-700);padding:3px 9px;border-radius:6px;}
+</style>
+</head>
+<body>
+<div class="phone">
+
+  <div class="statusbar"><span>9:41</span><span class="right"><svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1.5" width="3" height="10.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity="0.3"/></svg><svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor"/></svg></span></div>
+
+  <div class="appbar">
+    <button class="back" onclick="location.href='quote.html'"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <div><div class="title">Thông tin giữ chỗ</div><div class="sub">VN213 · HAN → SGN · 2.450.000 ₫</div></div>
+  </div>
+
+  <!-- DEV switcher -->
+  <div class="devbar"><span class="dl">Trạng thái</span>
+    <button class="on" id="b-form" onclick="setState('form')">Biểu mẫu</button>
+    <button id="b-err" onclick="setState('err')">Lỗi nhập</button>
+    <button id="b-proc" onclick="setState('proc')">Đang tạo PNR</button>
+    <button id="b-otp" onclick="setState('otp')">OTP</button>
+    <button id="b-succ" onclick="setState('succ')">Thành công</button>
+  </div>
+
+  <div class="screen pad-cta" id="screen">
+
+    <div class="group-label">Hành khách 1</div>
+    <div class="pcard">
+      <div class="ph"><span class="airmono sm" style="background:var(--apg-blue-500)">A</span><span class="ttl">Người lớn</span><span class="tag">ADT</span></div>
+      <div class="pb">
+        <div class="field-wrap" style="padding:0;margin-bottom:12px;">
+          <label class="lbl">Danh xưng</label>
+          <div class="seg title-seg"><button class="on">Mr</button><button>Ms</button><button>Mrs</button><button>Mstr</button></div>
+        </div>
+        <div class="grid2">
+          <div><label class="lbl">Họ</label><input class="input" placeholder="NGUYEN" value="NGUYEN" /></div>
+          <div><label class="lbl">Tên đệm &amp; tên</label><input class="input" placeholder="VAN AN" value="VAN AN" /></div>
+        </div>
+        <div style="margin-top:12px;"><label class="lbl">Ngày sinh</label><input class="input" type="text" placeholder="DD/MM/YYYY" value="12/04/1990" id="dob1" /></div>
+        <div class="err-text hide" id="err-dob">Vui lòng nhập ngày sinh hợp lệ.</div>
+      </div>
+      <div class="collap closed" id="loyalty"><div class="ch" onclick="this.parentNode.classList.toggle('closed')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg> Chương trình bay tích lũy (tùy chọn)</div>
+        <div class="cb"><div class="grid2"><div><label class="lbl">Hãng</label><input class="input" placeholder="VN" /></div><div><label class="lbl">Số thẻ</label><input class="input" placeholder="GLP..." /></div></div></div>
+      </div>
+      <div class="collap closed" id="passport"><div class="ch" onclick="this.parentNode.classList.toggle('closed')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M9 17h6"/></svg> Hộ chiếu <span style="color:var(--apg-text-tertiary);font-weight:400;margin-left:4px;">· chuyến quốc tế</span></div>
+        <div class="cb">
+          <div><label class="lbl">Số hộ chiếu</label><input class="input" placeholder="C1234567" /></div>
+          <div class="grid2" style="margin-top:12px;"><div><label class="lbl">Quốc tịch</label><input class="input" placeholder="VN" /></div><div><label class="lbl">Nước cấp</label><input class="input" placeholder="VN" /></div></div>
+          <div class="grid2" style="margin-top:12px;"><div><label class="lbl">Ngày cấp</label><input class="input" placeholder="DD/MM/YYYY" /></div><div><label class="lbl">Ngày hết hạn</label><input class="input" placeholder="DD/MM/YYYY" /></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="group-label">Hành lý · chiều đi HAN → SGN</div>
+    <div class="card flat" style="padding:14px 16px;">
+      <div class="scroll-x" style="display:flex;gap:10px;">
+        <div class="bagchip on" onclick="pickBag(this)"><span class="bk">Đã gồm</span><span class="bp">Xách tay 12kg</span></div>
+        <div class="bagchip" onclick="pickBag(this)"><span class="bk">+20kg</span><span class="bp">+260.000 ₫</span></div>
+        <div class="bagchip" onclick="pickBag(this)"><span class="bk">+30kg</span><span class="bp">+390.000 ₫</span></div>
+        <div class="bagchip" onclick="pickBag(this)"><span class="bk">+40kg</span><span class="bp">+520.000 ₫</span></div>
+      </div>
+    </div>
+
+    <div class="group-label">Dịch vụ thêm</div>
+    <div class="card flat" style="padding:4px 16px;">
+      <div class="svc"><span class="si"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 11V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v5M5 11h11a2 2 0 0 1 2 2v3H5z"/><path d="M5 16v4M18 16v4"/></svg></span><div><div class="sv">Chọn chỗ ngồi</div><div class="sp">Hàng đầu / lối thoát hiểm</div></div><div class="price">từ 90.000 ₫</div><span class="toggle" onclick="this.classList.toggle('on')"><i></i></span></div>
+      <div class="svc"><span class="si"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16M6 4v7a6 6 0 0 0 12 0V4"/><path d="M12 17v4"/></svg></span><div><div class="sv">Suất ăn nóng</div><div class="sp">Đặt trước trên chuyến</div></div><div class="price">120.000 ₫</div><span class="toggle" onclick="this.classList.toggle('on')"><i></i></span></div>
+      <div class="svc"><span class="si"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/></svg></span><div><div class="sv">Bảo hiểm chuyến bay</div><div class="sp">Hoãn/hủy &amp; mất hành lý</div></div><div class="price">55.000 ₫</div><span class="toggle on" onclick="this.classList.toggle('on')"><i></i></span></div>
+    </div>
+
+    <div class="group-label">Thông tin liên hệ</div>
+    <div class="card flat" style="padding:14px 16px;">
+      <div><label class="lbl">Họ và tên người liên hệ</label><input class="input" value="Nguyễn Văn An" /></div>
+      <div class="grid2" style="margin-top:12px;"><div><label class="lbl">Email</label><input class="input" id="email" type="email" value="an.nguyen@email.com" /></div><div><label class="lbl">Số điện thoại</label><input class="input" id="phone" value="0901 234 567" /></div></div>
+      <div style="margin-top:12px;"><label class="lbl">Địa chỉ (tùy chọn)</label><input class="input" placeholder="Số nhà, đường, quận/huyện…" /></div>
+      <div style="margin-top:12px;"><label class="lbl">Ghi chú (tùy chọn)</label><input class="input" placeholder="Yêu cầu đặc biệt…" /></div>
+    </div>
+
+    <div class="banner info" style="margin-top:6px;"><span class="bi">ⓘ</span><span>Họ tên phải trùng giấy tờ tùy thân. Sau khi giữ chỗ, vé có thời hạn thanh toán; quá hạn vé tự hủy.</span></div>
+    <div style="height:6px;"></div>
+  </div>
+
+  <div class="bottombar" id="cta">
+    <div class="sumline"><span class="lbl">Tổng tạm tính · 1 khách</span><span class="val tnum">2.505.000 ₫</span></div>
+    <button class="btn fill" onclick="startHold()"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Xác nhận giữ chỗ</button>
+  </div>
+
+  <!-- PROCESSING OVERLAY -->
+  <div class="overlay hide" id="procOverlay">
+    <div class="pbig">Đang tạo giữ chỗ…</div>
+    <div class="steps" id="procSteps">
+      <div class="step done" id="ps0"><span class="ic">✓</span><div class="tx">Kiểm tra dữ liệu<small>Hợp lệ</small></div></div>
+      <div class="step active" id="ps1"><span class="ic">2</span><div class="tx">Gửi tạo PNR<small>Đang gửi tới hệ thống hãng…</small></div></div>
+      <div class="step pending" id="ps2"><span class="ic">3</span><div class="tx">Chờ Nam Thanh trả PNR<small>Đang chờ…</small></div></div>
+      <div class="step pending" id="ps3"><span class="ic">4</span><div class="tx">Đồng bộ giá chuẩn<small>—</small></div></div>
+    </div>
+    <div class="stream" style="margin-top:24px;max-width:300px;width:100%;"><span class="pbar" style="max-width:none;flex:1;"><i id="procBar" style="width:25%"></i></span></div>
+  </div>
+
+  <!-- OTP SHEET -->
+  <div class="sheet-backdrop" id="otpBackdrop"></div>
+  <div class="sheet" id="otpSheet">
+    <div class="handle"></div>
+    <div class="shead"><span class="t">Xác thực OTP</span><button class="x" onclick="setState('form')">✕</button></div>
+    <div class="sbody" style="padding:0 16px 8px;text-align:center;">
+      <p class="muted" style="font-size:14px;margin:8px 0 18px;">Mã xác thực đã gửi tới <b>0901 ••• 567</b> để bảo vệ booking.</p>
+      <div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px;">
+        <input class="input" style="width:46px;text-align:center;font-size:22px;font-weight:600;" maxlength="1" value="4" />
+        <input class="input" style="width:46px;text-align:center;font-size:22px;font-weight:600;" maxlength="1" value="8" />
+        <input class="input" style="width:46px;text-align:center;font-size:22px;font-weight:600;" maxlength="1" value="1" />
+        <input class="input" style="width:46px;text-align:center;font-size:22px;font-weight:600;" maxlength="1" value="" />
+        <input class="input" style="width:46px;text-align:center;font-size:22px;font-weight:600;" maxlength="1" value="" />
+        <input class="input" style="width:46px;text-align:center;font-size:22px;font-weight:600;" maxlength="1" value="" />
+      </div>
+      <p class="muted" style="font-size:13px;">Gửi lại mã sau <span class="countdown">00:42</span></p>
+    </div>
+    <div class="sfoot"><button class="btn fill" onclick="setState('succ')">Xác nhận</button></div>
+  </div>
+
+  <!-- SUCCESS OVERLAY -->
+  <div class="overlay hide" id="succOverlay" style="justify-content:flex-start;padding-top:60px;overflow-y:auto;">
+    <div class="succ-ic"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+    <div class="pbig" style="margin-bottom:6px;">Giữ chỗ thành công</div>
+    <p class="muted" style="font-size:14px;margin-bottom:18px;max-width:280px;">Vui lòng thanh toán trước thời hạn để giữ mức giá.</p>
+    <div class="succ-card">
+      <div class="succ-row"><span class="muted">Mã đặt chỗ</span><span class="mono" style="font-weight:600;">APG-250530-7741</span></div>
+      <div class="succ-row"><span class="muted">Mã PNR (VN)</span><span class="pnrchip">QH7X2P</span></div>
+      <div class="succ-row"><span class="muted">Hành trình</span><span style="font-weight:600;">HAN → SGN</span></div>
+      <div class="succ-row"><span class="muted">Thời hạn giữ chỗ</span><span style="font-weight:600;color:var(--apg-warning)">17:30 · hôm nay</span></div>
+      <div class="succ-row"><span class="muted">Tổng tiền</span><span class="tnum" style="font-weight:700;color:var(--apg-blue-600)">2.505.000 ₫</span></div>
+    </div>
+    <div style="width:100%;max-width:330px;margin-top:18px;display:flex;flex-direction:column;gap:10px;">
+      <button class="btn fill" onclick="location.href='payment.html'">Tiếp tục thanh toán</button>
+      <button class="btn ghost" onclick="setState('form')">Về trang chủ</button>
+    </div>
+    <div style="height:30px;"></div>
+  </div>
+
+</div>
+<script>
+  function pickBag(el){el.parentNode.querySelectorAll('.bagchip').forEach(b=>b.classList.remove('on'));el.classList.add('on');}
+  function setState(s){
+    document.querySelectorAll('.devbar button').forEach(b=>b.classList.remove('on'));
+    document.getElementById('b-'+s)?.classList.add('on');
+    document.getElementById('procOverlay').classList.add('hide');
+    document.getElementById('succOverlay').classList.add('hide');
+    otpSheet.classList.remove('open');otpBackdrop.classList.remove('open');
+    document.getElementById('err-dob').classList.add('hide');
+    document.getElementById('dob1').classList.remove('err');
+    if(s==='err'){document.getElementById('err-dob').classList.remove('hide');document.getElementById('dob1').classList.add('err');document.getElementById('dob1').scrollIntoView({block:'center'});}
+    if(s==='proc')runProgress();
+    if(s==='otp'){otpSheet.classList.add('open');otpBackdrop.classList.add('open');}
+    if(s==='succ')document.getElementById('succOverlay').classList.remove('hide');
+  }
+  function startHold(){setState('proc');}
+  function runProgress(){
+    document.getElementById('procOverlay').classList.remove('hide');
+    const steps=['ps1','ps2','ps3'];let k=0;const bar=document.getElementById('procBar');
+    const setDone=(id)=>{const e=document.getElementById(id);e.classList.remove('active','pending');e.classList.add('done');e.querySelector('.ic').textContent='✓';};
+    const setActive=(id)=>{const e=document.getElementById(id);e.classList.remove('pending');e.classList.add('active');};
+    const iv=setInterval(()=>{
+      setDone(steps[k]);bar.style.width=(50+k*17)+'%';
+      const sub=document.querySelector('#'+steps[k]+' small');if(sub)sub.textContent='Hoàn tất';
+      k++;
+      if(k<steps.length){setActive(steps[k]);bar.style.width=(50+k*17)+'%';}
+      else{clearInterval(iv);bar.style.width='100%';setTimeout(()=>setState('otp'),500);}
+    },800);
+  }
+</script>
+</body>
+</html>

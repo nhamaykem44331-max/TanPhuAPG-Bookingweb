@@ -393,6 +393,8 @@ export default function RoundtripResultsSection({
   flightLoadMoreStep: number;
   onSelectDepartDate: (date: string) => void;
   onSelectReturnDate: (date: string) => void;
+  onContinue: () => void;
+  selectionTotal?: number;
   airportLabels: AirportLabelMap;
 }) {
   const mobileRoundtripLeg = mobileRoundtripTab === 'outbound'
@@ -501,6 +503,7 @@ export default function RoundtripResultsSection({
 
   return (
     <div>
+      <div className="min-w-0">
       {pairOptions.length > 0 && (
         <div className="mb-4 mt-4 rounded-2xl border border-[var(--apg-border-default)] bg-white px-4 py-4 shadow-sm lg:mt-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -968,6 +971,7 @@ export default function RoundtripResultsSection({
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

@@ -41,7 +41,7 @@ import { classifyPaymentAmount } from "@/lib/payments/reconciliation";
 import {
   canCancelPaymentIntent,
   getEffectivePaymentIntentStatus,
-  isReusablePaymentIntent,
+  isActivePaymentIntent,
   sortPaymentIntentsNewestFirst,
 } from "@/lib/payments/paymentIntentLifecycle";
 
@@ -268,42 +268,36 @@ export async function createSepayIntentForBooking(
   }
 
   const active = sortPaymentIntentsNewestFirst(booking.paymentIntents);
-  const reusable = active.find((intent) => isReusablePaymentIntent(intent, summary.balance));
+  // SePay self-service: reuse any still-active (PENDING/PARTIAL) intent and re-issue its QR
+  // for the CURRENT balance — a prior partial payment may have reduced it. This both fixes the
+  // old hard 409 ("hủy QR trước") dead end and ensures the QR/amount always reflect what is owed.
+  const live = active.find((intent) => isActivePaymentIntent(intent));
 
-  if (reusable) {
-    const expectedDescription = buildSepayDescription(reusable.providerOrderCode, pnrCodes);
+  if (live) {
+    const expectedDescription = buildSepayDescription(live.providerOrderCode, pnrCodes);
+    const upToDate = Number(live.amount) === summary.balance
+      && live.transferContent === expectedDescription
+      && !!live.qrCode;
 
-    if (reusable.transferContent !== expectedDescription) {
-      const qr = buildSepayQrUrl({
-        transferContent: expectedDescription,
-        amount: reusable.amount,
-      });
-      const updatedReusable = await prisma.paymentIntent.update({
-        where: { id: reusable.id },
-        data: {
-          description: expectedDescription,
-          transferContent: expectedDescription,
-          qrCode: qr.qrUrl,
-          accountNumber: qr.accountNumber,
-          accountName: qr.accountName,
-          bin: qr.bankCode,
-        },
-      });
-
-      return { intent: updatedReusable, reused: true };
+    if (upToDate) {
+      return { intent: live, reused: true };
     }
 
-    return { intent: reusable, reused: true };
-  }
+    const qr = buildSepayQrUrl({ transferContent: expectedDescription, amount: summary.balance });
+    const updated = await prisma.paymentIntent.update({
+      where: { id: live.id },
+      data: {
+        amount: summary.balance,
+        description: expectedDescription,
+        transferContent: expectedDescription,
+        qrCode: qr.qrUrl,
+        accountNumber: qr.accountNumber,
+        accountName: qr.accountName,
+        bin: qr.bankCode,
+      },
+    });
 
-  const blocking = active.find((intent) => getEffectivePaymentIntentStatus(intent) !== PaymentIntentStatus.EXPIRED);
-
-  if (blocking) {
-    throw new SepayError(
-      409,
-      "ACTIVE_PAYMENT_INTENT_EXISTS",
-      "Đã có QR SePay còn hiệu lực cho booking này. Vui lòng hủy QR hiện tại trước khi tạo mã mới.",
-    );
+    return { intent: updated, reused: true };
   }
 
   const providerOrderCode = await generateProviderOrderCode();

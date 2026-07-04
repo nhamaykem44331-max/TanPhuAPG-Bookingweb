@@ -2,7 +2,7 @@
 
 import AirlineLogo from '@/components/flight/AirlineLogo';
 import FlightBadgePills from '@/components/flight/FlightBadgePills';
-import { buildFlightBadges } from '@/lib/flight-badges';
+import { buildFlightConditionBadges } from '@/lib/flight-badges';
 import type { FlightResult } from '@/lib/types';
 import { durationText, fmtVND, hhmm } from '@/lib/utils';
 
@@ -19,7 +19,6 @@ export default function FlightRow({
   selected,
   onSelect,
   onDeselect,
-  btnColor = 'gold',
   dense = false,
   dailyMinPrice,
   airportLabels,
@@ -37,10 +36,8 @@ export default function FlightRow({
 }) {
   const depApt = airportLabel(airportLabels, f.departure.airport, f.departure.airportName);
   const arrApt = airportLabel(airportLabels, f.arrival.airport, f.arrival.airportName);
-  const btnClass = btnColor === 'gold'
-    ? 'bg-gradient-to-br from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 ring-1 ring-amber-600/30 shadow-[0_1px_2px_rgba(245,158,11,0.35)]'
-    : 'bg-gradient-to-br from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 ring-1 ring-amber-700/30 shadow-[0_1px_2px_rgba(217,119,6,0.4)]';
-  const selectedBadges = selected ? buildFlightBadges(f, dailyMinPrice) : [];
+  const btnClass = 'bg-[#ee8b1e] hover:bg-[#d9760f] shadow-[0_1px_2px_rgba(217,118,15,0.30)]';
+  const conditionBadges = buildFlightConditionBadges(f, dailyMinPrice);
   const price = Number(f.fareBreakdown?.totalAmount ?? f.price.amount);
 
   const PriceBlock = ({ size = 'md' }: { size?: 'sm' | 'md' }) => (
@@ -80,7 +77,7 @@ export default function FlightRow({
     );
 
   return (
-    <div className={`border-b border-[var(--apg-border-default)] px-2.5 py-2 transition-colors lg:px-4 lg:py-3 ${selected ? 'bg-[var(--apg-brand-gold-soft)]' : 'hover:bg-[var(--apg-bg-surface-soft)]'}`}>
+    <div className={`border-b border-[var(--apg-border-default)] px-2.5 py-2 transition-colors lg:px-4 lg:py-3 ${selected ? 'bg-[#fff7ed]' : 'hover:bg-[var(--apg-bg-surface-soft)]'}`}>
       {dense && (
         <div className="flex items-start gap-1">
           <AirlineLogo code={f.airlineCode} airline={f.airline} logo={f.airlineLogo} size={24} />
@@ -166,7 +163,7 @@ export default function FlightRow({
         </>
       )}
 
-      {selected && <FlightBadgePills badges={selectedBadges} className="mt-2" />}
+      {!dense && <FlightBadgePills badges={conditionBadges} className="mt-2" />}
       {selected && f.fareBreakdown && (
         <div className="mt-1.5 rounded border border-[var(--apg-border-default)] bg-white px-2 py-1.5 text-[10px]">
           <div className="flex justify-between text-slate-500"><span>Cơ bản</span><span className="font-medium">{fmtVND(f.fareBreakdown.baseAmount)}</span></div>

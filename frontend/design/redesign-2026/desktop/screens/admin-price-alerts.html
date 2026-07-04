@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Cảnh báo giá (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" /><link rel="stylesheet" href="../../mobile/screens/admin.css" /><link rel="stylesheet" href="../app-desktop.css" /><link rel="stylesheet" href="../admin-desktop.css" />
+</head>
+<body>
+  <div class="admin-shell"><div class="admin-main"><div class="admin-body narrow">
+    <div class="page-head"><div><h1>Cảnh báo giá</h1><p>4 cảnh báo đang theo dõi</p></div><button class="btn fill wauto" style="padding:0 18px;height:40px;" onclick="dlg.classList.add('open')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Tạo cảnh báo</button></div>
+    <div class="tablecard">
+      <table class="table">
+        <thead><tr><th>Tuyến</th><th>Ngưỡng mục tiêu</th><th>Giá hiện tại</th><th>Trạng thái</th><th class="right">Bật</th></tr></thead>
+        <tbody>
+          <tr><td class="cellmain">HAN → SGN</td><td class="tnum">≤ 1.500.000 ₫</td><td class="tnum">1.890.000 ₫</td><td><span class="sbadge info">Theo dõi</span></td><td class="right"><span class="sbadge ok">Bật</span></td></tr>
+          <tr><td class="cellmain">SGN → ICN</td><td class="tnum">≤ 4.200.000 ₫</td><td class="tnum" style="color:var(--apg-success)">3.980.000 ₫</td><td><span class="sbadge wait">Đã đạt</span></td><td class="right"><span class="sbadge ok">Bật</span></td></tr>
+          <tr><td class="cellmain">HAN → DAD</td><td class="tnum">≤ 900.000 ₫</td><td class="tnum">1.120.000 ₫</td><td><span class="sbadge muted">Tắt</span></td><td class="right"><span class="sbadge muted">Tắt</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div></div></div>
+  <div class="dialog-bd" id="dlg"><div class="dialog"><div class="dgh">Tạo cảnh báo giá</div><div class="dgb"><div style="margin-bottom:14px;"><label class="lbl">Tuyến</label><input class="input" placeholder="HAN → SGN" /></div><div style="margin-bottom:14px;"><label class="lbl">Ngưỡng giá mục tiêu (₫)</label><input class="input" placeholder="1.500.000" /></div><label style="display:flex;align-items:center;gap:10px;font-size:15px;"><input type="checkbox" checked style="width:16px;height:16px;accent-color:var(--apg-blue-500);" /> Gửi email khi đạt ngưỡng</label></div><div class="dgf"><button class="btn ghost wauto" onclick="dlg.classList.remove('open')">Hủy</button><button class="btn fill wauto" onclick="dlg.classList.remove('open')">Tạo</button></div></div></div>
+<script src="admin-desktop-shell.js"></script><script>initAdminDesktop('price-alerts','Cảnh báo giá');</script>
+</body>
+</html>

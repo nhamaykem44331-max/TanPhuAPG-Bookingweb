@@ -1,0 +1,54 @@
+/* TicketFace — responsive hooks chỉ áp cho những nơi cần đổi theo viewport.
+   Phần lớn style vẫn là inline để giữ component self-contained và print-friendly. */
+
+.tk-leg-body {
+  display: flex;
+  gap: 13px;
+  padding: 10px 13px;
+}
+
+.tk-leg-body > .tk-leg-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.tk-leg-body > .tk-leg-meta {
+  min-width: 168px;
+  border-left: 0.5px solid #ECEEF1;
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+
+/* Mobile: xếp dọc 2 khối để cột meta không bị đè lên cột giờ bay. */
+@media (max-width: 520px) {
+  .tk-leg-body {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tk-leg-body > .tk-leg-meta {
+    min-width: 0;
+    width: 100%;
+    border-left: none;
+    border-top: 0.5px solid #ECEEF1;
+    padding-left: 0;
+    padding-top: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 12px;
+  }
+}
+
+/* Hold value zone — desktop 2 cột (giá + QR), mobile dọc. */
+.tk-hold-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 520px) {
+  .tk-hold-grid {
+    grid-template-columns: 1fr;
+  }
+}

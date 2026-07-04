@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Admin Đặt chỗ (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" />
+<link rel="stylesheet" href="../../mobile/screens/admin.css" />
+<link rel="stylesheet" href="../app-desktop.css" />
+<link rel="stylesheet" href="../admin-desktop.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <div class="admin-main">
+      <div class="admin-body">
+        <div class="page-head"><div><h1>Quản lý đặt chỗ</h1><p>128 đặt chỗ · 9 đang chờ thanh toán</p></div></div>
+        <div class="chiprow" style="padding:0 0 16px;"><button class="chip on">Tất cả · 128</button><button class="chip">Chờ TT · 9</button><button class="chip">Đã xuất · 112</button><button class="chip">Hết hạn · 7</button></div>
+
+        <div class="master-detail">
+          <div class="tablecard">
+            <table class="table">
+              <thead><tr><th>Mã / PNR</th><th>Khách hàng</th><th>Hành trình</th><th>Trạng thái</th><th class="right">Số tiền</th></tr></thead>
+              <tbody id="rows">
+                <tr class="on" onclick="sel(this,0)"><td><div class="cellmain mono">APG-…7741</div><div class="cellsub mono">QH7X2P</div></td><td>Nguyễn Văn An</td><td class="nowrap">HAN→SGN · VN213</td><td><span class="sbadge wait">Chờ TT</span></td><td class="right tnum" style="font-weight:600;">2.505.000 ₫</td></tr>
+                <tr onclick="sel(this,1)"><td><div class="cellmain mono">APG-…7738</div><div class="cellsub mono">VJ8K2M</div></td><td>Trần Thị Bình</td><td class="nowrap">SGN→DAD · VJ638</td><td><span class="sbadge ok">Đã xuất</span></td><td class="right tnum" style="font-weight:600;">1.740.000 ₫</td></tr>
+                <tr onclick="sel(this,2)"><td><div class="cellmain mono">APG-…7732</div><div class="cellsub mono">—</div></td><td>Lê Hoàng</td><td class="nowrap">HAN→PQC · QH1421</td><td><span class="sbadge fail">Hết hạn</span></td><td class="right tnum" style="font-weight:600;">3.120.000 ₫</td></tr>
+                <tr onclick="sel(this,3)"><td><div class="cellmain mono">APG-…7720</div><div class="cellsub mono">VN3P9X</div></td><td>Phạm Quốc Việt</td><td class="nowrap">HAN⇄SGN · khứ hồi</td><td><span class="sbadge ok">Đã xuất</span></td><td class="right tnum" style="font-weight:600;">4.830.000 ₫</td></tr>
+              </tbody>
+            </table>
+            <div class="pager"><button>‹</button><button class="on">1</button><button>2</button><button>3</button><button>…</button><button>9</button><button>›</button></div>
+          </div>
+
+          <div class="detail-panel" id="detail">
+            <div class="dph"><div><div class="mono" style="font-size:16px;font-weight:700;">APG-250530-7741</div><div class="muted" style="font-size:12px;">Tạo 30/05 · 09:32</div></div><span class="sbadge wait">Chờ thanh toán</span></div>
+            <div class="dpb">
+              <div class="group-label" style="margin:6px 0 8px;">Hành khách</div>
+              <div class="fsec" style="margin:0 0 14px;box-shadow:none;border:1px solid var(--apg-hairline);"><div style="display:flex;justify-content:space-between;"><div><div style="font-weight:600;">Nguyễn Văn An</div><div class="muted" style="font-size:13px;">ADT · Mr · 12/04/1990</div></div><span class="sbadge muted">1 người lớn</span></div></div>
+              <div class="group-label" style="margin:6px 0 8px;">Hành trình &amp; PNR</div>
+              <div class="fsec" style="margin:0 0 14px;box-shadow:none;border:1px solid var(--apg-hairline);padding:0;"><div style="padding:14px 16px;display:flex;align-items:center;gap:10px;"><span class="airmono sm" style="background:#1a3a6b">VN</span><div style="flex:1;"><div style="font-weight:600;">VN213 · HAN → SGN</div><div class="muted mono" style="font-size:12px;">07:05→09:20 · 6 Th8</div></div><span class="sbadge ok">QH7X2P</span></div><div style="padding:10px 16px;border-top:1px solid var(--apg-hairline);font-size:13px;color:var(--apg-text-secondary);">Time limit: <b style="color:var(--apg-warning)">17:30 hôm nay</b></div></div>
+              <div class="group-label" style="margin:6px 0 8px;">Giá &amp; markup</div>
+              <div class="fsec" style="margin:0 0 14px;box-shadow:none;border:1px solid var(--apg-hairline);padding:6px 16px;">
+                <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px;"><span class="muted">Giá net (hãng)</span><span class="tnum">2.310.000 ₫</span></div>
+                <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px;border-top:1px solid var(--apg-hairline);"><span class="muted">Markup <span class="sbadge info">Nội địa +8%</span></span><span class="tnum">+195.000 ₫</span></div>
+                <div style="display:flex;justify-content:space-between;padding:10px 0;font-weight:700;border-top:1.5px solid var(--apg-text-primary);"><span>Giá bán</span><span class="tnum" style="color:var(--apg-blue-600)">2.505.000 ₫</span></div>
+              </div>
+              <div class="group-label" style="margin:6px 0 8px;">Nhật ký</div>
+              <div class="tl" style="padding:0;">
+                <div class="ti"><span class="td"></span><div class="tc"><div class="tx">Tạo giữ chỗ — admin</div><div class="tm">09:32:14</div></div></div>
+                <div class="ti"><span class="td" style="background:var(--apg-success)"></span><div class="tc"><div class="tx">Nhận PNR QH7X2P</div><div class="tm">09:32:48</div></div></div>
+                <div class="ti"><span class="td" style="background:var(--apg-warning)"></span><div class="tc"><div class="tx">Đồng bộ giá +60.000 ₫</div><div class="tm">09:33:02</div></div></div>
+              </div>
+            </div>
+            <div style="padding:14px 18px;border-top:1px solid var(--apg-hairline);display:flex;gap:10px;"><button class="btn ghost wauto" style="flex:1;">Hủy giữ chỗ</button><button class="btn fill wauto" style="flex:2;">Gửi link thanh toán</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+<script src="admin-desktop-shell.js"></script>
+<script>
+  initAdminDesktop('bookings','Quản lý đặt chỗ');
+  const NAMES=['Nguyễn Văn An','Trần Thị Bình','Lê Hoàng','Phạm Quốc Việt'];
+  const CODES=['APG-250530-7741','APG-250530-7738','APG-250530-7732','APG-250529-7720'];
+  function sel(tr,i){document.querySelectorAll('#rows tr').forEach(r=>r.classList.remove('on'));tr.classList.add('on');document.querySelector('#detail .dph .mono').textContent=CODES[i];}
+</script>
+</body>
+</html>

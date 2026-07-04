@@ -346,4 +346,5 @@ export interface QuotePayload {
   };
   searchExpiresAt?: string;
   createdAt: string;
+  quoteCode?: string;
 }

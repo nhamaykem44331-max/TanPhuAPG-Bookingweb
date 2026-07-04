@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Redesign 2026 · Desktop</title>
+<link rel="stylesheet" href="../mobile/screens/app.css" />
+<link rel="stylesheet" href="app-desktop.css" />
+<style>
+  body{background:var(--apg-bg-page);}
+  .hero-i{text-align:center;padding:60px 24px 36px;background:linear-gradient(180deg,#fff,var(--apg-bg-page));border-bottom:1px solid var(--apg-hairline);}
+  .hero-i img{width:84px;height:84px;border-radius:20px;box-shadow:var(--apg-shadow-lg);}
+  .hero-i h1{font-size:clamp(32px,4vw,50px);font-weight:600;letter-spacing:-0.03em;margin-top:18px;}
+  .hero-i p{font-size:18px;color:var(--apg-text-secondary);margin-top:10px;}
+  .hero-i .links{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .hero-i a.cta{display:inline-flex;align-items:center;gap:7px;font-size:15px;font-weight:500;text-decoration:none;padding:11px 20px;border-radius:980px;}
+  .hero-i a.cta.fill{background:var(--apg-blue-500);color:#fff;}
+  .hero-i a.cta.tint{background:#fff;color:var(--apg-blue-600);border:1px solid var(--apg-hairline);}
+  section{padding:44px 0;border-bottom:1px solid var(--apg-hairline);}
+  .sh .eb{font-size:13px;font-weight:600;color:var(--apg-blue-500);}
+  .sh h2{font-size:28px;font-weight:600;letter-spacing:-0.022em;margin-top:4px;}
+  .sh p{font-size:16px;color:var(--apg-text-secondary);margin-top:4px;max-width:64ch;}
+  .flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:var(--apg-text-tertiary);}
+  .flow b{color:var(--apg-blue-600);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:26px;margin-top:28px;}
+  .bcard{cursor:pointer;}
+  .bwin{border-radius:12px;overflow:hidden;border:1px solid var(--apg-hairline);box-shadow:var(--apg-shadow-md);background:#fff;transition:transform .2s,box-shadow .2s;}
+  .bcard:hover .bwin{transform:translateY(-4px);box-shadow:var(--apg-shadow-lg);}
+  .bbar{height:34px;background:#f0f0f2;border-bottom:1px solid var(--apg-hairline);display:flex;align-items:center;gap:7px;padding:0 12px;}
+  .bbar .dot{width:11px;height:11px;border-radius:50%;}
+  .bbar .url{margin-left:10px;flex:1;height:20px;background:#fff;border-radius:6px;border:1px solid var(--apg-hairline);font-size:10px;color:var(--apg-text-tertiary);display:flex;align-items:center;padding:0 10px;font-family:var(--apg-font-mono);}
+  .bview{height:236px;overflow:hidden;position:relative;background:#f5f5f7;}
+  .bview iframe{width:1440px;height:945px;border:none;zoom:0.27;}
+  .bview .tap{position:absolute;inset:0;}
+  .meta{margin-top:12px;}
+  .meta .nm{font-size:16px;font-weight:600;}
+  .meta .rt{font-size:12px;color:var(--apg-text-tertiary);font-family:var(--apg-font-mono);margin-top:2px;}
+  .meta a{font-size:13px;color:var(--apg-blue-600);text-decoration:none;font-weight:500;display:inline-block;margin-top:5px;}
+  footer{padding:40px 0 70px;color:var(--apg-text-tertiary);font-size:14px;text-align:center;}
+</style>
+</head>
+<body>
+  <div class="hero-i">
+    <img src="../mobile/assets/logo-appicon.png" alt="" />
+    <h1>Tân Phú APG · Desktop</h1>
+    <p>Redesign 2026 · Giai đoạn 2 — kế thừa nguyên hệ thiết kế mobile (ngôn ngữ Apple)</p>
+    <div class="links">
+      <a class="cta fill" href="screens/home.html" target="_blank">Mở prototype luồng đặt vé →</a>
+      <a class="cta tint" href="../mobile/index.html">Xem bản Mobile</a>
+      <a class="cta tint" href="../mobile/brand/index.html">Brand Guideline</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <section>
+      <div class="sh"><div class="eb">Luồng khách hàng</div><h2>Phễu đặt vé</h2><p>Thanh tìm kiếm ngang, rail lọc trái, danh sách rộng, drawer chi tiết, báo giá &amp; giữ chỗ hai cột. Bấm để dùng thử.</p>
+      <div class="flow"><b>Trang chủ</b> → <b>Kết quả</b> → <b>Chi tiết</b> → <b>Báo giá</b> → <b>Giữ chỗ</b> → <b>Thanh toán</b></div></div>
+      <div class="grid" id="gC"></div>
+    </section>
+    <section>
+      <div class="sh"><div class="eb">Quản trị</div><h2>Khu vực Admin</h2><p>Sidebar trái cố định, bảng dữ liệu thật (sticky header), master–detail, biểu mẫu hai cột. Mỗi route admin có một mockup.</p></div>
+      <div class="grid" id="gA"></div>
+    </section>
+  </div>
+
+  <footer>Tân Phú APG — Redesign 2026 · Desktop (Giai đoạn 2) · <a href="README.md" style="color:var(--apg-blue-600)">README</a> · <a href="../mobile/index.html" style="color:var(--apg-blue-600)">Mobile (Giai đoạn 1)</a></footer>
+
+<script>
+  const C=[['home.html','Trang chủ / Tìm vé','/'],['results-oneway.html','Kết quả · Một chiều','/search'],['results-roundtrip.html','Kết quả · Khứ hồi','/search'],['fare-detail.html','Chi tiết giá vé','fare-detail'],['quote.html','Báo giá','/quote'],['hold.html','Giữ chỗ','HoldBooking'],['payment.html','Thanh toán','/booking/payment/[id]']];
+  const A=[['admin-login.html','Đăng nhập','/admin/login'],['admin-dashboard.html','Bảng điều khiển','/admin/dashboard'],['admin-bookings.html','Đặt chỗ (master–detail)','/admin/bookings'],['admin-payments.html','Thanh toán','/admin/payments'],['admin-markup-rules.html','Quy tắc markup','/admin/markup-rules'],['admin-customers.html','Khách hàng','/admin/customers'],['admin-users.html','Người dùng','/admin/users'],['admin-audit.html','Nhật ký kiểm toán','/admin/audit'],['admin-price-alerts.html','Cảnh báo giá','/admin/price-alerts'],['admin-reports-revenue.html','Báo cáo doanh thu','/admin/reports/revenue'],['admin-menu.html','Quản lý menu','/admin/menu'],['admin-web-vitals.html','Web Vitals','/admin/observability/web-vitals']];
+  function card(file,nm,rt){return `<div class="bcard" onclick="window.open('screens/${file}','_blank')"><div class="bwin"><div class="bbar"><span class="dot" style="background:#ff5f57"></span><span class="dot" style="background:#febc2e"></span><span class="dot" style="background:#28c840"></span><span class="url">tanphuapg.vn/${rt.replace(/^\//,'')}</span></div><div class="bview"><iframe src="screens/${file}" loading="lazy" scrolling="no" tabindex="-1"></iframe><div class="tap"></div></div></div><div class="meta"><div class="nm">${nm}</div><div class="rt">${rt}</div><a href="screens/${file}" target="_blank">Mở toàn màn ↗</a></div></div>`;}
+  document.getElementById('gC').innerHTML=C.map(c=>card(...c)).join('');
+  document.getElementById('gA').innerHTML=A.map(c=>card(...c)).join('');
+</script>
+</body>
+</html>

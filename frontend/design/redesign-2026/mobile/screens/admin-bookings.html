@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Tân Phú APG — Admin Đặt chỗ</title>
+<link rel="stylesheet" href="app.css" />
+<link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+<div class="phone admin">
+  <div class="statusbar"><span>9:41</span><span class="right"><svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1.5" width="3" height="10.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity="0.3"/></svg><svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor"/></svg></span></div>
+
+  <div class="screen">
+    <div class="asearch"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--apg-text-muted)" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder="Tìm mã đặt chỗ, PNR, khách hàng…" /></div>
+    <div class="chiprow"><button class="chip on">Tất cả · 128</button><button class="chip">Chờ TT · 9</button><button class="chip">Đã xuất · 112</button><button class="chip">Hết hạn · 7</button></div>
+
+    <div class="dcard" onclick="location.href='admin-booking-detail.html'">
+      <div class="dr"><span class="tt mono">APG-250530-7741</span><span class="sbadge wait">Chờ thanh toán</span></div>
+      <div class="dr"><span class="mt">Nguyễn Văn An</span><span class="mt mono">PNR QH7X2P</span></div>
+      <div class="dr"><span class="mt">HAN→SGN · VN213 · 6 Th8</span><span class="mt tnum" style="font-weight:600;color:var(--apg-text-primary)">2.505.000 ₫</span></div>
+    </div>
+    <div class="dcard" onclick="location.href='admin-booking-detail.html'">
+      <div class="dr"><span class="tt mono">APG-250530-7738</span><span class="sbadge ok">Đã xuất vé</span></div>
+      <div class="dr"><span class="mt">Trần Thị Bình</span><span class="mt mono">PNR VJ8K2M</span></div>
+      <div class="dr"><span class="mt">SGN→DAD · VJ638 · 7 Th8</span><span class="mt tnum" style="font-weight:600;color:var(--apg-text-primary)">1.740.000 ₫</span></div>
+    </div>
+    <div class="dcard" onclick="location.href='admin-booking-detail.html'">
+      <div class="dr"><span class="tt mono">APG-250530-7732</span><span class="sbadge fail">Hết hạn</span></div>
+      <div class="dr"><span class="mt">Lê Hoàng</span><span class="mt mono">PNR —</span></div>
+      <div class="dr"><span class="mt">HAN→PQC · QH1421 · 9 Th8</span><span class="mt tnum" style="font-weight:600;color:var(--apg-text-primary)">3.120.000 ₫</span></div>
+    </div>
+    <div class="dcard" onclick="location.href='admin-booking-detail.html'">
+      <div class="dr"><span class="tt mono">APG-250529-7720</span><span class="sbadge ok">Đã xuất vé</span></div>
+      <div class="dr"><span class="mt">Phạm Quốc Việt</span><span class="mt mono">PNR VN3P9X</span></div>
+      <div class="dr"><span class="mt">HAN⇄SGN · khứ hồi · 5–12 Th8</span><span class="mt tnum" style="font-weight:600;color:var(--apg-text-primary)">4.830.000 ₫</span></div>
+    </div>
+
+    <div class="pager"><button>‹</button><button class="on">1</button><button>2</button><button>3</button><button>…</button><button>9</button><button>›</button></div>
+    <div style="height:14px;"></div>
+  </div>
+</div>
+<script src="admin-shell.js"></script>
+<script>initAdmin('bookings','Quản lý đặt chỗ');</script>
+</body>
+</html>

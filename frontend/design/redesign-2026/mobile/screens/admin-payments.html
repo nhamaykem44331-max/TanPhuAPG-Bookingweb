@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Tân Phú APG — Admin Thanh toán</title>
+<link rel="stylesheet" href="app.css" />
+<link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+<div class="phone admin">
+  <div class="statusbar"><span>9:41</span><span class="right"><svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1.5" width="3" height="10.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity="0.3"/></svg><svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor"/></svg></span></div>
+  <div class="screen">
+    <div class="kpi-grid"><div class="kpi"><div class="kl">Đã thu hôm nay</div><div class="kv">71,9M ₫</div><div class="kd up">▲ 18 giao dịch</div></div><div class="kpi"><div class="kl">Đang đối soát</div><div class="kv">9</div><div class="kd">SePay webhook</div></div></div>
+    <div class="asearch"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--apg-text-muted)" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder="Tìm mã GD, nội dung CK…" /></div>
+    <div class="chiprow"><button class="chip on">Tất cả</button><button class="chip">Thành công</button><button class="chip">Chờ</button><button class="chip">Thất bại</button></div>
+
+    <div class="dcard">
+      <div class="dr"><span class="tt mono">TX-9920481</span><span class="sbadge ok">Thành công</span></div>
+      <div class="dr"><span class="mt mono">APG2505307738 · BIDV</span><span class="mt tnum" style="font-weight:600;color:var(--apg-success)">+1.740.000 ₫</span></div>
+      <div class="dr"><span class="mt">30/05 · 09:21</span><span class="mt">SePay</span></div>
+    </div>
+    <div class="dcard">
+      <div class="dr"><span class="tt mono">TX-9920479</span><span class="sbadge wait">Chờ đối soát</span></div>
+      <div class="dr"><span class="mt mono">APG2505307741 · BIDV</span><span class="mt tnum" style="font-weight:600;">2.505.000 ₫</span></div>
+      <div class="dr"><span class="mt">30/05 · 09:33</span><span class="mt">SePay</span></div>
+    </div>
+    <div class="dcard">
+      <div class="dr"><span class="tt mono">TX-9920455</span><span class="sbadge fail">Thất bại</span></div>
+      <div class="dr"><span class="mt mono">Sai nội dung CK</span><span class="mt tnum" style="font-weight:600;color:var(--apg-danger)">—</span></div>
+      <div class="dr"><span class="mt">30/05 · 08:55</span><span class="mt">SePay</span></div>
+    </div>
+
+    <div class="pager"><button>‹</button><button class="on">1</button><button>2</button><button>3</button><button>›</button></div>
+    <div style="height:14px;"></div>
+  </div>
+</div>
+<script src="admin-shell.js"></script>
+<script>initAdmin('payments','Nhật ký thanh toán');</script>
+</body>
+</html>

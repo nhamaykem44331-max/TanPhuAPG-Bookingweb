@@ -5,10 +5,30 @@
 :root {
   color-scheme: light;
 
-  --apg-bg-page: #f4f3ef;
+  /* ---- BRAND BLUE (rút từ logo phượng hoàng Tân Phú APG) ---- */
+  --apg-blue-50: #eef6fc;
+  --apg-blue-100: #d6e9f7;
+  --apg-blue-200: #a9d0ee;
+  --apg-blue-300: #6fb2e2;
+  --apg-blue-400: #2f8fd2;
+  --apg-blue-500: #0a74c0; /* brand blue chính */
+  --apg-blue-600: #0861a3; /* CTA / link nhấn mạnh */
+  --apg-blue-700: #0a4f86;
+  --apg-blue-800: #0f3d6a;
+  --apg-blue-900: #112f4f; /* navy sâu */
+
+  --apg-link: #0a74c0;
+  --apg-link-hover: #0861a3;
+
+  /* ---- NEUTRALS (xám Apple) ---- */
+  --apg-bg-page: #f5f5f7;
   --apg-bg-surface: #ffffff;
-  --apg-bg-surface-soft: #e9eef2;
-  --apg-bg-surface-muted: #eef2f5;
+  --apg-bg-surface-soft: #fbfbfd;
+  --apg-bg-surface-muted: #f5f5f7;
+  --apg-bg-elevated: #ffffff;
+  --apg-bg-inverse: #1d1d1f;
+
+  /* admin shell infra (giữ nguyên — admin tự override trong scope của nó) */
   --apg-admin-shell-bg: #eef2f5;
   --apg-admin-rail: #113450;
   --apg-admin-rail-deep: #0c2940;
@@ -16,40 +36,117 @@
   --apg-admin-rail-active: #ffffff;
   --apg-admin-table-hover: #f7fafc;
 
-  --apg-border-default: #d7dfe6;
-  --apg-border-strong: #b8c6d4;
-  --apg-border-focus: #5e7288;
+  --apg-hairline: #d2d2d7;
+  --apg-border-default: #d2d2d7;
+  --apg-border-strong: #b0b0b6;
+  --apg-border-focus: #0a74c0;
 
-  --apg-text-primary: #0f2f4b;
-  --apg-text-secondary: #5e7288;
-  --apg-text-muted: #8090a0;
+  --apg-text-primary: #1d1d1f;
+  --apg-text-secondary: #6e6e73;
+  --apg-text-tertiary: #86868b;
+  --apg-text-muted: #a1a1a6;
   --apg-text-inverse: #ffffff;
+  --apg-text-link: #0a74c0;
 
-  --apg-brand-gold: #5e7288;
-  --apg-brand-gold-hover: #4c6076;
-  --apg-brand-gold-soft: #e9eef2;
+  /* ---- SEMANTIC (Apple system colors) ---- */
+  --apg-success: #248a3d;
+  --apg-success-vivid: #34c759;
+  --apg-success-soft: #e7f6ec;
+  --apg-warning: #b25e00;
+  --apg-warning-vivid: #ff9f0a;
+  --apg-warning-soft: #fdf0dd;
+  --apg-danger: #d70015;
+  --apg-danger-vivid: #ff3b30;
+  --apg-danger-soft: #fdeaea;
+  --apg-info: #0a74c0;
+  --apg-info-soft: #e9f3fb;
 
-  --apg-aviation-navy: #143b5f;
-  --apg-aviation-navy-hover: #102f4b;
-  --apg-aviation-navy-soft: #e9eef2;
-  --apg-aviation-navy-deep: #0f2f4b;
-  --apg-aviation-navy-mid: #1a4b74;
-  --apg-aviation-navy-light: #245b86;
+  /* ---- ALIASES cho các class hiện hành (.apg-btn-*, .apg-field, route...) ---- */
+  --apg-aviation-navy: var(--apg-blue-700);
+  --apg-aviation-navy-hover: var(--apg-blue-800);
+  --apg-aviation-navy-soft: var(--apg-blue-50);
+  --apg-aviation-navy-deep: var(--apg-blue-900);
+  --apg-aviation-navy-mid: var(--apg-blue-600);
+  --apg-aviation-navy-light: var(--apg-blue-500);
+  --apg-brand-gold: var(--apg-blue-500);
+  --apg-brand-gold-hover: var(--apg-blue-600);
+  --apg-brand-gold-soft: var(--apg-blue-50);
+  --apg-brand-accent: var(--apg-blue-500);
+  --apg-brand-accent-hover: var(--apg-blue-600);
+  --apg-brand-accent-soft: var(--apg-blue-50);
+  --apg-route-outbound: var(--apg-blue-600);
+  --apg-route-inbound: var(--apg-blue-400);
 
-  --apg-route-inbound: #355d83;
-  --apg-success: #2e7d5b;
-  --apg-warning: #c27a1a;
-  --apg-danger: #c84c3a;
+  /* ---- SPACING (lưới 4px) ---- */
+  --apg-space-1: 4px;
+  --apg-space-2: 8px;
+  --apg-space-3: 12px;
+  --apg-space-4: 16px;
+  --apg-space-5: 20px;
+  --apg-space-6: 24px;
+  --apg-space-8: 32px;
+  --apg-space-10: 40px;
+  --apg-space-12: 48px;
+  --apg-space-16: 64px;
 
-  --apg-radius-xs: 4px;
-  --apg-radius-sm: 6px;
-  --apg-radius-md: 8px;
-  --apg-radius-lg: 10px;
+  /* ---- RADIUS (bo góc lớn kiểu Apple) ---- */
+  --apg-radius-xs: 6px;
+  --apg-radius-sm: 10px;
+  --apg-radius-md: 14px;
+  --apg-radius-lg: 18px;
+  --apg-radius-xl: 22px;
+  --apg-radius-2xl: 28px;
+  --apg-radius-pill: 980px;
 
-  --apg-shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.04);
-  --apg-shadow-sm: 0 4px 10px rgba(16, 24, 40, 0.06);
-  --apg-shadow-md: 0 8px 24px rgba(16, 24, 40, 0.08);
-  --apg-shadow-lg: 0 18px 40px rgba(16, 24, 40, 0.12);
+  /* ---- ELEVATION (rất nhẹ, ưu tiên hairline) ---- */
+  --apg-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --apg-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --apg-shadow-md: 0 6px 20px rgba(0, 0, 0, 0.08);
+  --apg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
+  --apg-shadow-sheet: 0 -6px 30px rgba(0, 0, 0, 0.12);
+
+  /* ---- TYPOGRAPHY (SF Pro stack, fallback Be Vietnam Pro cho dấu TV) ---- */
+  --apg-font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", "Be Vietnam Pro", Arial, sans-serif;
+  --apg-font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", "Be Vietnam Pro", Arial, sans-serif;
+  --apg-font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+
+  --apg-text-2xs: 11px;
+  --apg-text-xs: 12px;
+  --apg-text-sm: 13px;
+  --apg-text-base: 15px;
+  --apg-text-md: 17px;
+  --apg-text-lg: 19px;
+  --apg-text-xl: 22px;
+  --apg-text-2xl: 28px;
+  --apg-text-3xl: 34px;
+  --apg-text-4xl: 44px;
+  --apg-text-5xl: 56px;
+
+  --apg-leading-tight: 1.08;
+  --apg-leading-snug: 1.25;
+  --apg-leading-normal: 1.47;
+
+  --apg-tracking-tight: -0.022em;
+  --apg-tracking-snug: -0.012em;
+  --apg-tracking-wide: 0.02em;
+
+  --apg-weight-regular: 400;
+  --apg-weight-medium: 500;
+  --apg-weight-semibold: 600;
+  --apg-weight-bold: 700;
+
+  /* ---- MOTION ---- */
+  --apg-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --apg-ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
+  --apg-dur-fast: 150ms;
+  --apg-dur-base: 250ms;
+  --apg-dur-slow: 400ms;
+
+  /* ---- MOBILE: safe-area + tầm ngón cái ---- */
+  --apg-safe-top: env(safe-area-inset-top, 0px);
+  --apg-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --apg-tap-min: 44px;
+  --apg-bottombar-h: 80px;
 }
 
 body {

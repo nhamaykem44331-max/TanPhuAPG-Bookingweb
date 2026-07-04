@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Thanh toán (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" />
+<link rel="stylesheet" href="../app-desktop.css" />
+<style>
+  .pay-grid{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+  .pay-left{padding:28px;border-right:1px solid var(--apg-hairline);text-align:center;}
+  .pay-right{padding:28px;}
+  .sepay{display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;color:var(--apg-text-secondary);margin-bottom:16px;}
+  .qr-box{width:230px;height:230px;margin:0 auto;border-radius:14px;padding:10px;background:#fff;box-shadow:0 0 0 1px var(--apg-hairline);display:grid;grid-template-columns:repeat(25,1fr);}
+  .qr-box i{background:#0b1a2b;}
+  .qr-amt{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:16px;}
+  .bank{margin-top:10px;text-align:left;}
+  .bank .br{display:flex;align-items:center;gap:12px;padding:12px 0;}
+  .bank .br + .br{border-top:1px solid var(--apg-hairline);}
+  .bank .k{font-size:12px;color:var(--apg-text-tertiary);}.bank .v{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .bank .cp{margin-left:auto;color:var(--apg-blue-600);font-size:13px;font-weight:600;cursor:pointer;display:flex;gap:4px;align-items:center;}
+  .cd{font-size:40px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-0.02em;color:var(--apg-warning);text-align:center;}
+  .statusline{display:flex;align-items:center;gap:10px;margin-top:16px;padding:14px;border-radius:var(--apg-radius-md);font-size:14px;font-weight:500;}
+  .statusline.wait{background:var(--apg-warning-soft);color:#8a4b00;}.statusline.paid{background:var(--apg-success-soft);color:#1c6b32;}
+  .spin{width:18px;height:18px;border:2.5px solid #e8c98a;border-top-color:#b25e00;border-radius:50%;animation:sp .9s linear infinite;flex:none;}@keyframes sp{to{transform:rotate(360deg);}}
+  .succ-ic{width:84px;height:84px;border-radius:50%;background:var(--apg-success);display:grid;place-items:center;margin:0 auto 18px;}
+</style>
+</head>
+<body>
+  <div class="topnav"><div class="in"><a class="brand" href="../index.html"><img src="../../mobile/assets/logo-appicon.png" alt="" /> Tân Phú APG</a><nav><a href="home.html">Tìm vé</a><a href="quote.html">Báo giá</a><a href="#">Tra cứu đặt chỗ</a><a href="admin-dashboard.html">Quản trị</a></nav><div class="right"><span class="airmono" style="background:var(--apg-blue-500)">QT</span></div></div></div>
+
+  <div class="devbar"><span class="dl">Trạng thái</span><button class="on" id="b-wait" onclick="setState('wait')">Chờ thanh toán</button><button id="b-paid" onclick="setState('paid')">Đã thanh toán</button><button id="b-exp" onclick="setState('exp')">Hết hạn</button></div>
+
+  <div class="container read" style="padding-top:28px;padding-bottom:60px;">
+    <div style="text-align:center;margin-bottom:8px;"><h1 style="font-size:26px;font-weight:600;letter-spacing:-0.02em;">Thanh toán đơn hàng</h1><p class="muted" style="font-size:14px;">Mã đặt chỗ APG-250530-7741</p></div>
+
+    <!-- WAIT -->
+    <div id="waitView" class="summary-card" style="max-width:900px;margin:18px auto 0;">
+      <div class="pay-grid">
+        <div class="pay-left">
+          <div class="sepay"><span style="width:18px;height:18px;border-radius:5px;background:linear-gradient(135deg,#e30613,#ff6a4d);display:inline-block;"></span> Quét mã QR · SePay</div>
+          <div class="qr-box" id="qr"></div>
+          <div class="qr-amt tnum">2.505.000 ₫</div>
+          <p class="muted" style="font-size:13px;margin-top:6px;">Mở app ngân hàng → quét QR → giữ nguyên nội dung CK</p>
+          <div class="bank">
+            <div class="br"><div><div class="k">Số tài khoản</div><div class="v">8869414319</div></div><span class="cp" onclick="copied(this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg> Chép</span></div>
+            <div class="br"><div><div class="k">Ngân hàng</div><div class="v">BIDV</div></div></div>
+            <div class="br"><div><div class="k">Chủ tài khoản</div><div class="v">VU DUC ANH</div></div></div>
+            <div class="br"><div><div class="k">Nội dung CK</div><div class="v mono">APG2505307741</div></div><span class="cp" onclick="copied(this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg> Chép</span></div>
+          </div>
+        </div>
+        <div class="pay-right">
+          <div class="cd" id="countdown">14:58</div>
+          <p class="muted" style="text-align:center;font-size:13px;">Thời hạn thanh toán còn lại</p>
+          <div class="statusline wait"><span class="spin"></span> Đang chờ xác nhận… hệ thống tự đối soát qua SePay</div>
+          <div style="margin-top:20px;font-size:13px;font-weight:600;color:var(--apg-text-secondary);">Tóm tắt đặt chỗ</div>
+          <div class="bank">
+            <div class="br"><div><div class="k">Chuyến bay</div><div class="v" style="font-size:14px;">VN213 · HAN → SGN · 6 Th8</div></div></div>
+            <div class="br"><div><div class="k">Hành khách</div><div class="v" style="font-size:14px;">Nguyễn Văn An · 1 người lớn</div></div></div>
+            <div class="br"><div><div class="k">Mã PNR</div><div class="v mono" style="font-size:14px;">QH7X2P</div></div></div>
+            <div class="br"><div><div class="k">Tổng tiền</div><div class="v" style="color:var(--apg-blue-600)">2.505.000 ₫</div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAID -->
+    <div id="paidView" class="summary-card hide" style="max-width:520px;margin:18px auto 0;text-align:center;padding:32px;">
+      <div class="succ-ic"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg></div>
+      <div style="font-size:22px;font-weight:600;">Thanh toán thành công</div>
+      <p class="muted" style="font-size:14px;margin-top:6px;">Vé đã được xuất. Thông tin gửi tới email của bạn.</p>
+      <div class="bank" style="text-align:left;margin-top:18px;">
+        <div class="br"><div class="k">Mã đặt chỗ</div><div class="v mono" style="margin-left:auto;font-size:15px;">APG-250530-7741</div></div>
+        <div class="br"><div class="k">Đã thanh toán</div><div class="v tnum" style="margin-left:auto;color:var(--apg-success)">2.505.000 ₫</div></div>
+        <div class="br"><div class="k">Thời gian</div><div class="v" style="margin-left:auto;font-size:14px;">30/05/2026 · 09:46</div></div>
+      </div>
+      <div class="statusline paid" style="justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 13l4 4L19 7"/></svg> Đã thanh toán &amp; xuất vé</div>
+      <div style="display:flex;gap:10px;margin-top:18px;"><button class="btn tint" onclick="location.href='home.html'">Về trang chủ</button><button class="btn fill">Xem vé điện tử</button></div>
+    </div>
+
+    <!-- EXPIRED -->
+    <div id="expView" class="summary-card hide" style="max-width:520px;margin:18px auto 0;">
+      <div class="empty"><div class="em-ic" style="color:var(--apg-danger)"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5M12 16h.01"/></svg></div><h3>Đã hết hạn thanh toán</h3><p>Giữ chỗ APG-250530-7741 đã quá thời hạn và bị hủy.</p><button class="btn fill wauto" onclick="location.href='home.html'">Tìm chuyến bay mới</button></div>
+    </div>
+  </div>
+
+<script>
+  (function(){const N=25,cells=[];for(let r=0;r<N;r++)for(let c=0;c<N;c++){let on=false;if((r<7&&c<7)||(r<7&&c>N-8)||(r>N-8&&c<7)){const x=c<7?c:(c-(N-7)),y=r<7?r:(r-(N-7));on=(x===0||x===6||y===0||y===6||(x>=2&&x<=4&&y>=2&&y<=4));}else{on=((r*7+c*13+((r*c)%5))%3===0);}cells.push(on);}document.getElementById('qr').innerHTML=cells.map(o=>`<i style="background:${o?'#0b1a2b':'transparent'}"></i>`).join('');})();
+  let secs=14*60+58;function tick(){const m=Math.floor(secs/60),s=secs%60;document.getElementById('countdown').textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;if(secs>0)secs--;}setInterval(tick,1000);tick();
+  function setState(s){document.querySelectorAll('.devbar button').forEach(b=>b.classList.remove('on'));document.getElementById('b-'+s).classList.add('on');document.getElementById('waitView').classList.toggle('hide',s!=='wait');document.getElementById('paidView').classList.toggle('hide',s!=='paid');document.getElementById('expView').classList.toggle('hide',s!=='exp');}
+  function copied(el){const o=el.innerHTML;el.innerHTML='✓ Đã chép';setTimeout(()=>el.innerHTML=o,1200);}
+</script>
+</body>
+</html>

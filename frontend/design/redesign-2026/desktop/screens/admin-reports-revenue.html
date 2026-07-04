@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Báo cáo doanh thu (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" /><link rel="stylesheet" href="../../mobile/screens/admin.css" /><link rel="stylesheet" href="../app-desktop.css" /><link rel="stylesheet" href="../admin-desktop.css" />
+</head>
+<body>
+  <div class="admin-shell"><div class="admin-main"><div class="admin-body">
+    <div class="page-head"><div><h1>Báo cáo doanh thu</h1><p>Tháng 5, 2026</p></div><div class="chiprow" style="padding:0;"><button class="chip">Hôm nay</button><button class="chip on">Tháng 5</button><button class="chip">Quý 2</button><button class="chip">Tùy chọn</button></div></div>
+    <div class="kpi-row"><div class="kpi"><div class="kl">Tổng doanh thu</div><div class="kv">1,82 tỷ ₫</div><div class="kd up">▲ 14,2%</div></div><div class="kpi"><div class="kl">Lợi nhuận (markup)</div><div class="kv">142M ₫</div><div class="kd up">▲ 9,1%</div></div><div class="kpi"><div class="kl">Số vé xuất</div><div class="kv">742</div><div class="kd up">▲ 63</div></div><div class="kpi"><div class="kl">Giá trị TB/vé</div><div class="kv">2,45M ₫</div><div class="kd down">▼ 1,1%</div></div></div>
+    <div class="two-cols" style="grid-template-columns:1.5fr 1fr;align-items:start;">
+      <div class="tablecard"><div class="tch"><span style="font-weight:600;">Doanh thu theo tuần</span></div><div class="bars tall"><div class="bar" style="height:55%"><span>TT1</span></div><div class="bar" style="height:70%"><span>TT2</span></div><div class="bar" style="height:62%"><span>TT3</span></div><div class="bar" style="height:88%"><span>TT4</span></div><div class="bar" style="height:96%"><span>TT5</span></div></div></div>
+      <div class="tablecard"><div class="tch"><span style="font-weight:600;">Top tuyến</span></div><table class="table"><tbody>
+        <tr><td>HAN ⇄ SGN</td><td class="right tnum" style="font-weight:600;">612M ₫</td></tr>
+        <tr><td>HAN → DAD</td><td class="right tnum" style="font-weight:600;">318M ₫</td></tr>
+        <tr><td>SGN → PQC</td><td class="right tnum" style="font-weight:600;">241M ₫</td></tr>
+        <tr><td>HAN → PQC</td><td class="right tnum" style="font-weight:600;">198M ₫</td></tr>
+      </tbody></table></div>
+    </div>
+    <div style="margin-top:20px;"><button class="btn tint wauto" style="padding:0 18px;height:42px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg> Xuất báo cáo CSV</button></div>
+  </div></div></div>
+<script src="admin-desktop-shell.js"></script><script>initAdminDesktop('reports-revenue','Báo cáo doanh thu');</script>
+</body>
+</html>

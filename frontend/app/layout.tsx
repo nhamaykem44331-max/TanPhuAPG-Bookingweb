@@ -1,7 +1,10 @@
 import './globals.css';
+import './redesign.css';
 import type { Metadata } from 'next';
-import { Be_Vietnam_Pro, JetBrains_Mono, Raleway } from 'next/font/google';
+import { Be_Vietnam_Pro, JetBrains_Mono, Raleway, Fraunces, Playfair_Display } from 'next/font/google';
 import WebVitalsReporter from '@/components/analytics/WebVitalsReporter';
+import FloatingSupport from '@/components/FloatingSupport';
+import { SITE_URL, OG_IMAGE } from '@/lib/site';
 
 const fontSans = Be_Vietnam_Pro({
   subsets: ['latin', 'vietnamese'],
@@ -24,41 +27,51 @@ const fontMono = JetBrains_Mono({
   display: 'swap',
 });
 
+// Fraunces (serif) — chỉ dùng cho con số/tiêu đề "điểm nhấn" cần cảm giác cao cấp.
+const fontSerif = Fraunces({
+  subsets: ['latin', 'vietnamese'],
+  weight: ['400', '500', '600', '700', '900'],
+  variable: '--font-serif',
+  display: 'swap',
+});
+
+// Playfair Display — serif sang trọng cho riêng tiêu đề hero landing.
+const fontFancy = Playfair_Display({
+  subsets: ['latin', 'vietnamese'],
+  weight: ['700', '800', '900'],
+  variable: '--font-fancy',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
   title: 'Đặt vé máy bay - TAN PHU APG',
   description: 'So sánh giá vé máy bay và giữ chỗ qua TAN PHU APG.',
   keywords: 'vé máy bay, đặt vé, TAN PHU APG, Hà Nội, TP.HCM, giá vé',
-  metadataBase: new URL('https://book.tanphuapg.com'),
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     title: 'Đặt vé máy bay - TAN PHU APG',
     description: 'So sánh giá vé máy bay nội địa và quốc tế. Đặt vé qua TAN PHU APG.',
-    url: 'https://book.tanphuapg.com',
+    url: '/',
     siteName: 'TAN PHU APG',
-    images: [
-      {
-        url: '/assets/tanphu-apg-logo.jpg',
-        width: 800,
-        height: 800,
-        alt: 'TAN PHU APG - Corporate Aviation Services',
-      },
-    ],
     locale: 'vi_VN',
     type: 'website',
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: 'Tân Phú APG — Đại lý vé máy bay cấp 1' }],
   },
   twitter: {
-    card: 'summary',
+    card: 'summary_large_image',
     title: 'Đặt vé máy bay - TAN PHU APG',
     description: 'So sánh giá vé máy bay và đặt vé qua TAN PHU APG.',
-    images: ['/assets/tanphu-apg-logo.jpg'],
+    images: [OG_IMAGE],
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="vi">
-      <body className={`${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable}`}>
+      <body className={`${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable} ${fontSerif.variable} ${fontFancy.variable}`}>
         <WebVitalsReporter />
         {children}
+        <FloatingSupport />
       </body>
     </html>
   );

@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'TAN PHU APG - Corporate Aviation Services';
+export const alt = 'Tân Phú APG — Đại lý vé máy bay cấp 1 tại Thái Nguyên';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -26,8 +26,8 @@ export default async function Image() {
             width: 160, height: 160, borderRadius: 20,
             background: 'linear-gradient(135deg, #c8a96b, #e8d4a0)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 60, fontWeight: 900, color: 'white',
-          }}>✈</div>
+            fontSize: 40, fontWeight: 900, color: 'white',
+          }}>APG</div>
 
           {/* Divider */}
           <div style={{ width: 4, height: 160, background: 'linear-gradient(to bottom, #c8a96b, #e8d4a0)', borderRadius: 2 }} />
@@ -36,11 +36,12 @@ export default async function Image() {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: 56, fontWeight: 900, color: '#1a1a1a', letterSpacing: 2 }}>TAN PHU APG</div>
             <div style={{ fontSize: 26, color: '#c8a96b', fontWeight: 600, marginTop: 8 }}>Corporate Aviation Services</div>
-            <div style={{ fontSize: 22, color: '#666', marginTop: 20, lineHeight: 1.5 }}>
-              So sánh & tìm kiếm vé máy bay{'\n'}nội địa và quốc tế giá tốt nhất
+            <div style={{ fontSize: 24, color: '#666', marginTop: 20, lineHeight: 1.5, display: 'flex', flexDirection: 'column' }}>
+              <span>Đại lý vé máy bay cấp 1 (Amadeus)</span>
+              <span>Vé nội địa &amp; quốc tế · vé đoàn · xuất hóa đơn VAT</span>
             </div>
             <div style={{ marginTop: 30, fontSize: 24, fontWeight: 700, color: '#1a1a1a' }}>
-              📞 0918.752.686 · book.tanphuapg.com
+              0918.752.686 · tanphuapg.com
             </div>
           </div>
         </div>

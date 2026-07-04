@@ -43,6 +43,7 @@ export function FilterBar({
   const chip = (active: boolean, onClick: () => void, label: ReactNode) => (
     <button
       className={`apg-chip h-7 shrink-0 gap-1 px-2.5 text-[10px] ${active ? 'apg-chip-active' : ''}`}
+      style={active ? { background: '#1f3a52', borderColor: '#1f3a52', color: '#fff' } : undefined}
       onClick={onClick}
       type="button"
     >
@@ -67,14 +68,14 @@ export function FilterBar({
       <button
         aria-checked={activeSortMode === 'time'}
         aria-label={`Đang sắp xếp theo ${activeSortMode === 'price' ? 'giá' : 'giờ'}, bấm để chuyển sang ${activeSortMode === 'price' ? 'giờ' : 'giá'}`}
-        className="relative inline-flex h-7 w-[88px] shrink-0 items-center rounded-full border border-[var(--apg-border-default)] bg-white p-0.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60"
+        className="relative inline-flex h-7 w-[88px] shrink-0 items-center rounded-full border border-[var(--apg-border-default)] bg-white p-0.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:rgba(47,143,210,0.6)]"
         onClick={() => onSortChange?.(activeSortMode === 'price' ? 'time' : 'price')}
         role="switch"
         type="button"
       >
         <span
           aria-hidden="true"
-          className={`absolute inset-y-0.5 left-0.5 w-[42px] rounded-full bg-emerald-500 shadow-[0_1px_2px_rgba(16,185,129,0.45)] ring-1 ring-emerald-600/30 transition-transform duration-200 ease-out ${
+          className={`absolute inset-y-0.5 left-0.5 w-[42px] rounded-full bg-[#1f8a5b] shadow-[0_1px_2px_rgba(31,138,91,0.40)] transition-transform duration-200 ease-out ${
             activeSortMode === 'time' ? 'translate-x-[42px]' : 'translate-x-0'
           }`}
         />
@@ -153,7 +154,7 @@ export function SelectedDesktopFlight({
   const badges = buildFlightBadges(flight, dailyMinPrice);
 
   return (
-    <div className="rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-4 py-3 shadow-sm">
+    <div className="rounded-[var(--apg-radius-md)] border border-[#e5e7eb] bg-[#f3f4f6] px-4 py-3 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <div className="apg-display text-[11px] font-semibold uppercase tracking-[0.22em]" style={{ color: accent }}>{label}</div>
         <div className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: accent }} />

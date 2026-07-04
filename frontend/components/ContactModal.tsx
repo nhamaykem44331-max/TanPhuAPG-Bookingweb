@@ -1,5 +1,7 @@
 "use client";
 
+import { PHONE_DISPLAY, PHONE_E164, ZALO_URL } from "@/lib/site";
+
 export default function ContactModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   if (!open) return null;
   return (
@@ -10,9 +12,8 @@ export default function ContactModal({ open, onClose }: { open: boolean; onClose
           Giá hiển thị là giá tham khảo. Vui lòng liên hệ để chốt chỗ qua đại lý Tân Phú APG.
         </p>
         <div className="space-y-2 text-sm">
-          <div>Điện thoại: <a href="tel:19006091" className="font-semibold text-brand">1900 6091</a></div>
-          <div>Telegram: <a href="https://t.me/tanphuapg" className="text-brand">@tanphuapg</a></div>
-          <div>Email: <a href="mailto:contact@tanphuapg.com" className="text-brand">contact@tanphuapg.com</a></div>
+          <div>Hotline: <a href={`tel:${PHONE_E164}`} className="font-semibold text-brand">{PHONE_DISPLAY}</a></div>
+          <div>Zalo: <a href={ZALO_URL} target="_blank" rel="noopener noreferrer" className="text-brand">zalo.me/0918752686</a></div>
         </div>
         <button className="mt-4 w-full rounded-xl bg-brand py-2 text-white" onClick={onClose}>Đóng</button>
       </div>

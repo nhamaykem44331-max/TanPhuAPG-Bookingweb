@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Khách hàng (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" /><link rel="stylesheet" href="../../mobile/screens/admin.css" /><link rel="stylesheet" href="../app-desktop.css" /><link rel="stylesheet" href="../admin-desktop.css" />
+</head>
+<body>
+  <div class="admin-shell"><div class="admin-main"><div class="admin-body">
+    <div class="page-head"><div><h1>Khách hàng</h1><p>128 khách hàng</p></div><button class="btn fill wauto" style="padding:0 18px;height:40px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Thêm khách hàng</button></div>
+    <div class="tablecard">
+      <table class="table">
+        <thead><tr><th>Khách hàng</th><th>Số điện thoại</th><th>Email</th><th>Vé đã đặt</th><th class="right">Tổng chi</th></tr></thead>
+        <tbody>
+          <tr><td><div style="display:flex;align-items:center;gap:10px;"><span class="airmono" style="background:var(--apg-blue-500)">NA</span><span class="cellmain">Nguyễn Văn An</span></div></td><td class="mono">0901 234 567</td><td>an.nguyen@email.com</td><td><span class="sbadge info">8 vé</span></td><td class="right tnum" style="font-weight:600;">19,8M ₫</td></tr>
+          <tr><td><div style="display:flex;align-items:center;gap:10px;"><span class="airmono" style="background:#1f7a4d">TB</span><span class="cellmain">Trần Thị Bình</span></div></td><td class="mono">0912 555 888</td><td>binh.tt@email.com</td><td><span class="sbadge info">3 vé</span></td><td class="right tnum" style="font-weight:600;">6,1M ₫</td></tr>
+          <tr><td><div style="display:flex;align-items:center;gap:10px;"><span class="airmono" style="background:#e30613">LH</span><span class="cellmain">Lê Hoàng</span></div></td><td class="mono">0988 111 222</td><td>hoang.le@email.com</td><td><span class="sbadge info">12 vé</span></td><td class="right tnum" style="font-weight:600;">34,5M ₫</td></tr>
+        </tbody>
+      </table>
+      <div class="pager"><button>‹</button><button class="on">1</button><button>2</button><button>…</button><button>9</button><button>›</button></div>
+    </div>
+    <div class="banner info" style="margin:16px 0 0;"><span class="bi">ⓘ</span><span>Click hàng → trang chi tiết khách (/customers/[id]); “Thêm khách hàng” mở biểu mẫu (/customers/new) dạng .fsec 2 cột.</span></div>
+  </div></div></div>
+<script src="admin-desktop-shell.js"></script><script>initAdminDesktop('customers','Khách hàng');</script>
+</body>
+</html>

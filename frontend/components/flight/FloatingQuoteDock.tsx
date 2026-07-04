@@ -48,8 +48,13 @@ export default function FloatingQuoteDock({
   onContinue: () => void;
 }) {
   const passengerSummary = buildPassengerSummary(adults, children, infants);
-  const perTravelerLabel = children > 0 || infants > 0 ? 'Tạm tính theo cấu hình hiện tại' : `${adults} người lớn`;
-  const totalLabel = fmtVND(total * adults);
+  // total = giá 1 người lớn. Chỉ cộng phần người lớn (chính xác); giá trẻ em/em bé
+  // KHÔNG có ở bước tìm (chỉ có khi giữ chỗ) → không bịa, chỉ ghi rõ để tránh sốc giá.
+  const hasExtraPax = children > 0 || infants > 0;
+  const totalLabel = `${hasExtraPax ? 'từ ' : ''}${fmtVND(total * adults)}`;
+  const totalNote = hasExtraPax
+    ? `Giá ${adults} người lớn · trẻ em/em bé tính khi giữ chỗ`
+    : 'Đã gồm giá các chuyến đã chọn';
 
   const SummaryLine = ({
     label,
@@ -179,25 +184,25 @@ export default function FloatingQuoteDock({
             ) : null}
 
             <div
-              className="rounded-[20px] border border-[#1f5f44] px-4 py-4 text-white shadow-[0_14px_28px_rgba(46,125,91,0.30)]"
-              style={{ background: 'linear-gradient(135deg, #1f5f44, var(--apg-success) 55%, #3a9067)' }}
+              className="rounded-[20px] px-4 py-4 text-white shadow-[0_14px_28px_rgba(0,0,0,0.22)]"
+              style={{ background: 'linear-gradient(135deg,#2e7d5b,#14563a)' }}
             >
               <div className="flex items-end justify-between gap-4">
                 <div className="min-w-0">
                   <div className="apg-eyebrow">Tổng tạm tính</div>
-                  <div className="mt-1 text-[11px] text-white/70">{perTravelerLabel}</div>
+                  <div className="mt-1 text-[11px] text-white/70">{passengerSummary}</div>
                 </div>
                 <div className="text-right">
                   <div className="apg-tabular text-[28px] font-black leading-none text-white">{totalLabel}</div>
-                  <div className="mt-1 text-[10px] text-white/65">Đã gồm giá các chuyến đã chọn</div>
+                  <div className="mt-1 text-[10px] text-white/65">{totalNote}</div>
                 </div>
               </div>
               <button
-                className="mt-3 h-11 w-full rounded-[14px] bg-white text-sm font-bold text-[#1f5f44] shadow-[0_8px_18px_rgba(255,255,255,0.14)] transition hover:bg-emerald-50"
+                className="mt-3 h-11 w-full rounded-[14px] bg-white text-sm font-bold text-[#14563a] shadow-[0_8px_18px_rgba(0,0,0,0.18)] transition hover:bg-[#eafaf0]"
                 onClick={onContinue}
                 type="button"
               >
-                Tiếp tục báo giá →
+                Tiếp tục đặt vé →
               </button>
             </div>
           </div>
@@ -209,18 +214,19 @@ export default function FloatingQuoteDock({
               {tripType === 'roundtrip' && inboundFlight ? <SummaryLine label="Chiều về" flight={inboundFlight} accent="var(--apg-route-inbound)" dailyMinPrice={inboundDailyMinPrice} /> : null}
             </div>
             <div
-              className="w-[308px] shrink-0 rounded-[20px] border border-[#1f5f44] px-4 py-3 text-white shadow-[0_14px_28px_rgba(46,125,91,0.26)]"
-              style={{ background: 'linear-gradient(135deg, #1f5f44, var(--apg-success) 55%, #3a9067)' }}
+              className="w-[308px] shrink-0 rounded-[20px] px-4 py-3 text-white shadow-[0_14px_28px_rgba(0,0,0,0.22)]"
+              style={{ background: 'linear-gradient(135deg,#2e7d5b,#14563a)' }}
             >
               <div className="apg-eyebrow text-white/65">Tổng tạm tính</div>
               <div className="apg-tabular mt-1.5 text-[32px] font-black leading-none text-white">{totalLabel}</div>
               <div className="mt-1.5 text-[13px] text-white/80">{passengerSummary}</div>
+              <div className="mt-0.5 text-[11px] text-white/60">{totalNote}</div>
               <button
-                className="mt-3 h-10 w-full rounded-[14px] bg-white text-sm font-bold text-[#1f5f44] shadow-[0_8px_18px_rgba(255,255,255,0.14)] transition hover:bg-emerald-50"
+                className="mt-3 h-10 w-full rounded-[14px] bg-white text-sm font-bold text-[#14563a] shadow-[0_8px_18px_rgba(0,0,0,0.18)] transition hover:bg-[#eafaf0]"
                 onClick={onContinue}
                 type="button"
               >
-                Tiếp tục báo giá →
+                Tiếp tục đặt vé →
               </button>
             </div>
           </div>

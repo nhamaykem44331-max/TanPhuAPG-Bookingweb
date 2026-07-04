@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Tân Phú APG — Báo cáo doanh thu</title>
+<link rel="stylesheet" href="app.css" /><link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+<div class="phone admin">
+  <div class="statusbar"><span>9:41</span><span class="right"><svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1.5" width="3" height="10.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity="0.3"/></svg><svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor"/></svg></span></div>
+  <div class="screen">
+    <div class="chiprow" style="padding-top:14px;"><button class="chip">Hôm nay</button><button class="chip on">Tháng 5</button><button class="chip">Quý 2</button><button class="chip">Tùy chọn…</button></div>
+    <div class="kpi-grid"><div class="kpi"><div class="kl">Tổng doanh thu</div><div class="kv">1,82 tỷ ₫</div><div class="kd up">▲ 14,2%</div></div><div class="kpi"><div class="kl">Lợi nhuận (markup)</div><div class="kv">142M ₫</div><div class="kd up">▲ 9,1%</div></div><div class="kpi"><div class="kl">Số vé xuất</div><div class="kv">742</div><div class="kd up">▲ 63</div></div><div class="kpi"><div class="kl">Giá trị TB/vé</div><div class="kv">2,45M ₫</div><div class="kd down">▼ 1,1%</div></div></div>
+    <div class="group-label">Doanh thu theo tuần</div>
+    <div class="card flat" style="padding-bottom:24px;"><div class="bars"><div class="bar" style="height:55%"><span>TT1</span></div><div class="bar" style="height:70%"><span>TT2</span></div><div class="bar" style="height:62%"><span>TT3</span></div><div class="bar" style="height:88%"><span>TT4</span></div><div class="bar" style="height:96%"><span>TT5</span></div></div></div>
+    <div class="group-label">Top tuyến doanh thu</div>
+    <div class="fsec" style="padding:6px 16px;">
+      <div class="dr" style="display:flex;justify-content:space-between;padding:10px 0;font-size:14px;"><span>HAN ⇄ SGN</span><span class="tnum" style="font-weight:600;">612M ₫</span></div>
+      <div class="dr" style="display:flex;justify-content:space-between;padding:10px 0;font-size:14px;border-top:1px solid var(--apg-hairline);"><span>HAN → DAD</span><span class="tnum" style="font-weight:600;">318M ₫</span></div>
+      <div class="dr" style="display:flex;justify-content:space-between;padding:10px 0;font-size:14px;border-top:1px solid var(--apg-hairline);"><span>SGN → PQC</span><span class="tnum" style="font-weight:600;">241M ₫</span></div>
+    </div>
+    <div style="padding:0 16px 24px;"><button class="btn tint"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg> Xuất báo cáo (CSV)</button></div>
+  </div>
+</div>
+<script src="admin-shell.js"></script><script>initAdmin('reports-revenue','Báo cáo doanh thu');</script>
+</body>
+</html>

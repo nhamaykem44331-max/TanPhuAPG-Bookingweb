@@ -1,183 +1,63 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowUpDown, CalendarDays, ChevronDown, Minus, Plane, Plus, Users } from 'lucide-react';
-import AirportInput from '@/components/AirportInput';
+import { useState } from 'react';
 import type { AirportOption, AirportSelection, Cabin } from '@/lib/types';
-import { filterAirports, matchAirport } from '@/lib/useAirports';
+import { filterAirports } from '@/lib/useAirports';
 
-function mobileAirportDisplay(value: AirportSelection | null, airports: AirportOption[]) {
+const DOW = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+const MONTHS = ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'];
+const CABIN_LABELS: Record<Cabin, string> = {
+  economy: 'Phổ thông',
+  premium: 'Phổ thông đặc biệt',
+  business: 'Thương gia',
+  first: 'Hạng nhất',
+};
+const CABIN_ORDER: Cabin[] = ['economy', 'premium', 'business', 'first'];
+
+// navy header + green button + design palette (handoff "Tìm vé booktanphuapg")
+const NAVY = 'linear-gradient(120deg,#0c2740 0%,#16456b 55%,#1a4e78 100%)';
+const GREEN = 'linear-gradient(135deg,#1f5f44,#248a3d 55%,#3a9067)';
+
+function fmtDateLabel(ymd: string) {
+  if (!ymd) return '';
+  const [y, m, d] = ymd.split('-').map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(y, m - 1, d);
+  return `${DOW[dt.getDay()]}, ${d} ${MONTHS[m - 1]}`;
+}
+function fmtDateNumeric(ymd: string) {
+  if (!ymd) return '';
+  const [y, m, d] = ymd.split('-').map(Number);
+  if (!y || !m || !d) return ymd;
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+}
+function airportCity(value: AirportSelection | null, airports: AirportOption[]) {
   if (!value?.code) return '';
   const airport = airports.find((item) => item.code === value.code);
-  if (airport?.city) return `${airport.city}, VN`;
-  return value.label?.split('(')[0]?.trim() || value.code;
+  return airport?.city || value.label?.split('(')[0]?.trim() || value.code;
 }
 
-function MobileAirportPicker({
-  airports,
-  icon,
-  label,
-  onSelect,
-  placeholder,
-  value,
-}: {
-  airports: AirportOption[];
-  icon?: ReactNode;
-  label: string;
-  onSelect: (value: AirportSelection | null) => void;
-  placeholder: string;
-  value: AirportSelection | null;
-}) {
-  const [draft, setDraft] = useState(mobileAirportDisplay(value, airports));
-  const [focused, setFocused] = useState(false);
-  const [open, setOpen] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!focused) setDraft(mobileAirportDisplay(value, airports));
-  }, [airports, focused, value]);
-
-  useEffect(() => {
-    const handler = (event: MouseEvent) => {
-      if (!ref.current || ref.current.contains(event.target as Node)) return;
-      setOpen(false);
-      setFocused(false);
-      setDraft(mobileAirportDisplay(value, airports));
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [airports, value]);
-
-  const list = useMemo(() => filterAirports(airports, draft, 7), [airports, draft]);
-
-  const commit = (selection: AirportSelection | null) => {
-    onSelect(selection);
-    setDraft(mobileAirportDisplay(selection, airports));
-    setOpen(false);
-    setFocused(false);
-  };
-
-  const selectAll = () => {
-    window.requestAnimationFrame(() => inputRef.current?.select());
-  };
-
-  const handleFocus = () => {
-    setFocused(true);
-    setOpen(true);
-    setDraft(value?.label || value?.code || '');
-    selectAll();
-  };
-
-  const handleBlur = () => {
-    window.setTimeout(() => {
-      const trimmed = draft.trim();
-      if (!trimmed) {
-        commit(null);
-        return;
-      }
-
-      const matched = matchAirport(airports, trimmed);
-      if (matched) {
-        commit({ code: matched.code, label: matched.label });
-        return;
-      }
-
-      setDraft(mobileAirportDisplay(value, airports));
-      setOpen(false);
-      setFocused(false);
-    }, 120);
-  };
-
+function IconSearch() {
   return (
-    <div ref={ref} className="relative grid min-h-[72px] grid-cols-[28px_1fr] gap-3 border-b border-[var(--apg-border-default)] px-3 py-3 last:border-b-0">
-      <div className="flex pt-5 text-[var(--apg-text-muted)]">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <label className="block text-[12px] font-semibold text-[var(--apg-text-secondary)]">{label}</label>
-        <div className="mt-1 flex min-w-0 items-center gap-2">
-          <span className="apg-mono shrink-0 rounded-[var(--apg-radius-sm)] bg-[var(--apg-text-muted)] px-2 py-1 text-[11px] font-bold text-white">
-            {value?.code || '---'}
-          </span>
-          <input
-            ref={inputRef}
-            className="min-w-0 flex-1 bg-transparent text-[17px] font-extrabold text-[var(--apg-aviation-navy)] outline-none placeholder:text-slate-400"
-            onBlur={handleBlur}
-            onChange={(event) => {
-              setDraft(event.target.value);
-              setOpen(true);
-            }}
-            onClick={selectAll}
-            onFocus={handleFocus}
-            placeholder={placeholder}
-            value={draft}
-          />
-        </div>
-        {open && (
-          <div className="apg-dropdown absolute left-3 right-3 top-[calc(100%-4px)] z-50 max-h-[280px] overflow-auto">
-            {list.length === 0 ? (
-              <div className="px-3 py-3 text-xs text-[var(--apg-text-secondary)]">Không tìm thấy sân bay phù hợp.</div>
-            ) : list.map((airport) => (
-              <button
-                className="flex w-full items-center gap-2 border-b border-[var(--apg-border-default)] px-3 py-2.5 text-left last:border-b-0"
-                key={airport.code}
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  commit({ code: airport.code, label: airport.label });
-                }}
-                type="button"
-              >
-                <span className="apg-mono rounded-[var(--apg-radius-sm)] bg-[var(--apg-text-muted)] px-2 py-1 text-[10px] font-bold text-white">{airport.code}</span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-bold text-[var(--apg-text-primary)]">{airport.city}, {airport.country}</span>
-                  <span className="block truncate text-[11px] text-[var(--apg-text-muted)]">{airport.name}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+      <path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" />
+    </svg>
   );
 }
-
-function MobilePassengerCounter({
-  icon,
-  label,
-  onDecrement,
-  onIncrement,
-  value,
-  decrementDisabled,
-  incrementDisabled,
-}: {
-  icon?: ReactNode;
-  label: ReactNode;
-  onDecrement: () => void;
-  onIncrement: () => void;
-  value: number;
-  decrementDisabled?: boolean;
-  incrementDisabled?: boolean;
-}) {
-  const controlClass = "flex h-9 w-9 items-center justify-center rounded-full text-[var(--apg-text-secondary)] transition disabled:text-slate-300";
-
+function IconSwap() {
   return (
-    <div className="grid min-h-[54px] grid-cols-[28px_1fr_auto] items-center gap-3 px-3 py-2">
-      <div className="text-[var(--apg-text-muted)]">{icon}</div>
-      <div className="min-w-0 text-[15px] font-semibold text-slate-700">{label}</div>
-      <div className="grid grid-cols-[36px_36px_36px] items-center justify-items-center">
-        <button aria-label="Giảm" className={controlClass} disabled={decrementDisabled} onClick={onDecrement} type="button">
-          <Minus size={16} strokeWidth={2.3} />
-        </button>
-        <span className={`apg-tabular text-center text-lg font-black ${value > 0 ? 'text-[var(--apg-aviation-navy)]' : 'text-slate-300'}`}>{value}</span>
-        <button aria-label="Tăng" className={controlClass} disabled={incrementDisabled} onClick={onIncrement} type="button">
-          <Plus size={16} strokeWidth={2.3} />
-        </button>
-      </div>
-    </div>
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3">
+      <path d="M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4" />
+    </svg>
   );
 }
-
+function IconCal() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" strokeWidth="1.8">
+      <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+    </svg>
+  );
+}
 export default function HomeSearchPanel({
   adults,
   airports,
@@ -189,9 +69,8 @@ export default function HomeSearchPanel({
   fromSel,
   infants,
   isDesktopViewport,
-  isReloading,
   loading,
-  loadingHintText,
+  isReloading,
   minReturnDate,
   onCabinChange,
   onDateChange,
@@ -235,281 +114,310 @@ export default function HomeSearchPanel({
   onTripTypeChange: (value: 'oneway' | 'roundtrip') => void;
   quickRoutes: Array<{ from: AirportSelection; to: AirportSelection }>;
   returnDate: string;
+  showHero?: boolean;
   todayYmd: string;
   toSel: AirportSelection | null;
   tripType: 'oneway' | 'roundtrip';
 }) {
   const busy = loading || isReloading;
+  const total = adults + children + infants;
+  const cityFrom = airportCity(fromSel, airports);
+  const cityTo = airportCity(toSel, airports);
+  const retValue = returnDate || defaultReturnDate;
+
+  const [openPicker, setOpenPicker] = useState<null | 'from' | 'to' | 'cabin'>(null);
+  const [query, setQuery] = useState('');
+
+  const openAirport = (which: 'from' | 'to') => { setQuery(''); setOpenPicker(which); };
+  const close = () => setOpenPicker(null);
+  const pickAirport = (which: 'from' | 'to', sel: AirportSelection) => {
+    if (which === 'from') onFromSelect(sel); else onToSelect(sel);
+    close();
+  };
+
+  const airportRows = (which: 'from' | 'to') => {
+    const list = filterAirports(airports, query, 40);
+    if (list.length === 0) return <div className="apgx-aplist"><div className="empty">Không tìm thấy sân bay phù hợp.</div></div>;
+    return (
+      <div className="apgx-aplist">
+        {list.map((airport) => (
+          <button className="apgx-aprow" key={airport.code} type="button" onClick={() => pickAirport(which, { code: airport.code, label: airport.label })}>
+            <span className="lead"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M2 16l9-3 9-3" /><path d="M11 13l-2-6 1.5-.5 4 5" /></svg></span>
+            <span className="min-w-0">
+              <span className="city block truncate">{airport.city} <span className="code">{airport.code}</span></span>
+              <span className="name block truncate">{airport.name}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  // pax steppers (shared desktop grid + mobile rows)
+  const pax = [
+    { key: 'adults', t: 'Người lớn', s: '12 tuổi+', sMobile: '(12 tuổi trở lên)', value: adults, decDisabled: adults <= 1, incDisabled: total >= 9,
+      onDec: () => onPassengerCountsChange({ adults: adults - 1, children, infants }), onInc: () => onPassengerCountsChange({ adults: adults + 1, children, infants }) },
+    { key: 'children', t: 'Trẻ em', s: '2-11 tuổi', sMobile: '(2 đến dưới 12 tuổi)', value: children, decDisabled: children <= 0, incDisabled: total >= 9,
+      onDec: () => onPassengerCountsChange({ adults, children: children - 1, infants }), onInc: () => onPassengerCountsChange({ adults, children: children + 1, infants }) },
+    { key: 'infants', t: 'Em bé', s: 'Dưới 2 tuổi', sMobile: '(Dưới 2 tuổi)', value: infants, decDisabled: infants <= 0, incDisabled: infants >= adults || infants >= 4 || total >= 9,
+      onDec: () => onPassengerCountsChange({ adults, children, infants: infants - 1 }), onInc: () => onPassengerCountsChange({ adults, children, infants: infants + 1 }) },
+  ] as const;
+
+  const stepper = (row: typeof pax[number]) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <button type="button" aria-label={`Giảm ${row.t}`} disabled={row.decDisabled} onClick={row.onDec}
+        style={{ border: 'none', background: 'transparent', color: row.decDisabled ? '#c4ccd4' : '#475569', fontSize: 20, lineHeight: 1, cursor: row.decDisabled ? 'default' : 'pointer', padding: '0 2px' }}>−</button>
+      <span className="tnum" style={{ minWidth: 14, textAlign: 'center', fontSize: 16, fontWeight: 700, color: row.value ? '#16212b' : '#c4ccd4' }}>{row.value}</span>
+      <button type="button" aria-label={`Tăng ${row.t}`} disabled={row.incDisabled} onClick={row.onInc}
+        style={{ border: 'none', background: 'transparent', color: row.incDisabled ? '#c4ccd4' : '#475569', fontSize: 20, lineHeight: 1, cursor: row.incDisabled ? 'default' : 'pointer', padding: '0 2px' }}>+</button>
+    </div>
+  );
+
+  const cabinMenu = (
+    <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 60, background: '#fff', border: '1px solid #d4d8dd', borderRadius: 12, boxShadow: '0 14px 30px rgba(16,24,40,.18)', padding: 6, minWidth: 190 }} onClick={(e) => e.stopPropagation()}>
+      {CABIN_ORDER.map((value) => (
+        <button key={value} type="button" onClick={() => { onCabinChange(value); close(); }}
+          style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: cabin === value ? '#eef4fb' : 'transparent', color: '#16212b', borderRadius: 8, padding: '9px 11px', fontSize: 13, fontWeight: cabin === value ? 700 : 500, cursor: 'pointer' }}>
+          {CABIN_LABELS[value]}
+        </button>
+      ))}
+    </div>
+  );
+
+  const tripTabs = (mobile: boolean) => {
+    const items: Array<['oneway' | 'roundtrip', string]> = [['oneway', 'Một chiều'], ['roundtrip', 'Khứ hồi']];
+    if (mobile) {
+      return (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid #475569', borderRadius: 12, padding: 3, marginBottom: 14 }}>
+          {items.map(([type, label]) => {
+            const on = tripType === type;
+            return (
+              <button key={type} type="button" onClick={() => onTripTypeChange(type)}
+                style={{ height: 36, borderRadius: 9, border: 'none', background: on ? '#475569' : 'transparent', color: on ? '#fff' : '#475569', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{label}</button>
+            );
+          })}
+        </div>
+      );
+    }
+    return (
+      <div style={{ display: 'flex', gap: 8, borderBottom: '1px solid #e5e7eb', paddingBottom: 16, marginBottom: 18 }}>
+        {items.map(([type, label]) => {
+          const on = tripType === type;
+          return (
+            <button key={type} type="button" onClick={() => onTripTypeChange(type)}
+              style={{ height: 40, padding: '0 20px', borderRadius: 8, border: on ? 'none' : '1px solid #d4d8dd', background: on ? '#475569' : '#fff', color: on ? '#fff' : '#475569', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{label}</button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const fieldBox: React.CSSProperties = { height: 50, border: '1px solid #d4d8dd', borderRadius: 10, padding: '0 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', cursor: 'pointer', width: '100%', textAlign: 'left' };
+  const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 600, color: '#475569', marginBottom: 6 };
+
+  const searchBtn = (mobile: boolean) => (
+    <button type="button" disabled={busy} onClick={onSearch}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9, border: 'none', borderRadius: mobile ? 14 : 12, color: '#fff', fontSize: mobile ? 16 : 15, fontWeight: 800, cursor: busy ? 'default' : 'pointer', boxShadow: '0 8px 20px rgba(31,95,68,.3)', background: GREEN, opacity: busy ? 0.75 : 1, ...(mobile ? { height: 48, width: '100%' } : { minWidth: 280, padding: '14px 28px' }) }}>
+      {busy ? 'Đang tìm…' : (<><IconSearch /> Tìm chuyến bay</>)}
+    </button>
+  );
+
+  const note = <div style={{ marginTop: 12, fontSize: 12, color: '#7a8893' }}>Tối đa 9 hành khách mỗi lần tìm (NL + TE + EB), và EB không được vượt quá NL.</div>;
+  const errorBanner = error ? <div className="apgx-banner error" style={{ marginTop: 12 }}><span>⚠</span><span>{error}</span></div> : null;
 
   return (
-    <div className="border border-t-0 border-[var(--apg-border-default)] bg-white px-3 py-3 shadow-sm lg:rounded-b-[var(--apg-radius-lg)] lg:px-5 lg:py-4">
-      {isDesktopViewport !== true && (
-        <div className="lg:hidden">
-          <div className="grid grid-cols-2 rounded-[var(--apg-radius-md)] border border-[var(--apg-aviation-navy)] bg-white p-0.5">
-            {(['oneway', 'roundtrip'] as const).map((type) => (
-              <button
-                aria-pressed={tripType === type}
-                className={`h-9 rounded-[var(--apg-radius-sm)] text-sm font-bold transition ${
-                  tripType === type
-                    ? 'bg-[var(--apg-aviation-navy)] text-white shadow-sm'
-                    : 'text-[var(--apg-text-secondary)]'
-                }`}
-                key={type}
-                onClick={() => onTripTypeChange(type)}
-                type="button"
-              >
-                {type === 'oneway' ? 'Một chiều' : 'Khứ hồi'}
-              </button>
-            ))}
+    <div className="apgx" style={{ background: '#eceef1' }}>
+      <div className="mx-auto w-full max-w-[1320px] px-4 py-3.5 lg:px-7">
+
+        {/* ===================== DESKTOP ===================== */}
+        <div className="hidden lg:block" style={{ borderRadius: 18, overflow: 'visible', background: '#fff', boxShadow: '0 1px 3px rgba(16,24,40,.08)', position: 'relative' }}>
+          {/* section header (brand removed — provided by SiteGlobeHeader above) */}
+          <div style={{ background: NAVY, padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, borderTopLeftRadius: 18, borderTopRightRadius: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'rgba(255,255,255,.85)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" /></svg>
+              <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase' }}>Tìm chuyến bay</span>
+            </div>
+            <div style={{ border: '1px solid rgba(255,255,255,.18)', background: 'rgba(255,255,255,.08)', borderRadius: 12, padding: '7px 13px', textAlign: 'right', flexShrink: 0 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '.16em', color: 'rgba(255,255,255,.6)' }}>BOOKING DESK</div>
+              <div className="tnum" style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginTop: 2 }}>{(fromSel?.code || '—')} → {(toSel?.code || '—')}</div>
+            </div>
           </div>
 
-          <div className="relative mt-3 overflow-visible border-y border-[var(--apg-border-default)] bg-white">
-            <MobileAirportPicker
-              airports={airports}
-              icon={<Plane size={22} strokeWidth={2.4} />}
-              label="Khởi hành"
-              onSelect={onFromSelect}
-              placeholder="Chọn điểm đi"
-              value={fromSel}
-            />
-            <button
-              aria-label="Đổi chiều hành trình"
-              className="absolute right-4 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--apg-border-default)] bg-white text-[var(--apg-aviation-navy)] shadow-[0_10px_24px_rgba(15,47,75,0.12)] transition active:scale-95"
-              onClick={onSwapRoute}
-              type="button"
-            >
-              <ArrowUpDown size={20} strokeWidth={2.4} />
-            </button>
-            <MobileAirportPicker
-              airports={airports}
-              label="Điểm đến"
-              onSelect={onToSelect}
-              placeholder="Chọn điểm đến"
-              value={toSel}
-            />
-          </div>
+          {/* white search panel */}
+          <div style={{ padding: '18px 24px 22px' }}>
+            {tripTabs(false)}
 
-          <div className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b border-[var(--apg-border-default)] px-3 py-3">
-            <CalendarDays className="text-[var(--apg-text-muted)]" size={21} strokeWidth={2.3} />
-            <div className="min-w-0">
-              <label className="block text-[12px] font-semibold text-[var(--apg-text-secondary)]">
-                {tripType === 'roundtrip' ? 'Ngày khởi hành / ngày về' : 'Ngày khởi hành'}
-              </label>
-              <div className="mt-1 flex min-w-0 items-center gap-1.5">
-                <input
-                  className="min-w-0 flex-1 bg-transparent text-[15px] font-extrabold text-[var(--apg-aviation-navy)] outline-none"
-                  min={todayYmd}
-                  onChange={(event) => onDateChange(event.target.value)}
-                  onFocus={(event) => { try { (event.target as HTMLInputElement).showPicker(); } catch { /**/ } }}
-                  type="date"
-                  value={date}
-                />
-                {tripType === 'roundtrip' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 48px minmax(0,1fr)', gap: 14, alignItems: 'end', marginBottom: 14 }}>
+              <div style={{ position: 'relative' }}>
+                <label style={fieldLabel}>Từ</label>
+                <button type="button" style={{ ...fieldBox, fontSize: 15, color: cityFrom ? '#16212b' : '#9aa4ae' }} onClick={() => openAirport('from')}>
+                  <span>{cityFrom ? `${cityFrom}${fromSel?.code ? ` (${fromSel.code})` : ''}` : 'Chọn điểm đi'}</span>
+                </button>
+                {openPicker === 'from' && (
                   <>
-                    <span className="text-[var(--apg-text-muted)]">-</span>
-                    <input
-                      className="min-w-0 flex-1 bg-transparent text-[15px] font-extrabold text-[var(--apg-aviation-navy)] outline-none"
-                      min={minReturnDate}
-                      onChange={(event) => onReturnDateChange(event.target.value)}
-                      onFocus={(event) => { try { (event.target as HTMLInputElement).showPicker(); } catch { /**/ } }}
-                      type="date"
-                      value={returnDate || defaultReturnDate}
-                    />
+                    <div className="apgx-pop-backdrop" onClick={close} />
+                    <div className="apgx-popover" style={{ width: 340 }} onClick={(e) => e.stopPropagation()}>
+                      <div className="apgx-pphead">Chọn điểm đi</div>
+                      <div className="apgx-ppbody">
+                        <input className="apgx-input" placeholder="Tìm thành phố, sân bay hoặc mã" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+                        {airportRows('from')}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+              <button type="button" aria-label="Đảo chiều" onClick={onSwapRoute}
+                style={{ height: 44, width: 44, border: '1px solid #d4d8dd', borderRadius: 10, background: '#fff', color: '#475569', cursor: 'pointer', display: 'grid', placeItems: 'center', marginBottom: 3 }}><IconSwap /></button>
+              <div style={{ position: 'relative' }}>
+                <label style={fieldLabel}>Đến</label>
+                <button type="button" style={{ ...fieldBox, fontSize: 15, color: cityTo ? '#16212b' : '#9aa4ae' }} onClick={() => openAirport('to')}>
+                  <span>{cityTo ? `${cityTo}${toSel?.code ? ` (${toSel.code})` : ''}` : 'Chọn điểm đến'}</span>
+                </button>
+                {openPicker === 'to' && (
+                  <>
+                    <div className="apgx-pop-backdrop" onClick={close} />
+                    <div className="apgx-popover right" style={{ width: 340 }} onClick={(e) => e.stopPropagation()}>
+                      <div className="apgx-pphead">Chọn điểm đến</div>
+                      <div className="apgx-ppbody">
+                        <input className="apgx-input" placeholder="Tìm thành phố, sân bay hoặc mã" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+                        {airportRows('to')}
+                      </div>
+                    </div>
                   </>
                 )}
               </div>
             </div>
-            <ChevronDown className="text-[var(--apg-text-muted)]" size={20} strokeWidth={2.2} />
-          </div>
 
-          <div className="border-b border-[var(--apg-border-default)] py-1">
-            <MobilePassengerCounter
-              decrementDisabled={adults <= 1}
-              icon={<Users size={21} strokeWidth={2.3} />}
-              incrementDisabled={adults + children + infants >= 9}
-              label={<>Người lớn <span className="font-normal text-slate-400">(12 tuổi trở lên)</span></>}
-              onDecrement={() => onPassengerCountsChange({ adults: adults - 1, children, infants })}
-              onIncrement={() => onPassengerCountsChange({ adults: adults + 1, children, infants })}
-              value={adults}
-            />
-            <MobilePassengerCounter
-              decrementDisabled={children <= 0}
-              incrementDisabled={adults + children + infants >= 9}
-              label={<>Trẻ em <span className="font-normal text-slate-400">(2 đến dưới 12 tuổi)</span></>}
-              onDecrement={() => onPassengerCountsChange({ adults, children: children - 1, infants })}
-              onIncrement={() => onPassengerCountsChange({ adults, children: children + 1, infants })}
-              value={children}
-            />
-            <MobilePassengerCounter
-              decrementDisabled={infants <= 0}
-              incrementDisabled={infants >= adults || infants >= 4 || adults + children + infants >= 9}
-              label={<>Em bé <span className="font-normal text-slate-400">(Dưới 2 tuổi)</span></>}
-              onDecrement={() => onPassengerCountsChange({ adults, children, infants: infants - 1 })}
-              onIncrement={() => onPassengerCountsChange({ adults, children, infants: infants + 1 })}
-              value={infants}
-            />
-          </div>
-
-          <div className="grid grid-cols-[28px_1fr_auto] items-center gap-3 border-b border-[var(--apg-border-default)] px-3 py-3">
-            <div />
-            <label className="text-[15px] font-semibold text-slate-700">Hạng vé</label>
-            <select
-              className="h-10 rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-white px-3 text-sm font-bold text-[var(--apg-aviation-navy)] outline-none"
-              onChange={(event) => onCabinChange(event.target.value as Cabin)}
-              value={cabin}
-            >
-              <option value="economy">Phổ thông</option>
-              <option value="premium">Phổ thông đặc biệt</option>
-              <option value="business">Thương gia</option>
-              <option value="first">Hạng nhất</option>
-            </select>
-          </div>
-
-          <button
-            className="mt-4 h-12 w-full rounded-[var(--apg-radius-lg)] bg-[var(--apg-aviation-navy)] text-base font-extrabold text-white shadow-sm transition active:scale-[0.99] disabled:opacity-70"
-            disabled={busy}
-            onClick={onSearch}
-            type="button"
-          >
-            {busy ? 'Đang tìm' : 'Tìm chuyến bay'}
-          </button>
-        </div>
-      )}
-
-      {isDesktopViewport !== false && (
-        <div className="hidden lg:block">
-          <div className="mb-4 flex flex-col gap-3 border-b border-[var(--apg-border-default)] pb-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex gap-1.5">
-              {(['oneway', 'roundtrip'] as const).map((type) => (
-                <button
-                  aria-pressed={tripType === type}
-                  className={`apg-chip h-10 px-4 text-sm ${tripType === type ? 'apg-chip-active shadow-sm' : ''}`}
-                  key={type}
-                  onClick={() => onTripTypeChange(type)}
-                  type="button"
-                >
-                  {type === 'oneway' ? 'Một chiều' : 'Khứ hồi'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-2 grid grid-cols-[1fr_auto_1fr] gap-1.5 lg:grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] lg:gap-3">
-            <AirportInput label="Từ" value={fromSel} placeholder="Điểm đi" onSelect={onFromSelect} />
-            <button className="apg-btn-secondary mt-6 flex h-11 w-11 shrink-0 items-center justify-center px-0 text-lg text-[var(--apg-brand-gold)] shadow-none lg:mt-7" onClick={onSwapRoute} type="button">⇄</button>
-            <AirportInput label="Đến" value={toSel} placeholder="Điểm đến" onSelect={onToSelect} />
-          </div>
-
-          <div className="mb-2 grid grid-cols-2 gap-1.5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-3">
-            <div>
-              <label className="apg-field-label mb-0.5">Ngày đi</label>
-              <input className="apg-field px-3 text-sm lg:text-[15px]" type="date" value={date} min={todayYmd} onChange={(event) => onDateChange(event.target.value)} onFocus={(event) => { try { (event.target as HTMLInputElement).showPicker(); } catch { /**/ } }} />
-            </div>
-            <div>
-              <label className="apg-field-label mb-0.5">Ngày về</label>
-              <input
-                className={`apg-field px-3 text-sm lg:text-[15px] ${tripType === 'oneway' ? 'bg-slate-50 text-slate-300' : ''}`}
-                disabled={tripType === 'oneway'}
-                min={minReturnDate}
-                onChange={(event) => onReturnDateChange(event.target.value)}
-                onFocus={(event) => { if (tripType !== 'oneway') try { (event.target as HTMLInputElement).showPicker(); } catch { /**/ } }}
-                type="date"
-                value={returnDate}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 divide-x divide-[var(--apg-border-default)] overflow-hidden rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)]">
-            {([
-              { key: 'adults', label: 'Người lớn', sub: '12 tuổi+', icon: <Users size={15} strokeWidth={2.3} />, val: adults, decDisabled: adults <= 1, incDisabled: adults + children + infants >= 9, onDec: () => onPassengerCountsChange({ adults: adults - 1, children, infants }), onInc: () => onPassengerCountsChange({ adults: adults + 1, children, infants }) },
-              { key: 'children', label: 'Trẻ em', sub: '2-11 tuổi', icon: null, val: children, decDisabled: children <= 0, incDisabled: adults + children + infants >= 9, onDec: () => onPassengerCountsChange({ adults, children: children - 1, infants }), onInc: () => onPassengerCountsChange({ adults, children: children + 1, infants }) },
-              { key: 'infants', label: 'Em bé', sub: 'Dưới 2 tuổi', icon: null, val: infants, decDisabled: infants <= 0, incDisabled: infants >= adults || infants >= 4 || adults + children + infants >= 9, onDec: () => onPassengerCountsChange({ adults, children, infants: infants - 1 }), onInc: () => onPassengerCountsChange({ adults, children, infants: infants + 1 }) },
-            ] as const).map(({ key, label, sub, icon, val, decDisabled, incDisabled, onDec, onInc }) => (
-              <div key={key} className="flex items-center justify-between px-3 py-2.5">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    {icon && <span className="text-[var(--apg-text-muted)]">{icon}</span>}
-                    <span className="text-[13px] font-semibold text-slate-700">{label}</span>
-                  </div>
-                  <div className="text-[11px] text-slate-400">{sub}</div>
-                </div>
-                <div className="flex shrink-0 items-center gap-0.5">
-                  <button aria-label="Giảm" type="button" disabled={decDisabled} onClick={onDec} className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--apg-text-secondary)] transition disabled:text-slate-300 hover:bg-slate-100">
-                    <Minus size={14} strokeWidth={2.3} />
-                  </button>
-                  <span className={`apg-tabular w-6 text-center text-base font-black ${val > 0 ? 'text-[var(--apg-aviation-navy)]' : 'text-slate-300'}`}>{val}</span>
-                  <button aria-label="Tăng" type="button" disabled={incDisabled} onClick={onInc} className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--apg-text-secondary)] transition disabled:text-slate-300 hover:bg-slate-100">
-                    <Plus size={14} strokeWidth={2.3} />
-                  </button>
-                </div>
+            <div style={{ display: 'grid', gridTemplateColumns: tripType === 'roundtrip' ? '1fr 1fr' : '1fr', gap: 14, marginBottom: 14 }}>
+              <div>
+                <label style={fieldLabel}>Ngày đi</label>
+                <label style={{ ...fieldBox, position: 'relative', cursor: 'pointer' }}>
+                  <span className="tnum" style={{ fontSize: 15, color: '#16212b' }}>{fmtDateNumeric(date) || 'Chọn ngày'}</span><IconCal />
+                  <input type="date" aria-label="Ngày đi" value={date} min={todayYmd} onChange={(e) => onDateChange(e.target.value)}
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+                </label>
               </div>
-            ))}
-            <div className="flex items-center justify-between px-3 py-2.5">
-              <div className="min-w-0">
-                <div className="text-[13px] font-semibold text-slate-700">Hạng vé</div>
-                <div className="text-[11px] text-slate-400">Cabin class</div>
-              </div>
-              <select
-                className="rounded-[var(--apg-radius-sm)] border border-[var(--apg-border-default)] bg-white px-2 py-1 text-[12px] font-bold text-[var(--apg-aviation-navy)] focus:outline-none focus:ring-2 focus:ring-[rgba(94,114,136,0.15)]"
-                onChange={(event) => onCabinChange(event.target.value as Cabin)}
-                value={cabin}
-              >
-                <option value="economy">Phổ thông</option>
-                <option value="premium">PT đặc biệt</option>
-                <option value="business">Thương gia</option>
-                <option value="first">Hạng nhất</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="mt-2 grid grid-cols-4">
-            <div className="col-span-3 flex flex-wrap items-center gap-1 pr-3">
-              {quickRoutes.map(({ from, to }) => (
-                <button key={`${from.code}-${to.code}`} type="button" onClick={() => onQuickRouteSelect(from, to)} className="apg-chip h-7 gap-1 px-2.5 text-[10px]">
-                  {from.code}-{to.code}
-                </button>
-              ))}
-            </div>
-            <button
-              aria-label={`Tìm chuyến bay từ ${fromSel?.code ?? ''} đến ${toSel?.code ?? ''} ngày ${date}`}
-              className="col-span-1 flex w-full items-center justify-center gap-2 rounded-[var(--apg-radius-md)] py-2 text-sm font-extrabold text-white shadow-[0_6px_18px_rgba(31,95,68,0.32)] transition hover:brightness-110 active:scale-[0.98] disabled:opacity-70"
-              disabled={busy}
-              onClick={onSearch}
-              style={{ background: 'linear-gradient(135deg, #1f5f44, var(--apg-success) 55%, #3a9067)' }}
-              type="button"
-            >
-              {busy ? (
-                <>
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
-                  </svg>
-                  Đang tìm chuyến bay...
-                </>
-              ) : (
-                <>
-                  <Plane size={15} strokeWidth={2.3} aria-hidden="true" />
-                  Tìm chuyến bay
-                </>
+              {tripType === 'roundtrip' && (
+                <div>
+                  <label style={fieldLabel}>Ngày về</label>
+                  <label style={{ ...fieldBox, position: 'relative', cursor: 'pointer' }}>
+                    <span className="tnum" style={{ fontSize: 15, color: '#16212b' }}>{fmtDateNumeric(retValue) || 'Chọn ngày'}</span><IconCal />
+                    <input type="date" aria-label="Ngày về" value={retValue} min={minReturnDate} onChange={(e) => onReturnDateChange(e.target.value)}
+                      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+                  </label>
+                </div>
               )}
-            </button>
+            </div>
+
+            {/* passengers + cabin */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', border: '1px solid #d4d8dd', borderRadius: 10, overflow: 'hidden' }}>
+              {pax.map((row, i) => (
+                <div key={row.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderRight: '1px solid #e5e7eb' }}>
+                  <div><div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>{i === 0 ? '👤 ' : ''}{row.t}</div><div style={{ fontSize: 11, color: '#9aa4ae' }}>{row.s}</div></div>
+                  {stepper(row)}
+                </div>
+              ))}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px' }}>
+                <div><div style={{ fontSize: 13, fontWeight: 600, color: '#334155' }}>Hạng vé</div><div style={{ fontSize: 11, color: '#9aa4ae' }}>Cabin class</div></div>
+                <button type="button" onClick={() => setOpenPicker(openPicker === 'cabin' ? null : 'cabin')}
+                  style={{ border: '1px solid #d4d8dd', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#16212b', background: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}>{CABIN_LABELS[cabin]} ▾</button>
+                {openPicker === 'cabin' && (<><div className="apgx-pop-backdrop" onClick={close} />{cabinMenu}</>)}
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, marginTop: 14, alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {quickRoutes.map(({ from, to }) => (
+                  <button key={`${from.code}-${to.code}`} type="button" onClick={() => onQuickRouteSelect(from, to)}
+                    style={{ border: '1px solid #d4d8dd', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, color: '#475569', background: '#fff', cursor: 'pointer' }}>{from.code}-{to.code}</button>
+                ))}
+              </div>
+              {searchBtn(false)}
+            </div>
+            {note}
+            {errorBanner}
           </div>
         </div>
-      )}
 
-      {loading && (
-        <div className="apg-plane-loader mt-3" role="status" aria-live="polite" aria-label="Đang tìm chuyến bay">
-          <div className="apg-plane-loader__trail" aria-hidden="true" />
-          <svg className="apg-plane-loader__plane" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <g transform="rotate(90 12 12)">
-              <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
-            </g>
-          </svg>
-          <span className="sr-only">{loadingHintText}</span>
+        {/* ===================== MOBILE ===================== */}
+        <div className="lg:hidden" style={{ borderRadius: 18, overflow: 'hidden', background: '#fff', boxShadow: '0 1px 3px rgba(16,24,40,.08)', position: 'relative' }}>
+          <div style={{ background: NAVY, padding: '11px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'rgba(255,255,255,.85)' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" /></svg>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase' }}>Tìm chuyến bay</span>
+            </div>
+            <div style={{ border: '1px solid rgba(255,255,255,.18)', background: 'rgba(255,255,255,.08)', borderRadius: 9, padding: '5px 10px', textAlign: 'right', flexShrink: 0 }}><div style={{ fontSize: 8, fontWeight: 700, letterSpacing: '.12em', color: 'rgba(255,255,255,.55)' }}>DESK</div><div className="tnum" style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>{(fromSel?.code || '—')}→{(toSel?.code || '—')}</div></div>
+          </div>
+
+          <div style={{ padding: '14px 14px 16px' }}>
+            {tripTabs(true)}
+
+            <div style={{ position: 'relative', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
+              <button type="button" onClick={() => openAirport('from')} style={{ display: 'grid', gridTemplateColumns: '26px 1fr', gap: 10, padding: '12px 2px', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', cursor: 'pointer' }}>
+                <span style={{ paddingTop: 17, color: '#9aa4ae' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" /></svg></span>
+                <span><span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569' }}>Khởi hành</span><span style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 7 }}><span className="tnum" style={{ borderRadius: 8, background: '#9aa4ae', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 7px' }}>{fromSel?.code || '—'}</span><span style={{ fontSize: 16, fontWeight: 800, color: '#143a5c' }}>{cityFrom || 'Chọn điểm đi'}</span></span></span>
+              </button>
+              <button type="button" aria-label="Đảo chiều" onClick={onSwapRoute} style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 2, width: 42, height: 42, borderRadius: '50%', border: '1px solid #d4d8dd', background: '#fff', color: '#143a5c', boxShadow: '0 8px 20px rgba(15,47,75,.12)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}><IconSwap /></button>
+              <button type="button" onClick={() => openAirport('to')} style={{ display: 'grid', gridTemplateColumns: '26px 1fr', gap: 10, padding: '12px 2px', width: '100%', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <span style={{ paddingTop: 17, color: '#9aa4ae' }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" /></svg></span>
+                <span><span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569' }}>Điểm đến</span><span style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 7 }}><span className="tnum" style={{ borderRadius: 8, background: '#9aa4ae', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 7px' }}>{toSel?.code || '—'}</span><span style={{ fontSize: 16, fontWeight: 800, color: '#143a5c' }}>{cityTo || 'Chọn điểm đến'}</span></span></span>
+              </button>
+            </div>
+
+            <label style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 10, padding: '12px 2px', borderBottom: '1px solid #e5e7eb', position: 'relative', cursor: 'pointer' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa4ae" strokeWidth="2.2"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
+              <span style={{ minWidth: 0 }}><span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#475569' }}>Ngày khởi hành{tripType === 'roundtrip' ? ' / ngày về' : ''}</span><span style={{ marginTop: 2, display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap' }}><span className="tnum" style={{ fontSize: 15, fontWeight: 800, color: '#143a5c' }}>{fmtDateNumeric(date) || 'Chọn ngày'}</span>{tripType === 'roundtrip' && (<><span style={{ color: '#9aa4ae' }}>-</span><span className="tnum" style={{ fontSize: 15, fontWeight: 800, color: '#143a5c' }}>{fmtDateNumeric(retValue) || 'Chọn ngày'}</span></>)}</span></span>
+              <input type="date" aria-label="Ngày đi" value={date} min={todayYmd} onChange={(e) => onDateChange(e.target.value)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+            </label>
+
+            <div style={{ borderBottom: '1px solid #e5e7eb', padding: '4px 0' }}>
+              {pax.map((row, i) => (
+                <div key={row.key} style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 10, padding: '8px 2px' }}>
+                  {i === 0 ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9aa4ae" strokeWidth="2.2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13A4 4 0 0 1 16 11" /></svg>
+                  ) : <span />}
+                  <div style={{ fontSize: 14, fontWeight: 600, color: '#334155' }}>{row.t} <span style={{ fontWeight: 400, color: '#9aa4ae' }}>{row.sMobile}</span></div>
+                  {stepper(row)}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '26px 1fr auto', alignItems: 'center', gap: 10, padding: '12px 2px', position: 'relative' }}>
+              <span />
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#334155' }}>Hạng vé</span>
+              <button type="button" onClick={() => setOpenPicker(openPicker === 'cabin' ? null : 'cabin')} style={{ height: 38, display: 'inline-flex', alignItems: 'center', border: '1px solid #d4d8dd', borderRadius: 10, padding: '0 12px', fontSize: 13, fontWeight: 700, color: '#143a5c', background: '#fff', cursor: 'pointer' }}>{CABIN_LABELS[cabin]} ▾</button>
+              {openPicker === 'cabin' && (<><div className="apgx-pop-backdrop" onClick={close} />{cabinMenu}</>)}
+            </div>
+
+            {searchBtn(true)}
+            {note}
+            {errorBanner}
+          </div>
         </div>
+
+        {/* quick chips (mobile, below card) */}
+        <div className="flex lg:hidden" style={{ gap: 8, overflowX: 'auto', padding: '12px 2px 2px', scrollbarWidth: 'none' }}>
+          {quickRoutes.map(({ from, to }) => (
+            <button key={`m-${from.code}-${to.code}`} type="button" onClick={() => onQuickRouteSelect(from, to)}
+              style={{ flexShrink: 0, border: '1px solid #d4d8dd', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, color: '#475569', background: '#fff', cursor: 'pointer' }}>{from.code}-{to.code}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ===== MOBILE: Airport bottom-sheet (chỉ render trên mobile — desktop dùng dropdown inline) ===== */}
+      {isDesktopViewport === false && (
+        <>
+          <div className={`apgx-sheet-backdrop lg:hidden${openPicker === 'from' || openPicker === 'to' ? ' open' : ''}`} onClick={close} />
+          <div className={`apgx-sheet lg:hidden${openPicker === 'from' || openPicker === 'to' ? ' open' : ''}`} aria-hidden={!(openPicker === 'from' || openPicker === 'to')}>
+            <div className="handle" />
+            <div className="shead"><span className="t">{openPicker === 'to' ? 'Chọn điểm đến' : 'Chọn điểm đi'}</span><button className="x" type="button" onClick={close}>✕</button></div>
+            <div className="sbody">
+              <input className="apgx-input mb-2" placeholder="Tìm thành phố, sân bay hoặc mã" value={query} onChange={(e) => setQuery(e.target.value)} />
+              <div>{(openPicker === 'from' || openPicker === 'to') && airportRows(openPicker)}</div>
+            </div>
+          </div>
+        </>
       )}
-      {error && <div className="mt-3 rounded-[var(--apg-radius-md)] border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">⚠ {error}</div>}
-      <div className="mt-2 text-[11px] text-[var(--apg-text-secondary)]">Tối đa 9 hành khách mỗi lần tìm (NL + TE + EB), và EB không được vượt quá NL.</div>
     </div>
   );
 }

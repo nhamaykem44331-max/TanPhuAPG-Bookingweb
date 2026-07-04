@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Trang chủ (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" />
+<link rel="stylesheet" href="../app-desktop.css" />
+<style>
+  /* calendar (popover) */
+  .cal{padding:6px 16px 0;}
+  .cal-grid2{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  .cal h4{font-size:14px;font-weight:600;margin:8px 0 8px;color:var(--apg-text-secondary);text-align:center;}
+  .cal .dow{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;font-size:11px;color:var(--apg-text-tertiary);margin-bottom:4px;}
+  .cal .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+  .cal .d{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:9px;font-size:13px;font-weight:500;cursor:pointer;}
+  .cal .d:hover{background:var(--apg-blue-50);}
+  .cal .d.dim{color:var(--apg-text-muted);pointer-events:none;opacity:.4;}
+  .cal .d.sel{background:var(--apg-blue-500);color:#fff;}
+  .cal .d .p{font-size:9px;color:var(--apg-success);font-weight:600;}
+  .cal .d.sel .p{color:#cfe9d6;}
+  .pax-item{display:flex;align-items:center;gap:14px;padding:13px 0;}
+  .pax-item + .pax-item{border-top:1px solid var(--apg-hairline);}
+  .pax-item .t{font-size:15px;font-weight:600;}
+  .pax-item .s{font-size:12px;color:var(--apg-text-secondary);}
+  .pax-item .stepper{margin-left:auto;}
+  .cabin-opt{display:flex;align-items:center;gap:10px;padding:11px 0;cursor:pointer;border-top:1px solid var(--apg-hairline);}
+  .cabin-opt .ck{width:20px;height:20px;border-radius:50%;border:2px solid var(--apg-hairline);display:grid;place-items:center;}
+  .cabin-opt.on .ck{border-color:var(--apg-blue-500);background:var(--apg-blue-500);}
+  .ap-list .row{cursor:pointer;}
+  .ap-list .row:hover{background:var(--apg-bg-surface-muted);}
+</style>
+</head>
+<body>
+  <div class="topnav">
+    <div class="in">
+      <a class="brand" href="../index.html"><img src="../../mobile/assets/logo-appicon.png" alt="" /> Tân Phú APG</a>
+      <nav>
+        <a class="on" href="home.html">Tìm vé</a>
+        <a href="quote.html">Báo giá</a>
+        <a href="#">Tra cứu đặt chỗ</a>
+        <a href="admin-dashboard.html">Quản trị</a>
+      </nav>
+      <div class="right">
+        <button class="iconbtn" title="Liên hệ"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 3.08 4.18 2 2 0 0 1 5 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
+        <span class="airmono" style="background:var(--apg-blue-500)">QT</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <div class="hero-d">
+      <h1>Tìm chuyến bay của bạn</h1>
+      <p>Vé nội địa &amp; quốc tế, giá tốt từ nhiều hãng — nhanh, minh bạch, chuyên nghiệp.</p>
+    </div>
+
+    <div class="container" style="margin-top:-12px;position:relative;z-index:20;">
+      <div style="margin-bottom:12px;display:flex;justify-content:center;">
+        <div class="seg" id="trip" style="width:260px;">
+          <button class="on" onclick="setTrip('oneway')">Một chiều</button>
+          <button onclick="setTrip('roundtrip')">Khứ hồi</button>
+        </div>
+      </div>
+
+      <div class="dsearch">
+        <div class="cell od-from pop-anchor" onclick="openPop('ap','from',this)">
+          <span class="k">Điểm đi</span><span class="v"><span id="fromCity">Hà Nội</span><span class="code" id="fromCode">HAN</span></span>
+        </div>
+        <div class="dsearch-swapwrap" style="display:flex;align-items:center;justify-content:center;width:0;">
+          <button class="swapbtn" style="position:relative;left:-20px;" onclick="event.stopPropagation();swapOD()" title="Đảo chiều"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l3-3M17 20l-3-3"/></svg></button>
+        </div>
+        <div class="cell od-to pop-anchor" onclick="openPop('ap','to',this)">
+          <span class="k">Điểm đến</span><span class="v"><span id="toCity">TP. Hồ Chí Minh</span><span class="code" id="toCode">SGN</span></span>
+        </div>
+        <div class="cell dt pop-anchor" onclick="openPop('cal','depart',this)">
+          <span class="k">Ngày đi</span><span class="v" id="departLbl">T4, 6 Th8</span>
+        </div>
+        <div class="cell dt pop-anchor hide" id="returnCell" onclick="openPop('cal','return',this)">
+          <span class="k">Ngày về</span><span class="v" id="returnLbl">Chọn ngày</span>
+        </div>
+        <div class="cell pax pop-anchor" onclick="openPop('pax',null,this)">
+          <span class="k">Hành khách &amp; hạng</span><span class="v" id="paxLbl">1 khách · Phổ thông</span>
+        </div>
+        <div class="go"><button class="btn fill" onclick="goSearch()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg> Tìm chuyến bay</button></div>
+      </div>
+
+      <div class="quickrow">
+        <button class="chip" onclick="quick('HAN','Hà Nội','SGN','TP. Hồ Chí Minh')">HAN → SGN</button>
+        <button class="chip" onclick="quick('HAN','Hà Nội','DAD','Đà Nẵng')">HAN → DAD</button>
+        <button class="chip" onclick="quick('SGN','TP. Hồ Chí Minh','HAN','Hà Nội')">SGN → HAN</button>
+        <button class="chip" onclick="quick('HAN','Hà Nội','PQC','Phú Quốc')">HAN → PQC</button>
+        <button class="chip" onclick="quick('SGN','TP. Hồ Chí Minh','DAD','Đà Nẵng')">SGN → DAD</button>
+      </div>
+    </div>
+
+    <div class="trust">
+      <div class="t"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l8 4v6c0 5-3.5 8-8 10-4.5-2-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg></div><h4>Đáng tin cậy</h4><p>Đại lý chính thức, xuất vé tức thì.</p></div>
+      <div class="t"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h4>Nhanh chóng</h4><p>Gom giá nhiều hãng trong vài giây.</p></div>
+      <div class="t"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 10h18M7 15h4M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/></svg></div><h4>Báo giá &amp; markup</h4><p>Công cụ cho đại lý &amp; doanh nghiệp.</p></div>
+      <div class="t"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><h4>Hỗ trợ tận tâm</h4><p>Đồng hành trước &amp; sau chuyến bay.</p></div>
+    </div>
+
+    <div class="footer">
+      <div class="in">
+        <div><a class="brand" style="display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--apg-text-primary);font-weight:600;font-size:16px;"><img src="../../mobile/assets/logo-appicon.png" style="width:30px;height:30px;border-radius:8px;" alt="" /> Tân Phú APG</a><p style="font-size:13px;color:var(--apg-text-secondary);margin-top:12px;max-width:34ch;">Đại lý vé máy bay — Airlines Agent. Vé nội địa &amp; quốc tế, báo giá doanh nghiệp.</p></div>
+        <div><h5>Sản phẩm</h5><a href="home.html">Tìm vé</a><a href="quote.html">Báo giá</a><a href="#">Tra cứu đặt chỗ</a></div>
+        <div><h5>Hỗ trợ</h5><a href="#">Liên hệ</a><a href="#">Điều khoản</a><a href="#">Chính sách</a></div>
+        <div><h5>Liên hệ</h5><a href="#">1900 1808</a><a href="#">datve@tanphuapg.vn</a><a href="#">tanphuapg.vn</a></div>
+      </div>
+      <div class="copy">© 2026 Tân Phú APG · Airlines Agent. Mockup desktop — Redesign 2026.</div>
+    </div>
+  </div>
+
+  <!-- POPOVER backdrop -->
+  <div class="pop-backdrop hide" id="popBackdrop" onclick="closePop()"></div>
+
+  <!-- AIRPORT popover -->
+  <div class="popover" id="popAp" style="width:340px;">
+    <div class="pphead" id="apTitle">Chọn điểm đi</div>
+    <div class="ppbody" style="padding:8px 12px;">
+      <input class="input" id="apSearch" placeholder="Tìm thành phố / mã sân bay" oninput="renderAirports()" style="margin-bottom:8px;" />
+      <div class="ap-list" id="apList" style="max-height:280px;overflow-y:auto;"></div>
+    </div>
+  </div>
+
+  <!-- CALENDAR popover -->
+  <div class="popover" id="popCal" style="width:560px;">
+    <div class="pphead" id="calTitle">Chọn ngày đi</div>
+    <div class="ppbody"><div class="cal"><div class="cal-grid2" id="calBody"></div></div></div>
+    <div class="ppfoot"><button class="btn ghost wauto" onclick="closePop()">Xong</button></div>
+  </div>
+
+  <!-- PAX popover -->
+  <div class="popover right" id="popPax" style="width:340px;">
+    <div class="pphead">Hành khách &amp; hạng ghế</div>
+    <div class="ppbody">
+      <div class="pax-item"><div><div class="t">Người lớn</div><div class="s">Từ 12 tuổi</div></div><div class="stepper"><button onclick="step('adult',-1)" id="adultMinus">−</button><span class="n" id="adultN">1</span><button onclick="step('adult',1)">+</button></div></div>
+      <div class="pax-item"><div><div class="t">Trẻ em</div><div class="s">2–11 tuổi</div></div><div class="stepper"><button onclick="step('child',-1)" id="childMinus">−</button><span class="n" id="childN">0</span><button onclick="step('child',1)">+</button></div></div>
+      <div class="pax-item"><div><div class="t">Em bé</div><div class="s">Dưới 2 tuổi</div></div><div class="stepper"><button onclick="step('infant',-1)" id="infantMinus">−</button><span class="n" id="infantN">0</span><button onclick="step('infant',1)">+</button></div></div>
+      <div style="margin-top:8px;">
+        <div class="cabin-opt on" data-cabin="economy" onclick="setCabin('economy')"><span class="ck"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"><path d="M5 12l5 5L20 6"/></svg></span><span style="font-size:15px;font-weight:500;">Phổ thông</span></div>
+        <div class="cabin-opt" data-cabin="premium" onclick="setCabin('premium')"><span class="ck"></span><span style="font-size:15px;font-weight:500;">Phổ thông đặc biệt</span></div>
+        <div class="cabin-opt" data-cabin="business" onclick="setCabin('business')"><span class="ck"></span><span style="font-size:15px;font-weight:500;">Thương gia</span></div>
+        <div class="cabin-opt" data-cabin="first" onclick="setCabin('first')"><span class="ck"></span><span style="font-size:15px;font-weight:500;">Hạng nhất</span></div>
+      </div>
+    </div>
+    <div class="ppfoot"><button class="btn fill wauto" onclick="closePop()">Xong</button></div>
+  </div>
+
+<script>
+  const MONTHS=['Th1','Th2','Th3','Th4','Th5','Th6','Th7','Th8','Th9','Th10','Th11','Th12'];
+  const DOW=['CN','T2','T3','T4','T5','T6','T7'];
+  const CABINS={economy:'Phổ thông',premium:'Phổ thông đặc biệt',business:'Thương gia',first:'Hạng nhất'};
+  const state={trip:'oneway',adult:1,child:0,infant:0,cabin:'economy',from:{code:'HAN',city:'Hà Nội'},to:{code:'SGN',city:'TP. Hồ Chí Minh'},depart:new Date(2026,7,6),ret:null,calMode:'depart',apMode:'from'};
+  const AIRPORTS=[{code:'HAN',city:'Hà Nội',name:'Nội Bài'},{code:'SGN',city:'TP. Hồ Chí Minh',name:'Tân Sơn Nhất'},{code:'DAD',city:'Đà Nẵng',name:'Đà Nẵng'},{code:'PQC',city:'Phú Quốc',name:'Phú Quốc'},{code:'CXR',city:'Nha Trang',name:'Cam Ranh'},{code:'HPH',city:'Hải Phòng',name:'Cát Bi'},{code:'VCA',city:'Cần Thơ',name:'Cần Thơ'},{code:'HUI',city:'Huế',name:'Phú Bài'},{code:'DLI',city:'Đà Lạt',name:'Liên Khương'},{code:'BKK',city:'Bangkok',name:'Suvarnabhumi'},{code:'SIN',city:'Singapore',name:'Changi'},{code:'ICN',city:'Seoul',name:'Incheon'}];
+  const fmtDate=d=>`${DOW[d.getDay()]}, ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  let curPop=null,curAnchor=null;
+
+  function setTrip(t){state.trip=t;document.querySelectorAll('#trip button').forEach(b=>b.classList.toggle('on',b.textContent.includes(t==='oneway'?'Một':'Khứ')));document.getElementById('returnCell').classList.toggle('hide',t!=='roundtrip');}
+  function swapOD(){const f=state.from;state.from=state.to;state.to=f;syncOD();}
+  function syncOD(){fromCity.textContent=state.from.city;fromCode.textContent=state.from.code;toCity.textContent=state.to.city;toCode.textContent=state.to.code;}
+  function quick(fc,fCity,tc,tCity){state.from={code:fc,city:fCity};state.to={code:tc,city:tCity};syncOD();}
+
+  function openPop(kind,mode,anchor){
+    closePop();
+    const map={ap:'popAp',cal:'popCal',pax:'popPax'};
+    const pop=document.getElementById(map[kind]);curPop=pop;curAnchor=anchor;
+    if(kind==='ap'){state.apMode=mode;document.getElementById('apTitle').textContent=mode==='from'?'Chọn điểm đi':'Chọn điểm đến';apSearch.value='';renderAirports();}
+    if(kind==='cal'){state.calMode=mode;document.getElementById('calTitle').textContent=mode==='depart'?'Chọn ngày đi':'Chọn ngày về';renderCal();}
+    // position under anchor
+    const ar=anchor.getBoundingClientRect();
+    anchor.style.position='relative';anchor.appendChild(pop);
+    document.getElementById('popBackdrop').classList.remove('hide');
+    requestAnimationFrame(()=>pop.classList.add('open'));
+  }
+  function closePop(){if(curPop){curPop.classList.remove('open');document.body.appendChild(curPop);}curPop=null;document.getElementById('popBackdrop').classList.add('hide');}
+
+  function step(type,delta){let{adult,child,infant}=state;if(type==='adult'){adult=Math.min(9,Math.max(1,adult+delta));if(infant>adult)infant=adult;}if(type==='child')child=Math.min(9,Math.max(0,child+delta));if(type==='infant')infant=Math.min(Math.min(4,adult),Math.max(0,infant+delta));if(adult+child>9){if(type==='adult')adult=state.adult;if(type==='child')child=state.child;}Object.assign(state,{adult,child,infant});adultN.textContent=adult;childN.textContent=child;infantN.textContent=infant;adultMinus.disabled=adult<=1;childMinus.disabled=child<=0;infantMinus.disabled=infant<=0;syncPax();}
+  function setCabin(c){state.cabin=c;document.querySelectorAll('#popPax .cabin-opt').forEach(o=>{const on=o.dataset.cabin===c;o.classList.toggle('on',on);o.querySelector('.ck').innerHTML=on?'<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"><path d="M5 12l5 5L20 6"/></svg>':'';});syncPax();}
+  function syncPax(){const tot=state.adult+state.child+state.infant;paxLbl.textContent=`${tot} khách · ${CABINS[state.cabin]}`;}
+
+  function renderCal(){const today=new Date(2026,7,3);const body=document.getElementById('calBody');body.innerHTML='';for(let m=0;m<2;m++){const base=new Date(2026,7+m,1);const wrap=document.createElement('div');const h=document.createElement('h4');h.textContent=`${MONTHS[base.getMonth()].replace('Th','Tháng ')} 2026`;wrap.appendChild(h);const dow=document.createElement('div');dow.className='dow';dow.innerHTML=DOW.map(d=>`<span>${d}</span>`).join('');wrap.appendChild(dow);const grid=document.createElement('div');grid.className='grid';let start=base.getDay();for(let i=0;i<start;i++)grid.appendChild(document.createElement('div'));const days=new Date(2026,8+m,0).getDate();for(let d=1;d<=days;d++){const cell=document.createElement('div');cell.className='d';const date=new Date(2026,7+m,d);const isPast=date<today;const sel=state.calMode==='depart'?state.depart:state.ret;if(isPast)cell.classList.add('dim');if(sel&&date.toDateString()===sel.toDateString())cell.classList.add('sel');const price=900+((d*37)%900);cell.innerHTML=`${d}<span class="p">${price}k</span>`;if(!isPast)cell.onclick=()=>pickDate(date);grid.appendChild(cell);}wrap.appendChild(grid);body.appendChild(wrap);}}
+  function pickDate(date){if(state.calMode==='depart'){state.depart=date;departLbl.textContent=fmtDate(date);}else{state.ret=date;returnLbl.textContent=fmtDate(date);}renderCal();}
+
+  function renderAirports(){const q=(apSearch.value||'').toLowerCase();const res=AIRPORTS.filter(a=>!q||a.city.toLowerCase().includes(q)||a.code.toLowerCase().includes(q));document.getElementById('apList').innerHTML='<div class="group" style="margin:0;box-shadow:none;">'+res.map(a=>`<div class="row" onclick="pickAirport('${a.code}','${a.city}')"><span class="lead"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2 16l9-3 9-3"/><path d="M11 13l-2-6 1.5-.5 4 5"/></svg></span><div class="body"><div class="v">${a.city} <span style="color:var(--apg-text-tertiary);font-weight:500;">${a.code}</span></div><div class="k">${a.name}</div></div></div>`).join('')+'</div>';}
+  function pickAirport(code,city){if(state.apMode==='from')state.from={code,city};else state.to={code,city};syncOD();closePop();}
+
+  function goSearch(){try{localStorage.setItem('apg:lastSearch',JSON.stringify({from:state.from.code,to:state.to.code,trip:state.trip}));}catch(e){}location.href=state.trip==='roundtrip'?'results-roundtrip.html':'results-oneway.html';}
+  syncPax();
+</script>
+</body>
+</html>

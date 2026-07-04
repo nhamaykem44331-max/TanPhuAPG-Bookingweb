@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Admin Dashboard (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" />
+<link rel="stylesheet" href="../../mobile/screens/admin.css" />
+<link rel="stylesheet" href="../app-desktop.css" />
+<link rel="stylesheet" href="../admin-desktop.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <div class="admin-main">
+      <div class="admin-body">
+        <div class="page-head"><div><h1>Tổng quan hôm nay</h1><p>30/05/2026 · cập nhật 2 phút trước</p></div><button class="btn fill wauto" style="padding:0 18px;height:40px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg> Xuất báo cáo</button></div>
+
+        <div class="kpi-row">
+          <div class="kpi"><div class="kl">Doanh thu hôm nay</div><div class="kv">86,4M ₫</div><div class="kd up">▲ 12,5% so với hôm qua</div></div>
+          <div class="kpi"><div class="kl">Đặt chỗ mới</div><div class="kv">34</div><div class="kd up">▲ 6 vé</div></div>
+          <div class="kpi"><div class="kl">Chờ thanh toán</div><div class="kv">9</div><div class="kd down">▼ 2</div></div>
+          <div class="kpi"><div class="kl">Tỉ lệ xuất vé</div><div class="kv">92%</div><div class="kd up">▲ 1,3%</div></div>
+        </div>
+
+        <div class="two-cols" style="grid-template-columns:1.5fr 1fr;align-items:start;">
+          <div class="tablecard">
+            <div class="tch"><span style="font-weight:600;">Doanh thu 7 ngày</span><div class="sortseg"><button class="on">Tuần</button><button>Tháng</button></div></div>
+            <div class="bars tall"><div class="bar" style="height:48%"><span>T2</span></div><div class="bar" style="height:66%"><span>T3</span></div><div class="bar" style="height:54%"><span>T4</span></div><div class="bar" style="height:80%"><span>T5</span></div><div class="bar" style="height:72%"><span>T6</span></div><div class="bar" style="height:95%"><span>T7</span></div><div class="bar" style="height:60%"><span>CN</span></div></div>
+          </div>
+          <div class="tablecard">
+            <div class="tch"><span style="font-weight:600;">Top tuyến</span></div>
+            <div style="padding:6px 18px 14px;">
+              <div class="srow" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--apg-hairline);"><span>HAN ⇄ SGN</span><span class="tnum" style="font-weight:600;">612M ₫</span></div>
+              <div class="srow" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--apg-hairline);"><span>HAN → DAD</span><span class="tnum" style="font-weight:600;">318M ₫</span></div>
+              <div class="srow" style="display:flex;justify-content:space-between;padding:11px 0;"><span>SGN → PQC</span><span class="tnum" style="font-weight:600;">241M ₫</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tablecard" style="margin-top:20px;">
+          <div class="tch"><span style="font-weight:600;">Đặt chỗ gần đây</span><a class="link" href="admin-bookings.html">Xem tất cả</a></div>
+          <table class="table">
+            <thead><tr><th>Mã / PNR</th><th>Khách hàng</th><th>Hành trình</th><th>Trạng thái</th><th class="right">Số tiền</th></tr></thead>
+            <tbody>
+              <tr onclick="location.href='admin-bookings.html'"><td><div class="cellmain mono">APG-250530-7741</div><div class="cellsub mono">QH7X2P</div></td><td>Nguyễn Văn An</td><td>HAN→SGN · VN213</td><td><span class="sbadge wait">Chờ thanh toán</span></td><td class="right tnum" style="font-weight:600;">2.505.000 ₫</td></tr>
+              <tr onclick="location.href='admin-bookings.html'"><td><div class="cellmain mono">APG-250530-7738</div><div class="cellsub mono">VJ8K2M</div></td><td>Trần Thị Bình</td><td>SGN→DAD · VJ638</td><td><span class="sbadge ok">Đã xuất vé</span></td><td class="right tnum" style="font-weight:600;">1.740.000 ₫</td></tr>
+              <tr onclick="location.href='admin-bookings.html'"><td><div class="cellmain mono">APG-250530-7732</div><div class="cellsub mono">—</div></td><td>Lê Hoàng</td><td>HAN→PQC · QH1421</td><td><span class="sbadge fail">Hết hạn</span></td><td class="right tnum" style="font-weight:600;">3.120.000 ₫</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+<script src="admin-desktop-shell.js"></script>
+<script>initAdminDesktop('dashboard','Bảng điều khiển');</script>
+</body>
+</html>

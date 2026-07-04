@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Quản lý menu (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" /><link rel="stylesheet" href="../../mobile/screens/admin.css" /><link rel="stylesheet" href="../app-desktop.css" /><link rel="stylesheet" href="../admin-desktop.css" />
+<style>.mrow{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--apg-hairline);}.mrow:last-child{border-bottom:none;}.mrow .gr{color:var(--apg-text-muted);cursor:grab;}.mrow .v{font-weight:600;}.mrow .k{font-size:12px;color:var(--apg-text-tertiary);}.toggle{width:50px;height:30px;border-radius:980px;background:#e3e3e6;position:relative;cursor:pointer;flex:none;margin-left:auto;}.toggle.on{background:var(--apg-success-vivid);}.toggle i{position:absolute;top:2px;left:2px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:left .2s;}.toggle.on i{left:22px;}</style>
+</head>
+<body>
+  <div class="admin-shell"><div class="admin-main"><div class="admin-body narrow">
+    <div class="page-head"><div><h1>Menu điều hướng</h1><p>Kéo để sắp xếp · bật/tắt hiển thị</p></div><button class="btn fill wauto" style="padding:0 18px;height:40px;">Lưu thay đổi</button></div>
+    <div class="tablecard">
+      <div class="mrow"><span class="gr"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg></span><div><div class="v">Trang chủ</div><div class="k mono">/</div></div><span class="toggle on" onclick="this.classList.toggle('on')"><i></i></span></div>
+      <div class="mrow"><span class="gr"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg></span><div><div class="v">Báo giá</div><div class="k mono">/quote</div></div><span class="toggle on" onclick="this.classList.toggle('on')"><i></i></span></div>
+      <div class="mrow"><span class="gr"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg></span><div><div class="v">Tra cứu đặt chỗ</div><div class="k mono">/booking</div></div><span class="toggle on" onclick="this.classList.toggle('on')"><i></i></span></div>
+      <div class="mrow"><span class="gr"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"/></svg></span><div><div class="v">Liên hệ</div><div class="k">Mục ẩn</div></div><span class="toggle" onclick="this.classList.toggle('on')"><i></i></span></div>
+    </div>
+  </div></div></div>
+<script src="admin-desktop-shell.js"></script><script>initAdminDesktop('menu','Quản lý menu');</script>
+</body>
+</html>

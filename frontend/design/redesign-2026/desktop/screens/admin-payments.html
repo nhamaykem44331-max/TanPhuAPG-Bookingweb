@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Admin Thanh toán (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" /><link rel="stylesheet" href="../../mobile/screens/admin.css" /><link rel="stylesheet" href="../app-desktop.css" /><link rel="stylesheet" href="../admin-desktop.css" />
+</head>
+<body>
+  <div class="admin-shell"><div class="admin-main"><div class="admin-body">
+    <div class="page-head"><div><h1>Nhật ký thanh toán</h1><p>Đối soát tự động qua SePay webhook</p></div></div>
+    <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);"><div class="kpi"><div class="kl">Đã thu hôm nay</div><div class="kv">71,9M ₫</div><div class="kd up">▲ 18 giao dịch</div></div><div class="kpi"><div class="kl">Đang đối soát</div><div class="kv">9</div></div><div class="kpi"><div class="kl">Thất bại / sai NDCK</div><div class="kv">3</div><div class="kd down">cần xử lý</div></div></div>
+    <div class="tablecard">
+      <div class="tch"><div class="chiprow" style="padding:0;"><button class="chip on">Tất cả</button><button class="chip">Thành công</button><button class="chip">Chờ</button><button class="chip">Thất bại</button></div></div>
+      <table class="table">
+        <thead><tr><th>Mã GD</th><th>Nội dung CK</th><th>Kênh</th><th>Thời gian</th><th>Trạng thái</th><th class="right">Số tiền</th></tr></thead>
+        <tbody>
+          <tr><td class="mono cellmain">TX-9920481</td><td class="mono">APG2505307738</td><td>SePay · BIDV</td><td class="nowrap">30/05 09:21</td><td><span class="sbadge ok">Thành công</span></td><td class="right tnum" style="font-weight:600;color:var(--apg-success)">+1.740.000 ₫</td></tr>
+          <tr><td class="mono cellmain">TX-9920479</td><td class="mono">APG2505307741</td><td>SePay · BIDV</td><td class="nowrap">30/05 09:33</td><td><span class="sbadge wait">Chờ đối soát</span></td><td class="right tnum" style="font-weight:600;">2.505.000 ₫</td></tr>
+          <tr><td class="mono cellmain">TX-9920455</td><td class="mono">Sai nội dung CK</td><td>SePay · BIDV</td><td class="nowrap">30/05 08:55</td><td><span class="sbadge fail">Thất bại</span></td><td class="right tnum" style="font-weight:600;color:var(--apg-danger)">—</td></tr>
+          <tr><td class="mono cellmain">TX-9920441</td><td class="mono">APG2505307720</td><td>SePay · BIDV</td><td class="nowrap">29/05 18:10</td><td><span class="sbadge ok">Thành công</span></td><td class="right tnum" style="font-weight:600;color:var(--apg-success)">+4.830.000 ₫</td></tr>
+        </tbody>
+      </table>
+      <div class="pager"><button>‹</button><button class="on">1</button><button>2</button><button>3</button><button>›</button></div>
+    </div>
+  </div></div></div>
+<script src="admin-desktop-shell.js"></script><script>initAdminDesktop('payments','Nhật ký thanh toán');</script>
+</body>
+</html>

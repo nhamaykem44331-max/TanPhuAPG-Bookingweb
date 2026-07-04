@@ -119,12 +119,18 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
           <div className="flex items-center gap-[10px]">
             <MiniChip tone={chip.tone}>{chip.label}</MiniChip>
             {chip.needsReview ? (
-              <button
-                type="button"
+              <Link
+                href={
+                  row.bookingId
+                    ? `/admin/bookings/${row.bookingId}`
+                    : row.pnr
+                      ? `/admin/bookings?q=${encodeURIComponent(row.pnr)}`
+                      : "/admin/bookings"
+                }
                 className="rounded-[6px] border border-[var(--rust)] bg-transparent px-[9px] py-[5px] text-[11px] font-semibold text-[var(--rust)] transition hover:bg-[var(--rust)] hover:text-[#F5F1EA]"
               >
                 Khớp tay
-              </button>
+              </Link>
             ) : null}
           </div>
         );

@@ -18,6 +18,7 @@ import {
 export type AdminNavKey =
   | "queue"
   | "orders"
+  | "quote"
   | "dashboard"
   | "payments"
   | "notifications"
@@ -47,6 +48,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     items: [
       { key: "queue", label: "Hàng đợi xuất vé", href: "/admin/queue", roles: TICKETING_QUEUE_ROLES, badgeKey: "queue" },
       { key: "orders", label: "Tất cả đơn", href: "/admin/bookings", roles: ADMIN_ROLES },
+      { key: "quote", label: "Lập báo giá", href: "/admin/quote", roles: ADMIN_ROLES },
       { key: "dashboard", label: "Dashboard", href: "/admin/dashboard", roles: DASHBOARD_VIEWER_ROLES },
     ],
   },
@@ -93,6 +95,7 @@ export interface AdminPageHeader {
 const PAGE_HEADERS: Record<string, AdminPageHeader> = {
   queue: { eyebrow: "HÀNG ĐỢI · ƯU TIÊN CAO", title: "Hàng đợi xuất vé" },
   bookings: { eyebrow: "VẬN HÀNH", title: "Tất cả đơn" },
+  quote: { eyebrow: "CÔNG CỤ", title: "Lập báo giá" },
   dashboard: { eyebrow: "TỔNG QUAN VẬN HÀNH", title: "Dashboard" },
   payments: { eyebrow: "ĐỐI SOÁT", title: "Khớp thanh toán" },
   notifications: { eyebrow: "GIAO TIẾP", title: "Thông báo Zalo" },

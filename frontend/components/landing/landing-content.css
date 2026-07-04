@@ -1,0 +1,37 @@
+/* Trang nội dung (info + blog) — scoped dưới .lp, tái dùng biến của landing.css */
+
+.lp .doc-wrap { background: var(--page); padding: 28px 0 64px; min-height: 60vh; }
+.lp .doc-crumbs { font-size: .85rem; color: var(--muted); margin-bottom: 18px; }
+.lp .doc-crumbs a { color: var(--navy); text-decoration: none; }
+.lp .doc-crumbs a:hover { text-decoration: underline; }
+.lp .doc-crumbs .sep { color: var(--line-2); margin: 0 2px; }
+
+.lp .doc {
+  max-width: 760px; margin: 0 auto; background: var(--white);
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 32px clamp(20px, 5vw, 48px);
+}
+.lp .doc h1 { font-size: clamp(1.55rem, 4vw, 2.15rem); line-height: 1.22; color: var(--navy-dark); margin: 0 0 10px; font-weight: 800; }
+.lp .doc .doc-lead { color: var(--muted); font-size: 1.05rem; line-height: 1.6; margin: 0 0 24px; }
+.lp .doc .doc-meta { color: var(--muted); font-size: .9rem; margin: -4px 0 22px; }
+.lp .doc h2 { font-size: 1.25rem; color: var(--navy); margin: 30px 0 10px; font-weight: 700; }
+.lp .doc h3 { font-size: 1.05rem; color: var(--navy); margin: 20px 0 8px; font-weight: 700; }
+.lp .doc p { color: var(--ink); line-height: 1.75; margin: 0 0 14px; }
+.lp .doc ul, .lp .doc ol { margin: 0 0 16px; padding-left: 22px; color: var(--ink); line-height: 1.75; }
+.lp .doc li { margin-bottom: 6px; }
+.lp .doc a { color: var(--green-dark); font-weight: 600; }
+.lp .doc strong { color: var(--navy-dark); }
+.lp .doc .doc-cta { margin-top: 26px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* FAQ accordion */
+.lp .doc-faq details { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; background: var(--white); }
+.lp .doc-faq summary { font-weight: 700; color: var(--navy); cursor: pointer; list-style: none; }
+.lp .doc-faq summary::-webkit-details-marker { display: none; }
+.lp .doc-faq details[open] summary { margin-bottom: 8px; }
+.lp .doc-faq details p { margin: 0; }
+
+/* Blog listing */
+.lp .blog-grid { max-width: 1040px; margin: 0 auto; }
+.lp .blog-head { text-align: center; margin-bottom: 28px; }
+.lp .blog-head h1 { font-size: clamp(1.55rem, 4vw, 2.15rem); color: var(--navy-dark); font-weight: 800; margin: 0 0 8px; }
+.lp .blog-head p { color: var(--muted); margin: 0; }

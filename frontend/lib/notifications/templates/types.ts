@@ -14,4 +14,7 @@ export interface BookingEmailContext {
   transferContent?: string | null;
   accountNumber?: string | null;
   accountName?: string | null;
+  bankName?: string | null;
+  qrImageUrl?: string | null;
+  lookupUrl?: string | null;
 }

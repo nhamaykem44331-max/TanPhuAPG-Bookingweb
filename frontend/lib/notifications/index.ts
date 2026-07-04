@@ -165,6 +165,11 @@ async function notifyBookingHoldCreated(event: Extract<NotificationEvent, { type
   }
 
   const { booking, paymentIntent } = context;
+  const rawRequest = (booking.namthanhRawJson as { request?: { vatInvoice?: { companyName?: string; taxId?: string; address?: string; email?: string } | null } } | null)?.request;
+  const vat = rawRequest?.vatInvoice;
+  const vatLine = vat && (vat.companyName || vat.taxId)
+    ? `🧾 XUẤT HĐ VAT: ${vat.companyName || "-"} · MST ${vat.taxId || "-"}${vat.address ? ` · ${vat.address}` : ""}${vat.email ? ` · ${vat.email}` : ""}`
+    : "";
   const text = [
     "*PNR MỚI - CẦN THEO DÕI*",
     `Đơn: ${booking.orderCode}`,
@@ -175,10 +180,44 @@ async function notifyBookingHoldCreated(event: Extract<NotificationEvent, { type
     `Nội dung CK: ${paymentIntent?.transferContent ?? "Chưa tạo được QR SePay"}`,
     `TTL: ${formatDate(booking.ttlExpiresAt)}`,
     `QR SePay: ${paymentIntent ? (event.reused ? "Đã có sẵn" : "Đã tạo mới") : "Chưa tạo"}`,
+    vatLine,
     `Admin: ${context.adminUrl}`,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   await sendTelegram({ text });
+
+  // Gửi email xác nhận giữ chỗ cho KHÁCH (link thanh toán + QR VietQR + link "Chuyến bay của tôi")
+  // để khách trả sau / lấy lại đơn kể cả khi đóng tab.
+  if (booking.customer?.email) {
+    // VietQR tĩnh (không hết hạn) để khách quét/trả ngay trong email.
+    const qrImageUrl =
+      paymentIntent?.bin && paymentIntent?.accountNumber
+        ? `https://img.vietqr.io/image/${paymentIntent.bin}-${paymentIntent.accountNumber}-compact2.png?amount=${paymentIntent.amount}&addInfo=${encodeURIComponent(paymentIntent.transferContent ?? "")}${paymentIntent.accountName ? `&accountName=${encodeURIComponent(paymentIntent.accountName)}` : ""}`
+        : null;
+    await sendEmail({
+      to: booking.customer.email,
+      ...renderBookingHold({
+        orderCode: booking.orderCode,
+        customerName: booking.customer.fullName ?? "Quý khách",
+        customerEmail: booking.customer.email,
+        pnr: context.pnrs,
+        route: booking.routeSummary,
+        departAt: formatDate(booking.departAt),
+        passengerCount: booking.adt + booking.chd + booking.inf,
+        sellAmount: formatMoney(booking.saleAmount),
+        currency: booking.currency,
+        ttlExpiresAt: formatDate(booking.ttlExpiresAt),
+        paymentDue: formatMoney(paymentIntent?.amount ?? booking.saleAmount),
+        checkoutUrl: `${appBaseUrl()}/booking/payment/${booking.id}`,
+        transferContent: paymentIntent?.transferContent ?? null,
+        accountNumber: paymentIntent?.accountNumber ?? null,
+        accountName: paymentIntent?.accountName ?? null,
+        bankName: paymentIntent?.bin ?? null,
+        qrImageUrl,
+        lookupUrl: `${appBaseUrl()}/tra-cuu`,
+      }),
+    });
+  }
 }
 
 async function notifyBookingIssued(event: Extract<NotificationEvent, { type: "BOOKING_ISSUED" }>): Promise<void> {

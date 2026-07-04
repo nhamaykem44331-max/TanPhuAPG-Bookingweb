@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Báo giá (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" />
+<link rel="stylesheet" href="../app-desktop.css" />
+<style>
+  .doc{background:#fff;border-radius:var(--apg-radius-lg);box-shadow:var(--apg-shadow-md);overflow:hidden;}
+  .doc-head{background:linear-gradient(150deg,#0a74c0,#0f3d6a);color:#fff;padding:28px 32px;display:flex;align-items:center;gap:16px;}
+  .doc-head img{height:54px;width:54px;border-radius:13px;background:rgba(255,255,255,0.12);}
+  .doc-head .nm{font-size:24px;font-weight:700;}
+  .doc-head .tg{font-size:11px;letter-spacing:0.26em;opacity:.85;margin-top:3px;}
+  .doc-head .qc{margin-left:auto;text-align:right;}
+  .doc-head .qc .l{font-size:11px;opacity:.8;}.doc-head .qc .v{font-size:18px;font-weight:700;font-family:var(--apg-font-mono);}
+  .doc-sub{display:flex;justify-content:space-between;padding:18px 32px;border-bottom:1px solid var(--apg-hairline);font-size:14px;}
+  .doc-leg{padding:20px 32px;border-bottom:1px solid var(--apg-hairline);}
+  .doc-leg .lh{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .doc-leg .bd{font-size:11px;font-weight:700;color:#fff;padding:3px 9px;border-radius:980px;background:#0a74c0;}
+  .doc-route{display:flex;align-items:center;gap:28px;}
+  .doc-route .ep .t{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .doc-route .ep .a{font-size:13px;color:var(--apg-text-tertiary);}
+  .doc-route .mid{flex:1;text-align:center;font-size:12px;color:var(--apg-text-tertiary);}
+  .doc-price{padding:20px 32px;}
+  .doc-price.blur{filter:blur(8px);pointer-events:none;user-select:none;}
+  .qrow{display:flex;justify-content:space-between;padding:10px 0;font-size:15px;}
+  .qrow + .qrow{border-top:1px solid var(--apg-hairline);}
+  .qrow.total{font-weight:700;font-size:19px;border-top:1.5px solid var(--apg-text-primary);}
+  .editable.unlocked{border-bottom:1px dashed var(--apg-blue-400);}
+  .doc-terms{padding:18px 32px;border-top:1px solid var(--apg-hairline);font-size:13px;color:var(--apg-text-secondary);line-height:1.7;}
+  .doc-terms h5{font-size:12px;font-weight:700;color:var(--apg-text-primary);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em;}
+  .doc-foot{background:var(--apg-bg-surface-muted);padding:18px 32px;font-size:13px;color:var(--apg-text-secondary);display:flex;gap:28px;flex-wrap:wrap;}
+  .doc-foot .f{display:flex;gap:7px;align-items:center;}
+  .ctl{padding:14px 0;border-bottom:1px solid var(--apg-hairline);display:flex;align-items:center;justify-content:space-between;}
+  .ctl:last-child{border-bottom:none;}
+  .ctl .lbl{font-size:14px;font-weight:500;}
+  .toggle{width:50px;height:30px;border-radius:980px;background:#e3e3e6;position:relative;cursor:pointer;transition:background .2s;flex:none;}
+  .toggle.on{background:var(--apg-success-vivid);}
+  .toggle i{position:absolute;top:2px;left:2px;width:26px;height:26px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.2);transition:left .2s;}
+  .toggle.on i{left:22px;}
+</style>
+</head>
+<body>
+  <div class="topnav"><div class="in"><a class="brand" href="../index.html"><img src="../../mobile/assets/logo-appicon.png" alt="" /> Tân Phú APG</a><nav><a href="home.html">Tìm vé</a><a class="on" href="quote.html">Báo giá</a><a href="#">Tra cứu đặt chỗ</a><a href="admin-dashboard.html">Quản trị</a></nav><div class="right"><span class="airmono" style="background:var(--apg-blue-500)">QT</span></div></div></div>
+
+  <div class="container">
+    <div style="display:flex;align-items:center;gap:12px;padding:24px 0 8px;"><button class="btn ghost wauto" onclick="location.href='results-oneway.html'" style="padding:0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Kết quả</button><h1 style="font-size:26px;font-weight:600;letter-spacing:-0.02em;">Báo giá vé</h1></div>
+
+    <div class="two-col">
+      <!-- LEFT: document -->
+      <div class="doc" id="doc">
+        <div class="doc-head"><img src="../../mobile/assets/logo-symbol-white.png" alt="" /><div><div class="nm">Tân Phú APG</div><div class="tg">AIRLINES AGENT</div></div><div class="qc"><div class="l">Mã báo giá</div><div class="v">APG-4F8K2D</div></div></div>
+        <div class="doc-sub"><div><div class="muted">Hành khách</div><div style="font-weight:600;">1 người lớn · Phổ thông</div></div><div style="text-align:right;"><div class="muted">Ngày tạo</div><div style="font-weight:600;">30/05/2026</div></div></div>
+        <div class="doc-leg">
+          <div class="lh"><span class="bd">CHIỀU ĐI</span><span class="airmono sm" style="background:#1a3a6b">VN</span><span style="font-size:14px;font-weight:600;">Vietnam Airlines · VN213</span><span style="margin-left:auto;font-size:13px;color:var(--apg-text-tertiary)">Thứ 4, 6 Th8</span></div>
+          <div class="doc-route"><div class="ep"><div class="t">07:05</div><div class="a">HAN · Hà Nội (Nội Bài)</div></div><div class="mid">1g 25m<br/>— Bay thẳng · Airbus A321 —</div><div class="ep" style="text-align:right;"><div class="t">09:20</div><div class="a">SGN · TP.HCM (Tân Sơn Nhất)</div></div></div>
+        </div>
+        <div class="doc-price" id="priceBlock">
+          <div id="detailRows">
+            <div class="qrow"><span class="muted">Giá vé chiều đi <span class="editable" id="e-out">(sửa được)</span></span><span class="tnum">2.450.000 ₫</span></div>
+            <div class="qrow"><span class="muted">Thuế &amp; phí <span class="editable" id="e-tax">8%</span></span><span class="tnum">196.000 ₫</span></div>
+          </div>
+          <div class="qrow total"><span>Tổng báo giá</span><span class="tnum" style="color:var(--apg-blue-600)">2.646.000 ₫</span></div>
+          <div class="qrow" style="border:none;"><span class="muted" style="font-size:13px;">Quy đổi tham khảo</span><span class="muted tnum" style="font-size:13px;">≈ 104 USD</span></div>
+        </div>
+        <div class="doc-terms"><h5>Điều khoản</h5><div class="editable" id="e-terms">Báo giá có hiệu lực trong ngày, giá có thể thay đổi theo thời điểm xuất vé. Vui lòng kiểm tra thông tin hành khách trùng khớp giấy tờ tùy thân. Vé xuất theo điều kiện của hãng; phí đổi/hoàn áp dụng theo hạng vé.</div></div>
+        <div class="doc-foot"><div class="f"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.79 19.79 0 0 1 3.08 4.18 2 2 0 0 1 5 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg> <span class="editable" id="e-phone">1900 1808</span></div><div class="f"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg> <span class="editable" id="e-web">tanphuapg.vn</span></div><div class="f"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg> <span class="editable" id="e-email">datve@tanphuapg.vn</span></div></div>
+      </div>
+
+      <!-- RIGHT: controls -->
+      <div class="sticky">
+        <div class="summary-card">
+          <div class="sh">Tùy chọn báo giá</div>
+          <div class="sb">
+            <div class="ctl"><div><div class="lbl">Khóa sửa giá</div><div class="muted" style="font-size:12px;">Đại lý · mở bằng mật khẩu</div></div><button class="btn sm wauto" id="lockBtn" onclick="toggleLock()" style="background:var(--apg-warning-soft);color:var(--apg-warning);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> <span id="lockLbl">Mở khóa</span></button></div>
+            <div class="ctl"><div class="lbl">Hiển thị giá</div><span class="toggle on" id="tPrice" onclick="togglePrice()"><i></i></span></div>
+            <div class="ctl"><div class="lbl">Chi tiết giá vé</div><span class="toggle on" id="tDetail" onclick="toggleDetail()"><i></i></span></div>
+          </div>
+          <div class="sf" style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;gap:10px;"><button class="btn tint" onclick="fakeExport(this,'PDF')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg> Tải PDF</button><button class="btn tint" onclick="fakeExport(this,'JPEG')"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 17l-5-5L5 19"/></svg> Tải JPEG</button></div>
+            <button class="btn fill" onclick="location.href='hold.html'"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> Giữ chỗ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PASSWORD DIALOG -->
+  <div class="dialog-bd" id="pwBd"><div class="dialog">
+    <div class="dgh">Mở khóa sửa giá</div>
+    <div class="dgb"><p class="muted" style="font-size:14px;margin-bottom:14px;">Tính năng dành cho đại lý. Nhập mật khẩu để sửa: giá đi/về, % thuế, SĐT, website, email, điều khoản.</p><label class="lbl">Mật khẩu đại lý</label><input class="input" type="password" id="pwInput" placeholder="••••••" /></div>
+    <div class="dgf"><button class="btn ghost wauto" onclick="pwBd.classList.remove('open')">Hủy</button><button class="btn fill wauto" onclick="unlockNow();pwBd.classList.remove('open')">Mở khóa</button></div>
+  </div></div>
+
+<script>
+  let unlocked=false;
+  function toggleLock(){if(unlocked){lockNow();}else{pwBd.classList.add('open');}}
+  function unlockNow(){unlocked=true;document.querySelectorAll('.editable').forEach(e=>{e.classList.add('unlocked');e.setAttribute('contenteditable','true');});const b=document.getElementById('lockBtn');b.style.background='var(--apg-success-soft)';b.style.color='var(--apg-success)';document.getElementById('lockLbl').textContent='Đang mở';}
+  function lockNow(){unlocked=false;document.querySelectorAll('.editable').forEach(e=>{e.classList.remove('unlocked');e.removeAttribute('contenteditable');});const b=document.getElementById('lockBtn');b.style.background='var(--apg-warning-soft)';b.style.color='var(--apg-warning)';document.getElementById('lockLbl').textContent='Mở khóa';}
+  function togglePrice(){const t=document.getElementById('tPrice');t.classList.toggle('on');document.getElementById('priceBlock').classList.toggle('blur',!t.classList.contains('on'));}
+  function toggleDetail(){const t=document.getElementById('tDetail');t.classList.toggle('on');document.getElementById('detailRows').classList.toggle('hide',!t.classList.contains('on'));}
+  function fakeExport(btn,t){const o=btn.innerHTML;btn.innerHTML='Đang tạo '+t+'…';setTimeout(()=>btn.innerHTML=o,1200);}
+</script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Redesign 2026 · Mockup Mobile</title>
+<link rel="stylesheet" href="brand/tokens.css" />
+<style>
+  :root{
+    --apg-blue-500:#0a74c0;--apg-blue-600:#0861a3;--apg-blue-900:#112f4f;
+    --apg-bg-page:#f5f5f7;--apg-text-primary:#1d1d1f;--apg-text-secondary:#6e6e73;--apg-text-tertiary:#86868b;--apg-hairline:#d2d2d7;
+    --apg-font-sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue","Be Vietnam Pro",Arial,sans-serif;
+    --apg-font-mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:var(--apg-font-sans);background:var(--apg-bg-page);color:var(--apg-text-primary);-webkit-font-smoothing:antialiased;letter-spacing:-0.01em;}
+  .wrap{max-width:1240px;margin:0 auto;padding:0 24px;}
+  .hero{text-align:center;padding:60px 24px 40px;background:linear-gradient(180deg,#fff,#f5f5f7);border-bottom:1px solid var(--apg-hairline);}
+  .hero img{width:88px;height:88px;border-radius:21px;box-shadow:0 12px 40px rgba(0,0,0,0.16);}
+  .hero h1{font-size:clamp(34px,5vw,52px);font-weight:600;letter-spacing:-0.03em;margin-top:20px;}
+  .hero p{font-size:19px;color:var(--apg-text-secondary);margin-top:10px;}
+  .hero .links{margin-top:22px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;}
+  .hero a.cta{display:inline-flex;align-items:center;gap:7px;font-size:15px;font-weight:500;text-decoration:none;padding:10px 18px;border-radius:980px;}
+  .hero a.cta.fill{background:var(--apg-blue-500);color:#fff;}
+  .hero a.cta.tint{background:#fff;color:var(--apg-blue-600);border:1px solid var(--apg-hairline);}
+  section{padding:46px 0;border-bottom:1px solid var(--apg-hairline);}
+  .sec-h{margin-bottom:8px;}
+  .sec-h .eb{font-size:13px;font-weight:600;color:var(--apg-blue-500);}
+  .sec-h h2{font-size:30px;font-weight:600;letter-spacing:-0.022em;margin-top:4px;}
+  .sec-h p{font-size:16px;color:var(--apg-text-secondary);margin-top:4px;max-width:64ch;}
+  .flow{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:14px;font-size:13px;color:var(--apg-text-tertiary);}
+  .flow b{color:var(--apg-blue-600);font-weight:600;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:28px;margin-top:30px;}
+  .card{display:flex;flex-direction:column;align-items:center;}
+  .device{width:244px;height:496px;border-radius:34px;background:#fff;border:1px solid var(--apg-hairline);box-shadow:0 14px 40px rgba(0,0,0,0.12);padding:7px;position:relative;overflow:hidden;cursor:pointer;transition:transform .2s,box-shadow .2s;}
+  .device:hover{transform:translateY(-4px);box-shadow:0 22px 54px rgba(0,0,0,0.18);}
+  .device .notch{position:absolute;top:7px;left:50%;transform:translateX(-50%);width:96px;height:22px;background:#fff;border-radius:0 0 14px 14px;z-index:3;}
+  .device .screenwrap{width:100%;height:100%;border-radius:28px;overflow:hidden;background:#f5f5f7;position:relative;}
+  .device iframe{width:390px;height:792px;border:none;zoom:0.626;}
+  .device .tap{position:absolute;inset:0;z-index:4;}
+  .card .meta{margin-top:14px;text-align:center;}
+  .card .meta .nm{font-size:16px;font-weight:600;}
+  .card .meta .rt{font-size:12px;color:var(--apg-text-tertiary);font-family:var(--apg-font-mono);margin-top:3px;}
+  .card .meta a{font-size:13px;color:var(--apg-blue-600);text-decoration:none;font-weight:500;display:inline-block;margin-top:6px;}
+  footer{padding:40px 0 70px;color:var(--apg-text-tertiary);font-size:14px;text-align:center;}
+  @media(max-width:560px){.device{width:200px;height:407px;}.device iframe{zoom:0.5128;}}
+</style>
+</head>
+<body>
+  <div class="hero">
+    <img src="assets/logo-appicon.png" alt="Tân Phú APG" />
+    <h1>Tân Phú APG · Redesign 2026</h1>
+    <p>Mockup mobile (390px) · Ngôn ngữ thiết kế Apple · Giai đoạn 1</p>
+    <div class="links">
+      <a class="cta fill" href="brand/index.html">Xem Brand Guideline</a>
+      <a class="cta tint" href="screens/home.html" target="_blank">Mở prototype luồng đặt vé →</a>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <section id="customer">
+      <div class="sec-h">
+        <div class="eb">Luồng khách hàng</div>
+        <h2>Phễu đặt vé</h2>
+        <p>Bấm vào màn hình để dùng thử trực tiếp (tương tác thật), hoặc “Mở toàn màn” để xem riêng. Các màn đã nối liền nhau thành prototype.</p>
+        <div class="flow"><b>Trang chủ</b> → <b>Kết quả</b> → <b>Chi tiết</b> → <b>Báo giá</b> → <b>Giữ chỗ</b> → <b>Thanh toán</b></div>
+      </div>
+      <div class="grid" id="gridCustomer"></div>
+    </section>
+
+    <section id="admin">
+      <div class="sec-h">
+        <div class="eb">Quản trị</div>
+        <h2>Khu vực Admin</h2>
+        <p>Bảng quản trị responsive: bảng → thẻ, điều hướng drawer, biểu mẫu dọc, phân trang, đủ trạng thái. Mỗi route admin có một mockup đại diện.</p>
+      </div>
+      <div class="grid" id="gridAdmin"></div>
+    </section>
+
+    <section id="brand" style="border-bottom:none;">
+      <div class="sec-h">
+        <div class="eb">Thương hiệu</div>
+        <h2>Brand Guideline &amp; Tokens</h2>
+        <p>Logo, hệ màu, typography, vật liệu, thành phần, tông giọng và design tokens — ánh xạ thẳng sang code.</p>
+      </div>
+      <div style="margin-top:20px;"><a class="cta fill" style="display:inline-flex;align-items:center;gap:7px;font-size:15px;font-weight:500;text-decoration:none;padding:11px 20px;border-radius:980px;background:var(--apg-blue-500);color:#fff;" href="brand/index.html">Mở Brand Guideline →</a></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Tân Phú APG — Bộ nhận diện &amp; mockup mobile 2026 · Tài liệu nghiệm thu thiết kế · <a href="README.md" style="color:var(--apg-blue-600)">README</a></p>
+  </footer>
+
+<script>
+  const CUSTOMER=[
+    ['home.html','Trang chủ / Tìm vé','/  (app/page.tsx)'],
+    ['results-oneway.html','Kết quả · Một chiều','/search · OneWayResults'],
+    ['results-roundtrip.html','Kết quả · Khứ hồi','/search · RoundtripResults'],
+    ['fare-detail.html','Chi tiết giá vé','fare-detail · sheet'],
+    ['quote.html','Báo giá','/quote'],
+    ['hold.html','Giữ chỗ','HoldBookingModal'],
+    ['payment.html','Thanh toán','/booking/payment/[id]'],
+  ];
+  const ADMIN=[
+    ['admin-login.html','Đăng nhập','/admin/login'],
+    ['admin-dashboard.html','Bảng điều khiển','/admin/dashboard'],
+    ['admin-bookings.html','Đặt chỗ','/admin/bookings'],
+    ['admin-booking-detail.html','Chi tiết đặt chỗ','/admin/bookings/[id]'],
+    ['admin-payments.html','Thanh toán','/admin/payments'],
+    ['admin-markup-rules.html','Quy tắc markup','/admin/markup-rules'],
+    ['admin-customers.html','Khách hàng','/admin/customers'],
+    ['admin-users.html','Người dùng','/admin/users'],
+    ['admin-audit.html','Nhật ký kiểm toán','/admin/audit'],
+    ['admin-price-alerts.html','Cảnh báo giá','/admin/price-alerts'],
+    ['admin-reports-revenue.html','Báo cáo doanh thu','/admin/reports/revenue'],
+    ['admin-menu.html','Quản lý menu','/admin/menu'],
+    ['admin-web-vitals.html','Web Vitals','/admin/observability/web-vitals'],
+  ];
+  function cardHTML(file,nm,rt){
+    return `<div class="card">
+      <div class="device" onclick="window.open('screens/${file}','_blank')">
+        <div class="notch"></div>
+        <div class="screenwrap"><iframe src="screens/${file}" loading="lazy" scrolling="no" tabindex="-1"></iframe><div class="tap"></div></div>
+      </div>
+      <div class="meta"><div class="nm">${nm}</div><div class="rt">${rt}</div><a href="screens/${file}" target="_blank">Mở toàn màn ↗</a></div>
+    </div>`;
+  }
+  document.getElementById('gridCustomer').innerHTML=CUSTOMER.map(c=>cardHTML(...c)).join('');
+  document.getElementById('gridAdmin').innerHTML=ADMIN.map(c=>cardHTML(...c)).join('');
+</script>
+</body>
+</html>

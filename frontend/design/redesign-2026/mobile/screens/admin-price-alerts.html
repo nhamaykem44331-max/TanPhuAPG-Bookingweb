@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Tân Phú APG — Cảnh báo giá</title>
+<link rel="stylesheet" href="app.css" /><link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+<div class="phone admin">
+  <div class="statusbar"><span>9:41</span><span class="right"><svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="5" y="4" width="3" height="8" rx="1"/><rect x="10" y="1.5" width="3" height="10.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity="0.3"/></svg><svg width="25" height="12" viewBox="0 0 25 12" fill="none"><rect x="0.5" y="0.5" width="21" height="11" rx="3" stroke="currentColor" opacity="0.4"/><rect x="2" y="2" width="16" height="8" rx="1.5" fill="currentColor"/></svg></span></div>
+  <div class="screen pad-cta">
+    <div class="group-label">Cảnh báo đang theo dõi · 4</div>
+    <div class="dcard"><div class="dr"><span class="tt">HAN → SGN</span><span class="sbadge ok">Đang bật</span></div><div class="dr"><span class="mt">Mục tiêu ≤ 1.500.000 ₫ · hiện 1.890.000 ₫</span><span class="toggle on" onclick="this.classList.toggle('on')"><i></i></span></div></div>
+    <div class="dcard"><div class="dr"><span class="tt">SGN → ICN</span><span class="sbadge wait">Đã đạt</span></div><div class="dr"><span class="mt">Mục tiêu ≤ 4.200.000 ₫ · hiện 3.980.000 ₫</span><span class="toggle on" onclick="this.classList.toggle('on')"><i></i></span></div></div>
+    <div class="dcard"><div class="dr"><span class="tt">HAN → DAD</span><span class="sbadge muted">Tắt</span></div><div class="dr"><span class="mt">Mục tiêu ≤ 900.000 ₫</span><span class="toggle" onclick="this.classList.toggle('on')"><i></i></span></div></div>
+    <div class="banner info" style="margin-top:4px;"><span class="bi">ⓘ</span><span>Trang tạo cảnh báo (/price-alerts/new) dùng biểu mẫu chọn tuyến + ngưỡng giá, cùng pattern nút dưới.</span></div>
+  </div>
+  <div class="bottombar"><button class="btn fill"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Tạo cảnh báo giá</button></div>
+</div>
+<script src="admin-shell.js"></script><script>initAdmin('price-alerts','Cảnh báo giá');</script>
+</body>
+</html>

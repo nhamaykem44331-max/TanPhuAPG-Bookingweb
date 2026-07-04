@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tân Phú APG — Chi tiết giá vé (Desktop)</title>
+<link rel="stylesheet" href="../../mobile/screens/app.css" />
+<link rel="stylesheet" href="../app-desktop.css" />
+<style>
+  .seg-time{display:grid;grid-template-columns:64px 24px 1fr;margin:0 24px;}
+  .seg-time .col-t{text-align:right;padding-right:12px;}
+  .seg-time .col-t .hh{font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;}
+  .seg-time .col-t .ap{font-size:12px;color:var(--apg-text-tertiary);}
+  .seg-time .col-line{display:flex;flex-direction:column;align-items:center;}
+  .seg-time .col-line .dot{width:11px;height:11px;border-radius:50%;border:2.5px solid var(--apg-blue-500);background:#fff;margin-top:4px;}
+  .seg-time .col-line .bar{flex:1;width:2px;background:var(--apg-blue-200);min-height:34px;}
+  .seg-time .col-info{padding:0 0 12px 8px;}.seg-time .col-info .city{font-size:15px;font-weight:600;}.seg-time .col-info .meta{font-size:12px;color:var(--apg-text-secondary);}
+  .brk{display:flex;justify-content:space-between;padding:10px 0;font-size:15px;}.brk + .brk{border-top:1px solid var(--apg-hairline);}.brk.total{font-weight:700;font-size:17px;border-top:1.5px solid var(--apg-text-primary);}
+  .fareopt{display:flex;gap:12px;align-items:flex-start;padding:14px;border:1.5px solid var(--apg-hairline);border-radius:var(--apg-radius-md);margin-bottom:10px;cursor:pointer;}
+  .fareopt.on{border-color:var(--apg-blue-500);background:var(--apg-blue-50);}
+  .fareopt .fn{font-size:15px;font-weight:600;}.fareopt .fb{font-size:12px;color:var(--apg-text-secondary);margin-top:3px;}.fareopt .fp{margin-left:auto;font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+  <div class="topnav"><div class="in"><a class="brand" href="../index.html"><img src="../../mobile/assets/logo-appicon.png" alt="" /> Tân Phú APG</a><nav><a class="on" href="home.html">Tìm vé</a><a href="quote.html">Báo giá</a><a href="#">Tra cứu đặt chỗ</a><a href="admin-dashboard.html">Quản trị</a></nav><div class="right"><span class="airmono" style="background:var(--apg-blue-500)">QT</span></div></div></div>
+
+  <div class="container read" style="padding-top:28px;padding-bottom:60px;">
+    <div style="display:flex;align-items:center;gap:12px;padding-bottom:14px;"><button class="btn ghost wauto" onclick="location.href='results-oneway.html'" style="padding:0;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg> Kết quả</button><h1 style="font-size:24px;font-weight:600;letter-spacing:-0.02em;">Chi tiết chuyến bay</h1></div>
+
+    <div class="two-cols" style="align-items:start;">
+      <div class="summary-card">
+        <div class="sh" style="display:flex;align-items:center;gap:12px;"><span class="airmono lg" style="background:#1a3a6b">VN</span><div><div style="font-size:16px;">Vietnam Airlines</div><div class="mono" style="font-size:13px;color:var(--apg-text-tertiary);font-weight:400;">VN213 · Airbus A321</div></div><span class="bdg checked" style="margin-left:auto;">Phổ thông</span></div>
+        <div class="sb" style="padding-top:14px;">
+          <div class="group-label" style="margin:0 0 8px;">Hành trình</div>
+          <div class="seg-time" style="margin:0;"><div class="col-t"><div class="hh">07:05</div><div class="ap">HAN</div></div><div class="col-line"><span class="dot"></span><span class="bar"></span></div><div class="col-info"><div class="city">Hà Nội · Nội Bài (T1)</div><div class="meta">Thứ 4, 6 Th8 · Bay thẳng 1g 25m</div></div></div>
+          <div class="seg-time" style="margin:0;"><div class="col-t"><div class="hh">09:20</div><div class="ap">SGN</div></div><div class="col-line"><span class="dot" style="border-color:var(--apg-success)"></span></div><div class="col-info"><div class="city">TP.HCM · Tân Sơn Nhất</div></div></div>
+          <div class="group-label" style="margin:14px 0 8px;">Hành lý</div>
+          <div style="font-size:14px;color:var(--apg-text-secondary);line-height:1.9;">Xách tay 12kg · Ký gửi 23kg (đã bao gồm)</div>
+          <div class="group-label" style="margin:14px 0 8px;">Chi tiết giá · 1 khách</div>
+          <div class="brk"><span class="muted">Giá vé gốc</span><span class="tnum">1.980.000 ₫</span></div>
+          <div class="brk"><span class="muted">Thuế &amp; phí</span><span class="tnum">470.000 ₫</span></div>
+          <div class="brk total"><span>Tổng cộng</span><span class="tnum" style="color:var(--apg-blue-600)">2.450.000 ₫</span></div>
+        </div>
+      </div>
+
+      <div class="summary-card">
+        <div class="sh">Hạng vé khác (fare options)</div>
+        <div class="sb" style="padding-top:14px;">
+          <div class="fareopt" onclick="pickFare(this)"><div><div class="fn">Phổ thông Tiết kiệm</div><div class="fb">Xách tay 7kg · không ký gửi · đổi vé có phí</div></div><div class="fp">1.890.000 ₫</div></div>
+          <div class="fareopt on" onclick="pickFare(this)"><div><div class="fn">Phổ thông Tiêu chuẩn</div><div class="fb">Xách tay 12kg · ký gửi 23kg · đổi vé linh hoạt</div></div><div class="fp">2.450.000 ₫</div></div>
+          <div class="fareopt" onclick="pickFare(this)"><div><div class="fn"><span class="bdg business">Business</span> Thương gia</div><div class="fb">Xách tay 18kg · ký gửi 32kg · phòng chờ · hoàn vé</div></div><div class="fp">5.120.000 ₫</div></div>
+        </div>
+        <div class="sf"><button class="btn fill" onclick="location.href='quote.html'">Chọn vé này</button></div>
+      </div>
+    </div>
+  </div>
+<script>function pickFare(el){document.querySelectorAll('.fareopt').forEach(f=>f.classList.remove('on'));el.classList.add('on');}</script>
+</body>
+</html>

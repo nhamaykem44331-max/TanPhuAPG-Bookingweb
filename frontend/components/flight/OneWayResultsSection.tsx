@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
-import { FilterBar, type FilterState } from '@/components/flight/FlightFilters';
+import { FilterBar, SelectedDesktopFlight, type FilterState } from '@/components/flight/FlightFilters';
 import { FlightRowSkeleton, LoadMoreRowsButton, RouteMismatchNotice, type AirportLabelMap } from '@/components/flight/FlightRow';
 import VirtualizedFlightRows from '@/components/flight/VirtualizedFlightRows';
 import type { DateStripProps } from '@/components/search/DateStrip';
@@ -41,7 +41,6 @@ export default function OneWayResultsSection({
   isDesktopViewport,
   isDomesticRoute,
   isReloading,
-  metaSearchTime,
   onClearSelected,
   onFilterChange,
   onLoadMore,
@@ -68,6 +67,8 @@ export default function OneWayResultsSection({
   isReloading: boolean;
   metaSearchTime?: number;
   onClearSelected: () => void;
+  onContinue: () => void;
+  selectionTotal?: number;
   onFilterChange: (filter: FilterState) => void;
   onLoadMore: () => void;
   onSelectDate: (date: string) => void;
@@ -85,7 +86,7 @@ export default function OneWayResultsSection({
   const countLabel = routeMatchesResults ? `${sortedFlights.length}/${results.length}` : '—/—';
   const remaining = sortedFlights.length - visibleFlights.length;
 
-  const renderRows = (emptyClassName: string, maxHeightPx: number) => (
+  const renderRows = (emptyClassName: string, maxHeightPx: number, showRouteColumn = true) => (
     <>
       <VirtualizedFlightRows
         airportLabels={airportLabels}
@@ -96,6 +97,7 @@ export default function OneWayResultsSection({
         maxHeightPx={maxHeightPx}
         resultsGen={resultsGen}
         selectedFlightId={selectedFlight?.id}
+        showRouteColumn={showRouteColumn}
         onDeselect={() => onClearSelected()}
         onSelect={onSelectFlight}
       />
@@ -112,8 +114,20 @@ export default function OneWayResultsSection({
     </>
   );
 
+  const navyHeader = (
+    <div className="px-5 py-4 text-white" style={{ background: 'linear-gradient(120deg,#0c2740,#1a4e78)' }}>
+      <div className="apg-display text-[11px] font-medium uppercase tracking-[0.22em] text-white/75">Chuyến bay một chiều</div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <div className="text-[26px] font-bold tracking-[0.01em]">{fromCode} → {toCode}</div>
+        <div className="apg-tabular shrink-0 text-sm font-semibold text-white/85">{countLabel}</div>
+      </div>
+      <div className="apg-tabular mt-1 text-xs text-white/60">{date}</div>
+    </div>
+  );
+
   return (
     <>
+      {/* MOBILE */}
       <div className="overflow-hidden bg-white shadow-sm lg:hidden" style={{ border: '1px solid var(--apg-border-default)' }}>
         <div className="flex items-center justify-between px-3 py-2 text-xs font-bold text-white" style={{ background: 'linear-gradient(135deg, var(--apg-aviation-navy), var(--apg-aviation-navy-mid))' }}>
           <span>✈ {fromCode} → {toCode} · {date}</span>
@@ -140,43 +154,26 @@ export default function OneWayResultsSection({
         )}
       </div>
 
-      <div className="hidden lg:block lg:pt-6">
-        <section className="overflow-hidden rounded-2xl border border-[var(--apg-border-default)] bg-white shadow-sm">
-          <div className="border-b border-[var(--apg-border-default)] bg-white">
-            <div className="px-5 py-4 text-white" style={{ background: 'linear-gradient(135deg, var(--apg-aviation-navy-deep), var(--apg-aviation-navy-mid))' }}>
-              <div className="apg-display text-[11px] font-medium uppercase tracking-[0.22em] text-white/75">Một chiều</div>
-              <div className="mt-1 flex items-center justify-between">
-                <div className="apg-display text-[24px] font-semibold text-white">{fromCode} → {toCode}</div>
-                <div className="apg-tabular text-sm font-semibold text-white/90">{countLabel}</div>
+      {/* DESKTOP — single column (mockup style) */}
+      <div className="hidden lg:block lg:pt-5">
+        <div className="mx-auto max-w-[860px]">
+          <section className="overflow-hidden rounded-[14px] border border-[#d8dce0] bg-white shadow-sm">
+            {navyHeader}
+            {isDesktopViewport === true && routeMatchesResults && (
+              <DateStrip className="rounded-none border-0 shadow-none" destination={toCode} direction="depart" origin={fromCode} selectedDate={date} onSelect={onSelectDate} />
+            )}
+            {routeMatchesResults && selectedFlight && (
+              <div className="px-4 pt-4">
+                <SelectedDesktopFlight label="Đã chọn" flight={selectedFlight} accent="var(--apg-text-secondary)" dailyMinPrice={dailyMinPrice} />
               </div>
-              <div className="mt-1 flex items-center justify-between text-xs text-white/80">
-                <span>{date}</span>
-                <span>{routeMatchesResults ? (metaSearchTime ? `${metaSearchTime.toFixed(1)}s` : 'Tìm kiếm trực tiếp') : 'Chưa cập nhật'}</span>
-              </div>
-            </div>
-            {isReloading && <div className="apg-reload-bar" aria-hidden="true" />}
-            {isDesktopViewport === true && (
-              <DateStrip
-                className="rounded-none border-x-0 border-t-0 shadow-none"
-                destination={toCode}
-                direction="depart"
-                origin={fromCode}
-                selectedDate={date}
-                onSelect={onSelectDate}
-              />
             )}
             {routeMatchesResults && (
               <FilterBar flights={results} filter={filter} showStopFilter={!isDomesticRoute} onChange={onFilterChange} sortMode={sortMode} onSortChange={onSortChange} />
             )}
-          </div>
-          {routeMatchesResults ? (
-            <div>
-              {renderRows('p-6 text-center text-sm text-slate-500', 720)}
-            </div>
-          ) : (
-            renderSkeletonRows()
-          )}
-        </section>
+            {isReloading && <div className="apg-reload-bar" aria-hidden="true" />}
+            {routeMatchesResults ? renderRows('p-6 text-center text-sm text-[var(--apg-text-secondary)]', 760, false) : renderSkeletonRows()}
+          </section>
+        </div>
       </div>
     </>
   );

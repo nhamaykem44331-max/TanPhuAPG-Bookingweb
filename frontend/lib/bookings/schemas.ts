@@ -51,12 +51,32 @@ export const holdPassengerSchema = z.object({
     .optional(),
   listLuggage: z.array(serviceSelectionSchema).optional(),
   ancillaryServices: z.array(serviceSelectionSchema).optional(),
+}).superRefine((p, ctx) => {
+  // Airlines require a DOB for infant/child fares; reject future DOBs so a real PNR
+  // can't be created with passenger-type/age data the airline will bounce at ticketing.
+  if ((p.type === "CHD" || p.type === "INF") && !p.dob) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["dob"], message: "Bắt buộc có ngày sinh cho trẻ em / em bé." });
+  }
+  if (p.dob) {
+    const ms = Date.parse(p.dob);
+    if (Number.isFinite(ms) && ms > Date.now()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["dob"], message: "Ngày sinh không hợp lệ." });
+    }
+  }
 });
 
 export const holdContactSchema = z.object({
   fullName: z.string().trim().min(1, "Thiếu tên liên hệ."),
   phone: phoneSchema,
   email: z.string().trim().email("Email không hợp lệ."),
+});
+
+// Thông tin xuất hóa đơn VAT (tùy chọn — thu ngay trong luồng cho khách doanh nghiệp).
+export const holdVatInvoiceSchema = z.object({
+  companyName: z.string().trim().max(200).optional(),
+  taxId: z.string().trim().max(20).optional(),
+  address: z.string().trim().max(300).optional(),
+  email: z.union([z.string().trim().email("Email nhận hóa đơn không hợp lệ."), z.literal("")]).optional(),
 });
 
 export const holdFlightSelectionSchema = z.object({
@@ -98,6 +118,7 @@ export const holdInputSchema = z.object({
   displayedNetPrice: z.coerce.number().positive("Giá hiển thị phải lớn hơn 0."),
   passengers: z.array(holdPassengerSchema).min(1).max(9),
   contact: holdContactSchema,
+  vatInvoice: holdVatInvoiceSchema.nullable().optional(),
   outbound: holdFlightSelectionSchema,
   inbound: holdFlightSelectionSchema.optional(),
   cabin: z.string().trim().max(20).optional(),
