@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from 'next/dynamic';
+import { useState } from 'react';
 import { List, useDynamicRowHeight, type RowComponentProps } from 'react-window';
 import AirlineLogo from '@/components/flight/AirlineLogo';
 import { FilterBar, SelectedDesktopFlight, type FilterState } from '@/components/flight/FlightFilters';
@@ -302,8 +303,6 @@ export default function RoundtripResultsSection({
   displayablePairCount,
   pairLoadMoreStep,
   onLoadMorePairs,
-  mobileRoundtripTab,
-  onMobileRoundtripTabChange,
   isMobileViewport,
   isDesktopViewport,
   outboundResults,
@@ -397,63 +396,15 @@ export default function RoundtripResultsSection({
   selectionTotal?: number;
   airportLabels: AirportLabelMap;
 }) {
-  const mobileRoundtripLeg = mobileRoundtripTab === 'outbound'
-    ? {
-        label: 'Chiều đi',
-        shortLabel: 'Đi',
-        route: `${fromCode} → ${toCode}`,
-        dateLabel: date,
-        countLabel: routeMatchesResults ? `${sortedOutbound.length}/${outboundResults.length}` : '—/—',
-        flights: outboundResults,
-        sortedFlights: sortedOutbound,
-        visibleFlights: visibleOutbound,
-        loadMore: onLoadMoreOutbound,
-        filter: filterOutbound,
-        setFilter: onFilterOutboundChange,
-        sortMode: sortDepart,
-        setSortMode: onSortDepartChange,
-        selectedFlight: selectedOutbound,
-        clearSelected: onClearOutbound,
-        selectDir: 'outbound' as const,
-        btnColor: 'gold' as const,
-        dailyMinPrice: outboundDailyMinPrice,
-        gradient: 'linear-gradient(135deg, var(--apg-aviation-navy), var(--apg-aviation-navy-mid))',
-        dateStrip: {
-          destination: toCode,
-          direction: 'depart' as const,
-          origin: fromCode,
-          selectedDate: date,
-          onSelect: onSelectDepartDate,
-        },
-      }
-    : {
-        label: 'Chiều về',
-        shortLabel: 'Về',
-        route: `${toCode} → ${fromCode}`,
-        dateLabel: returnDateLabel,
-        countLabel: routeMatchesResults ? `${sortedInbound.length}/${inboundResults.length}` : '—/—',
-        flights: inboundResults,
-        sortedFlights: sortedInbound,
-        visibleFlights: visibleInbound,
-        loadMore: onLoadMoreInbound,
-        filter: filterInbound,
-        setFilter: onFilterInboundChange,
-        sortMode: sortReturn,
-        setSortMode: onSortReturnChange,
-        selectedFlight: selectedInbound,
-        clearSelected: onClearInbound,
-        selectDir: 'inbound' as const,
-        btnColor: 'blue' as const,
-        dailyMinPrice: inboundDailyMinPrice,
-        gradient: 'linear-gradient(135deg, var(--apg-aviation-navy), color-mix(in srgb, var(--apg-route-inbound) 72%, var(--apg-aviation-navy)))',
-        dateStrip: {
-          destination: fromCode,
-          direction: 'return' as const,
-          origin: toCode,
-          selectedDate: returnDateLabel,
-          onSelect: onSelectReturnDate,
-        },
-      };
+  // Mobile 2-cột: bộ lọc gộp mở/đóng chung cho cả 2 chiều.
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+  const mobileFilterCount =
+    filterOutbound.airlines.length +
+    filterInbound.airlines.length +
+    (filterOutbound.departureWindow && filterOutbound.departureWindow !== 'all' ? 1 : 0) +
+    (filterInbound.departureWindow && filterInbound.departureWindow !== 'all' ? 1 : 0) +
+    (filterOutbound.stops !== 'all' ? 1 : 0) +
+    (filterInbound.stops !== 'all' ? 1 : 0);
 
   const renderFlightList = ({
     btnColor,
@@ -644,120 +595,114 @@ export default function RoundtripResultsSection({
           (đã lưu) mà route không có cặp sẽ thấy MÀN HÌNH TRỐNG không có chuyến để chọn. */}
       {(roundtripViewMode === 'legs' || pairOptions.length === 0) && (
         <>
-          <div className="overflow-hidden bg-white shadow-sm md:hidden" style={{ border: '1px solid var(--apg-border-default)' }}>
-            <div className="border-b border-[var(--apg-border-default)] bg-white p-2">
-              <div className="grid grid-cols-2 gap-1 rounded-[var(--apg-radius-md)] bg-[var(--apg-bg-surface-soft)] p-1">
-                {([
-                  {
-                    value: 'outbound' as const,
-                    label: 'Chiều đi',
-                    route: `${fromCode} → ${toCode}`,
-                    count: routeMatchesResults ? `${sortedOutbound.length}/${outboundResults.length}` : '—/—',
-                    selected: !!selectedOutbound,
-                    gradient: 'linear-gradient(135deg, var(--apg-aviation-navy), var(--apg-aviation-navy-mid))',
-                  },
-                  {
-                    value: 'inbound' as const,
-                    label: 'Chiều về',
-                    route: `${toCode} → ${fromCode}`,
-                    count: routeMatchesResults ? `${sortedInbound.length}/${inboundResults.length}` : '—/—',
-                    selected: !!selectedInbound,
-                    gradient: 'linear-gradient(135deg, var(--apg-aviation-navy), color-mix(in srgb, var(--apg-route-inbound) 72%, var(--apg-aviation-navy)))',
-                  },
-                ] satisfies Array<{
-                  count: string;
-                  gradient: string;
-                  label: string;
-                  route: string;
-                  selected: boolean;
-                  value: RoundtripMobileTab;
-                }>).map((tab) => {
-                  const active = mobileRoundtripTab === tab.value;
-                  return (
-                    <button
-                      aria-selected={active}
-                      className={`min-w-0 rounded-[var(--apg-radius-sm)] px-2.5 py-2 text-left transition-all ${
-                        active ? 'text-white shadow-sm' : 'text-[var(--apg-text-secondary)] hover:bg-white'
-                      }`}
-                      key={tab.value}
-                      onClick={() => onMobileRoundtripTabChange(tab.value)}
-                      role="tab"
-                      style={active ? { background: tab.gradient } : undefined}
-                      type="button"
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="apg-display truncate text-[11px] font-semibold uppercase tracking-[0.16em]">
-                          {tab.label}
-                        </span>
-                        <span
-                          aria-hidden="true"
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${tab.selected ? 'bg-emerald-400' : active ? 'bg-white/55' : 'bg-slate-300'}`}
-                        />
-                      </div>
-                      <div className={`mt-1 truncate text-[11px] font-semibold ${active ? 'text-white/90' : 'text-[#1a1a1a]'}`}>
-                        {tab.route}
-                      </div>
-                      <div className={`mt-0.5 apg-tabular text-[10px] ${active ? 'text-white/70' : 'text-slate-400'}`}>
-                        {tab.count}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="px-3 py-2 text-xs font-bold text-white" style={{ background: mobileRoundtripLeg.gradient }}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate">
-                  {mobileRoundtripLeg.shortLabel}: {mobileRoundtripLeg.route}
-                </span>
-                <span className="apg-tabular shrink-0 text-white/70">{mobileRoundtripLeg.countLabel}</span>
-              </div>
-              <div className="mt-0.5 text-[10px] font-normal text-white/78">{mobileRoundtripLeg.dateLabel}</div>
-            </div>
+          <div className="md:hidden">
             {isReloading && <div className="apg-reload-bar" aria-hidden="true" />}
-            {isMobileViewport === true && (
-              <DateStrip
-                className="rounded-none border-x-0 border-t-0 shadow-none"
-                destination={mobileRoundtripLeg.dateStrip.destination}
-                direction={mobileRoundtripLeg.dateStrip.direction}
-                origin={mobileRoundtripLeg.dateStrip.origin}
-                selectedDate={mobileRoundtripLeg.dateStrip.selectedDate}
-                onSelect={mobileRoundtripLeg.dateStrip.onSelect}
-              />
-            )}
-            {routeMatchesResults ? (
+            {routeMatchesResults && (
               <>
-                <FilterBar
-                  flights={mobileRoundtripLeg.flights}
-                  filter={mobileRoundtripLeg.filter}
-                  showStopFilter={!isDomesticRoute}
-                  onChange={mobileRoundtripLeg.setFilter}
-                  sortMode={mobileRoundtripLeg.sortMode}
-                  onSortChange={mobileRoundtripLeg.setSortMode}
-                />
-                {renderFlightList({
-                  btnColor: mobileRoundtripLeg.btnColor,
-                  dailyMinPrice: mobileRoundtripLeg.dailyMinPrice,
-                  emptyClassName: 'p-3 text-center text-xs text-slate-500',
-                  flights: mobileRoundtripLeg.sortedFlights,
-                  maxHeightPx: 520,
-                  remaining: mobileRoundtripLeg.sortedFlights.length - mobileRoundtripLeg.visibleFlights.length,
-                  selectDir: mobileRoundtripLeg.selectDir,
-                  selectedFlight: mobileRoundtripLeg.selectedFlight,
-                  visibleFlights: mobileRoundtripLeg.visibleFlights,
-                  onClearSelected: mobileRoundtripLeg.clearSelected,
-                  onLoadMore: mobileRoundtripLeg.loadMore,
-                })}
-              </>
-            ) : (
-              <>
-                <RouteMismatchNotice />
-                <div className="max-h-[60vh] overflow-auto">
-                  {Array.from({ length: 5 }).map((_, index) => (<FlightRowSkeleton key={index} />))}
+                <div className="flex items-center justify-between gap-2 px-0.5 pb-2 pt-1">
+                  <button
+                    aria-expanded={mobileFilterOpen}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[var(--apg-border-default)] bg-white px-3 text-[12px] font-semibold text-[var(--apg-aviation-navy)] transition hover:bg-[var(--apg-bg-surface-soft)]"
+                    onClick={() => setMobileFilterOpen((value) => !value)}
+                    type="button"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+                    Lọc
+                    {mobileFilterCount > 0 && (
+                      <span className="rounded-full bg-[var(--apg-brand-gold)] px-1.5 text-[10px] font-bold text-white">{mobileFilterCount}</span>
+                    )}
+                    <svg className={mobileFilterOpen ? 'rotate-180 transition-transform' : 'transition-transform'} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                  </button>
+                  <div className="inline-flex h-8 items-center rounded-full border border-[var(--apg-border-default)] bg-white p-0.5">
+                    {([['price', 'Giá'], ['time', 'Giờ']] as ['price' | 'time', string][]).map(([value, label]) => {
+                      const active = sortDepart === value;
+                      return (
+                        <button
+                          className={`h-7 rounded-full px-3 text-[11px] font-bold leading-none transition ${active ? 'bg-[#1f8a5b] text-white shadow-[0_1px_2px_rgba(31,138,91,0.40)]' : 'text-[var(--apg-text-secondary)]'}`}
+                          key={value}
+                          onClick={() => { onSortDepartChange(value); onSortReturnChange(value); }}
+                          type="button"
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+                {mobileFilterOpen && (
+                  <div className="mb-2 overflow-hidden rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)]">
+                    <FilterBar flights={outboundResults} filter={filterOutbound} showStopFilter={!isDomesticRoute} onChange={onFilterOutboundChange} />
+                    <FilterBar flights={inboundResults} filter={filterInbound} showStopFilter={!isDomesticRoute} onChange={onFilterInboundChange} />
+                  </div>
+                )}
               </>
             )}
+
+            <div className="grid grid-cols-2 gap-0 overflow-hidden rounded-[var(--apg-radius-md)]" style={{ border: '1px solid var(--apg-border-default)' }}>
+              <div style={{ borderRight: '1px solid var(--apg-border-default)' }}>
+                <div className="px-2 py-2 text-center text-white" style={{ background: '#ee8b1e' }}>
+                  <div className="apg-display text-[9px] font-semibold uppercase tracking-[0.14em] text-white/85">Chiều đi · {date}</div>
+                  <div className="text-[12px] font-bold leading-tight">{fromCode} → {toCode}</div>
+                  <div className="apg-tabular text-[9px] font-normal text-white/80">{routeMatchesResults ? `${sortedOutbound.length}/${outboundResults.length} chuyến` : '—/—'}</div>
+                </div>
+                <div className="border-b border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-1.5 py-1 text-center text-[8.5px] leading-tight text-[var(--apg-text-muted)]">Giá gốc/khách (nghìn đ) · thuế phí ở bước chọn</div>
+                {routeMatchesResults ? (
+                  renderFlightList({
+                    btnColor: 'gold',
+                    dailyMinPrice: outboundDailyMinPrice,
+                    dense: true,
+                    emptyClassName: 'p-3 text-center text-[10px] text-slate-400',
+                    flights: sortedOutbound,
+                    maxHeightPx: 460,
+                    remaining: sortedOutbound.length - visibleOutbound.length,
+                    selectDir: 'outbound',
+                    selectedFlight: selectedOutbound,
+                    visibleFlights: visibleOutbound,
+                    onClearSelected: onClearOutbound,
+                    onLoadMore: onLoadMoreOutbound,
+                  })
+                ) : (
+                  <>
+                    <RouteMismatchNotice dense />
+                    <div className="max-h-[55vh] overflow-auto">
+                      {Array.from({ length: 5 }).map((_, index) => (<FlightRowSkeleton key={index} dense />))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div>
+                <div className="px-2 py-2 text-center text-white" style={{ background: 'var(--apg-aviation-navy)' }}>
+                  <div className="apg-display text-[9px] font-semibold uppercase tracking-[0.14em] text-white/85">Chiều về · {returnDateLabel}</div>
+                  <div className="text-[12px] font-bold leading-tight">{toCode} → {fromCode}</div>
+                  <div className="apg-tabular text-[9px] font-normal text-white/80">{routeMatchesResults ? `${sortedInbound.length}/${inboundResults.length} chuyến` : '—/—'}</div>
+                </div>
+                <div className="border-b border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-1.5 py-1 text-center text-[8.5px] leading-tight text-[var(--apg-text-muted)]">Giá gốc/khách (nghìn đ) · thuế phí ở bước chọn</div>
+                {routeMatchesResults ? (
+                  renderFlightList({
+                    btnColor: 'blue',
+                    dailyMinPrice: inboundDailyMinPrice,
+                    dense: true,
+                    emptyClassName: 'p-3 text-center text-[10px] text-slate-400',
+                    flights: sortedInbound,
+                    maxHeightPx: 460,
+                    remaining: sortedInbound.length - visibleInbound.length,
+                    selectDir: 'inbound',
+                    selectedFlight: selectedInbound,
+                    visibleFlights: visibleInbound,
+                    onClearSelected: onClearInbound,
+                    onLoadMore: onLoadMoreInbound,
+                  })
+                ) : (
+                  <>
+                    <RouteMismatchNotice dense />
+                    <div className="max-h-[55vh] overflow-auto">
+                      {Array.from({ length: 5 }).map((_, index) => (<FlightRowSkeleton key={index} dense />))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="hidden grid-cols-2 gap-0 bg-white md:grid lg:hidden" style={{ border: '1px solid var(--apg-border-default)' }}>

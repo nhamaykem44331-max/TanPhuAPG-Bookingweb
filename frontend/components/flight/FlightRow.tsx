@@ -23,6 +23,7 @@ export default function FlightRow({
   dailyMinPrice,
   airportLabels,
   showRouteColumn = true,
+  btnColor = 'gold',
 }: {
   f: FlightResult;
   selected: boolean;
@@ -36,9 +37,13 @@ export default function FlightRow({
 }) {
   const depApt = airportLabel(airportLabels, f.departure.airport, f.departure.airportName);
   const arrApt = airportLabel(airportLabels, f.arrival.airport, f.arrival.airportName);
-  const btnClass = 'bg-[#ee8b1e] hover:bg-[#d9760f] shadow-[0_1px_2px_rgba(217,118,15,0.30)]';
+  const btnClass = btnColor === 'blue'
+    ? 'bg-[var(--apg-aviation-navy)] hover:bg-[var(--apg-aviation-navy-hover)] shadow-[0_1px_2px_rgba(10,79,134,0.30)]'
+    : 'bg-[#ee8b1e] hover:bg-[#d9760f] shadow-[0_1px_2px_rgba(217,118,15,0.30)]';
   const conditionBadges = buildFlightConditionBadges(f, dailyMinPrice);
   const price = Number(f.fareBreakdown?.totalAmount ?? f.price.amount);
+  const basePrice = Number(f.fareBreakdown?.baseAmount ?? f.price.amount);
+  const serifNum = { fontFamily: "'Times New Roman', Times, serif" };
 
   const PriceBlock = ({ size = 'md' }: { size?: 'sm' | 'md' }) => (
     <div className="text-right">
@@ -79,27 +84,11 @@ export default function FlightRow({
   return (
     <div className={`border-b border-[var(--apg-border-default)] px-2.5 py-2 transition-colors lg:px-4 lg:py-3 ${selected ? 'bg-[#fff7ed]' : 'hover:bg-[var(--apg-bg-surface-soft)]'}`}>
       {dense && (
-        <div className="flex items-start gap-1">
-          <AirlineLogo code={f.airlineCode} airline={f.airline} logo={f.airlineLogo} size={24} />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-bold leading-none text-[var(--apg-aviation-navy)]">{hhmm(f.departure.time)}</span>
-              <span className="truncate text-[8px] text-slate-400">{f.flightNumber}</span>
-            </div>
-            <div className="mt-0.5 truncate text-[8px] text-slate-400">{f.stops === 0 ? 'Bay thẳng' : `${f.stops} điểm dừng`}</div>
-            {!selected && (
-              <div className="mt-0.5 flex items-center justify-between gap-1">
-                <div className="min-w-0 truncate text-[11px] font-semibold leading-none text-[var(--apg-text-secondary)]">{Math.round(price / 1000)}K</div>
-                <SelectOrCheck compact />
-              </div>
-            )}
-          </div>
-          {selected && (
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <div className="text-right text-[11px] font-semibold leading-none text-[var(--apg-text-secondary)]">{Math.round(price / 1000)}K</div>
-              <SelectOrCheck compact />
-            </div>
-          )}
+        <div className="flex items-center gap-1.5">
+          <AirlineLogo code={f.airlineCode} airline={f.airline} logo={f.airlineLogo} size={18} />
+          <span className="shrink-0 text-[12px] font-bold leading-none text-[var(--apg-aviation-navy)]" style={serifNum}>{hhmm(f.departure.time)}</span>
+          <span className="ml-auto text-[13px] font-bold leading-none text-[#1a1a1a]" style={serifNum}>{Math.round(basePrice / 1000).toLocaleString('vi-VN')}</span>
+          <SelectOrCheck compact />
         </div>
       )}
 

@@ -797,6 +797,11 @@ textarea {
   border-color: rgba(161, 161, 161, 0.24) !important;
 }
 
+/* Ẩn nút hỗ trợ nổi khi dock "Đã chọn chuyến" hiện — tránh chồng lên dock/CTA */
+body:has([data-quote-dock]) [data-floating-support] {
+  display: none;
+}
+
 .apg-admin-shell [class*="bg-[linear-gradient"] {
   background: var(--apg-bg-surface) !important;
 }

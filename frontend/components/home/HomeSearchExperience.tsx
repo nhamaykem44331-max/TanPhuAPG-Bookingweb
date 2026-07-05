@@ -1086,21 +1086,21 @@ export default function HomeSearchExperience() {
           <>
             {/* Thanh tóm tắt tìm kiếm (thay form đầy đủ khi đã có ngữ cảnh tìm) */}
             <div className="sticky top-[60px] z-30 mx-auto w-full max-w-[1320px] bg-[var(--apg-bg-page)] px-3 pb-1 pt-3 lg:px-7">
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--apg-border-default)] bg-white px-4 py-2.5 shadow-sm">
-                <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px]">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="shrink-0 text-[var(--apg-aviation-navy)]"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" /></svg>
-                  <span className="font-bold text-[var(--apg-aviation-navy)]">{fromSel?.label || fromCode} {tripType === 'roundtrip' ? '⇄' : '→'} {toSel?.label || toCode}</span>
-                  <span className="text-[var(--apg-text-secondary)]">· {tripType === 'roundtrip' ? 'Khứ hồi' : 'Một chiều'}</span>
-                  <span className="text-[var(--apg-text-secondary)]">· {fmtD(date)}{tripType === 'roundtrip' ? ` → ${fmtD(returnDate || defaultReturnDate)}` : ''}</span>
-                  <span className="text-[var(--apg-text-secondary)]">· {paxSummaryText} · {cabinSummaryText}</span>
+              <div className="flex flex-nowrap items-center justify-between gap-2 rounded-2xl border border-[var(--apg-border-default)] bg-white px-4 py-2 shadow-sm">
+                <div className="flex min-w-0 flex-nowrap items-center gap-x-2 text-[13px]">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="shrink-0 text-[var(--apg-aviation-navy)]"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" /></svg>
+                  <span className="shrink-0 font-bold text-[var(--apg-aviation-navy)]">{fromCode} {tripType === 'roundtrip' ? '⇄' : '→'} {toCode}</span>
+                  <span className="truncate text-[var(--apg-text-secondary)]">· {tripType === 'roundtrip' ? 'Khứ hồi' : 'Một chiều'} · {fmtD(date)}{tripType === 'roundtrip' ? ` → ${fmtD(returnDate || defaultReturnDate)}` : ''} · {paxSummaryText} · {cabinSummaryText}</span>
                 </div>
                 <button
                   type="button"
+                  aria-label="Chọn lại chuyến bay"
                   onClick={() => { setEditingSearch(true); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-[var(--apg-aviation-navy)] px-4 text-[13px] font-semibold text-[var(--apg-aviation-navy)] transition hover:bg-[var(--apg-aviation-navy)] hover:text-white"
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[var(--apg-aviation-navy)] px-2.5 text-[12px] font-semibold text-[var(--apg-aviation-navy)] transition hover:bg-[var(--apg-aviation-navy)] hover:text-white"
                 >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>
-                  Chọn lại chuyến bay
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>
+                  <span className="hidden sm:inline">Chọn lại chuyến bay</span>
+                  <span className="sm:hidden">Đổi</span>
                 </button>
               </div>
             </div>
