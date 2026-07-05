@@ -3,6 +3,7 @@ import { PaymentIntentProvider } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { sendEmail } from "@/lib/notifications/channels/email";
 import { sendSlack } from "@/lib/notifications/channels/slack";
+import { sendN8nZalo } from "@/lib/notifications/channels/n8nZalo";
 import { sendTelegram } from "@/lib/notifications/channels/telegram";
 import { enqueueNotification } from "@/lib/notifications/queue";
 import { renderBookingCancelled } from "@/lib/notifications/templates/bookingCancelled";
@@ -184,7 +185,11 @@ async function notifyBookingHoldCreated(event: Extract<NotificationEvent, { type
     `Admin: ${context.adminUrl}`,
   ].filter(Boolean).join("\n");
 
-  await sendTelegram({ text });
+  // Thông báo hold cho nhân sự: Telegram + nhóm Zalo (qua webhook n8n).
+  await Promise.all([
+    sendTelegram({ text }),
+    sendN8nZalo({ content: text.replace(/\*/g, "") }),
+  ]);
 
   // Gửi email xác nhận giữ chỗ cho KHÁCH (link thanh toán + QR VietQR + link "Chuyến bay của tôi")
   // để khách trả sau / lấy lại đơn kể cả khi đóng tab.
