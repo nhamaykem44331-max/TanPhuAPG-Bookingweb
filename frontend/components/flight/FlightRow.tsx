@@ -73,7 +73,7 @@ export default function FlightRow({
       </div>
     ) : (
       <button
-        className={`rounded-[var(--apg-radius-sm)] font-bold text-white transition-all duration-150 active:scale-95 active:shadow-inner ${btnClass} ${compact ? 'min-w-[46px] px-2 py-1 text-[10px]' : 'px-3 py-1.5 text-xs'}`}
+        className={`rounded-[var(--apg-radius-sm)] font-bold text-white transition-all duration-150 active:scale-95 active:shadow-inner ${btnClass} ${compact ? 'min-w-[38px] px-1.5 py-1 text-[10px]' : 'px-3 py-1.5 text-xs'}`}
         onClick={onSelect}
         type="button"
       >
@@ -82,12 +82,12 @@ export default function FlightRow({
     );
 
   return (
-    <div className={`border-b border-[var(--apg-border-default)] px-2.5 py-2 transition-colors lg:px-4 lg:py-3 ${selected ? 'bg-[#fff7ed]' : 'hover:bg-[var(--apg-bg-surface-soft)]'}`}>
+    <div className={`border-b border-[var(--apg-border-default)] ${dense ? 'px-1.5 py-2' : 'px-2.5 py-2'} transition-colors lg:px-4 lg:py-3 ${selected ? 'bg-[#fff7ed]' : 'hover:bg-[var(--apg-bg-surface-soft)]'}`}>
       {dense && (
-        <div className="flex items-center gap-1.5">
-          <AirlineLogo code={f.airlineCode} airline={f.airline} logo={f.airlineLogo} size={18} />
-          <span className="shrink-0 text-[12px] font-bold leading-none text-[var(--apg-aviation-navy)]" style={serifNum}>{hhmm(f.departure.time)}</span>
-          <span className="ml-auto text-[13px] font-bold leading-none text-[#1a1a1a]" style={serifNum}>{Math.round(basePrice / 1000).toLocaleString('vi-VN')}</span>
+        <div className="flex items-center gap-1">
+          <AirlineLogo code={f.airlineCode} airline={f.airline} logo={f.airlineLogo} size={24} />
+          <span className="shrink-0 text-[13px] font-bold leading-none text-[var(--apg-aviation-navy)]" style={serifNum}>{hhmm(f.departure.time)}</span>
+          <span className="ml-auto text-[15px] font-bold leading-none text-[#1a1a1a]" style={serifNum}>{Math.round(basePrice / 1000).toLocaleString('vi-VN')}</span>
           <SelectOrCheck compact />
         </div>
       )}
