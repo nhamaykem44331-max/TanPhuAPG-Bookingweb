@@ -29,21 +29,19 @@ function parseNamThanhDateTime(value: unknown): Date | null {
   const text = String(value || "").trim();
   if (!text) return null;
 
+  // DD/MM/YYYY [HH:mm[:ss]] — định dạng Nam Thành, giờ Việt Nam (+07:00). PHẢI parse tường minh
+  // TRƯỚC new Date(): new Date("06/07/2026") bị hiểu nhầm sang MM/DD (US) = 07 tháng 6 → sai tháng,
+  // ttl rơi vào quá khứ → booking bị đánh EXPIRED sớm → không tạo được QR thanh toán.
+  const dmy = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (dmy) {
+    const [, d, m, y, hh = "0", mm = "0", ss = "0"] = dmy;
+    const iso = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}T${hh.padStart(2, "0")}:${mm.padStart(2, "0")}:${ss.padStart(2, "0")}+07:00`;
+    const parsed = new Date(iso);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
   const direct = new Date(text);
-  if (!Number.isNaN(direct.getTime())) return direct;
-
-  const match = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
-  if (!match) return null;
-
-  const day = Number.parseInt(match[1], 10);
-  const month = Number.parseInt(match[2], 10);
-  const year = Number.parseInt(match[3], 10);
-  const hour = Number.parseInt(match[4] || "0", 10);
-  const minute = Number.parseInt(match[5] || "0", 10);
-  const second = Number.parseInt(match[6] || "0", 10);
-  const parsed = new Date(year, month - 1, day, hour, minute, second);
-
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return Number.isNaN(direct.getTime()) ? null : direct;
 }
 
 function earliestDate(values: Array<Date | null>): Date | null {

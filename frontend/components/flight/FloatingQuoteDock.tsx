@@ -2,6 +2,7 @@
 
 import type { Ref } from 'react';
 import AirlineLogo, { airlineColor } from '@/components/flight/AirlineLogo';
+import { getAirlineMeta } from '@/lib/airlines';
 import FlightBadgePills from '@/components/flight/FlightBadgePills';
 import { buildFlightBadges } from '@/lib/flight-badges';
 import type { FlightResult } from '@/lib/types';
@@ -97,7 +98,7 @@ export default function FloatingQuoteDock({
                 {flight.flightNumber} · {hhmm(flight.departure.time)} → {hhmm(flight.arrival.time)}
               </div>
               <div className="truncate text-[11px] text-slate-500">
-                {flight.airline} · {flight.stops === 0 ? 'Bay thẳng' : `${flight.stops} điểm dừng`}
+                {getAirlineMeta(flight.airlineCode, flight.airline).name} · {flight.stops === 0 ? 'Bay thẳng' : `${flight.stops} điểm dừng`}
               </div>
               <FlightBadgePills badges={badges} className="mt-1.5" />
             </div>
@@ -131,7 +132,7 @@ export default function FloatingQuoteDock({
               {flight.flightNumber} · {hhmm(flight.departure.time)} → {hhmm(flight.arrival.time)}
             </div>
             <div className="truncate text-[11px] leading-tight text-slate-500">
-              {flight.airline} · {flight.stops === 0 ? 'Bay thẳng' : `${flight.stops} điểm dừng`}
+              {getAirlineMeta(flight.airlineCode, flight.airline).name} · {flight.stops === 0 ? 'Bay thẳng' : `${flight.stops} điểm dừng`}
             </div>
             <FlightBadgePills badges={badges} className="mt-1.5" />
           </div>
@@ -151,7 +152,7 @@ export default function FloatingQuoteDock({
         <div className="flex items-center gap-1.5">
           <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white">{label}</span>
           <AirlineLogo code={flight.airlineCode} airline={flight.airline} logo={flight.airlineLogo} size={16} />
-          <span className="truncate text-[10.5px] font-medium text-white/85">{flight.airline}</span>
+          <span className="truncate text-[10.5px] font-medium text-white/85">{getAirlineMeta(flight.airlineCode, flight.airline).name}</span>
         </div>
         <div className="mt-1 apg-mono text-[13px] font-bold leading-tight text-white">{hhmm(flight.departure.time)} → {hhmm(flight.arrival.time)}</div>
         <div className="apg-tabular text-[10.5px] text-white/70">{fmtVND(amount)}</div>

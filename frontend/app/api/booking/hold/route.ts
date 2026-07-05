@@ -374,16 +374,20 @@ function parseDateTime(value: unknown): Date | null {
     return null;
   }
 
+  // DD/MM/YYYY [HH:mm[:ss]] — định dạng Nam Thành, giờ Việt Nam (+07:00). PHẢI parse tường minh
+  // TRƯỚC new Date(): new Date("06/07/2026") bị hiểu nhầm sang MM/DD (US) = 07 tháng 6 → sai tháng,
+  // ttl rơi vào quá khứ → booking bị đánh EXPIRED sớm → không tạo được QR thanh toán.
+  const dmy = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+
+  if (dmy) {
+    const [, d, m, y, hh = "0", mm = "0", ss = "0"] = dmy;
+    return new Date(`${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}T${hh.padStart(2, "0")}:${mm.padStart(2, "0")}:${ss.padStart(2, "0")}+07:00`);
+  }
+
   const direct = new Date(text);
 
   if (!Number.isNaN(direct.getTime())) {
     return direct;
-  }
-
-  const dmy = text.match(/^(\d{2})[-/](\d{2})[-/](\d{4})(?:\s+|T)?(\d{2}):(\d{2})/);
-
-  if (dmy) {
-    return new Date(`${dmy[3]}-${dmy[2]}-${dmy[1]}T${dmy[4]}:${dmy[5]}:00+07:00`);
   }
 
   return null;

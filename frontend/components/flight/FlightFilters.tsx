@@ -6,6 +6,7 @@ import FlightBadgePills from '@/components/flight/FlightBadgePills';
 import { buildFlightBadges } from '@/lib/flight-badges';
 import type { DepartureWindowFilter, FilterState, StopFilter } from '@/lib/flightFilters';
 import type { FlightResult } from '@/lib/types';
+import { airlineChipLabel } from '@/lib/airlines';
 import { fmtVND, hhmm } from '@/lib/utils';
 
 export type { DepartureWindowFilter, FilterState, StopFilter } from '@/lib/flightFilters';
@@ -100,7 +101,7 @@ export function FilterBar({
               return chip(active, () => {
                 const next = active ? filter.airlines.filter((item) => item !== code) : [...filter.airlines, code];
                 onChange({ ...filter, airlines: next });
-              }, <><AirlineLogo code={code} airline={name} size={14} />{name.split(' ')[0]}</>);
+              }, <><AirlineLogo code={code} airline={name} size={14} />{airlineChipLabel(code, name)}</>);
             })}
           </div>
         ))}

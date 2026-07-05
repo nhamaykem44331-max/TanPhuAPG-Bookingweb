@@ -3,11 +3,11 @@ export type AirlineMeta = { code: string; name: string; logo: string }
 export const AIRLINE_META: Record<string, AirlineMeta> = {
   "VN": { "code": "VN", "name": "Vietnam Airlines", "logo": "https://images.kiwi.com/airlines/64/VN.png" },
   "VJ": { "code": "VJ", "name": "VietJet Air", "logo": "https://images.kiwi.com/airlines/64/VJ.png" },
-  "QH": { "code": "QH", "name": "Bamboo Airways", "logo": "https://images.kiwi.com/airlines/64/QH.png" },
+  "QH": { "code": "QH", "name": "Bamboo Airways", "logo": "/assets/airlines/QH.png" },
   "HU": { "code": "HU", "name": "Hainan Airlines", "logo": "https://images.kiwi.com/airlines/64/HU.png" },
   "BL": { "code": "BL", "name": "Pacific Airlines", "logo": "https://images.kiwi.com/airlines/64/BL.png" },
-  "VU": { "code": "VU", "name": "Vietravel Airlines", "logo": "https://images.kiwi.com/airlines/64/VU.png" },
-  "9G": { "code": "9G", "name": "Sun Phu Quoc Airways", "logo": "https://images.kiwi.com/airlines/64/9G.png" },
+  "VU": { "code": "VU", "name": "Vietravel Airlines", "logo": "/assets/airlines/VU.png" },
+  "9G": { "code": "9G", "name": "Sun Phú Quốc Airways", "logo": "/assets/airlines/9G.png" },
   "CZ": { "code": "CZ", "name": "China Southern Airlines", "logo": "https://images.kiwi.com/airlines/64/CZ.png" },
   "ZH": { "code": "ZH", "name": "Shenzhen Airlines", "logo": "https://images.kiwi.com/airlines/64/ZH.png" },
   "CA": { "code": "CA", "name": "Air China", "logo": "https://images.kiwi.com/airlines/64/CA.png" },
@@ -117,9 +117,21 @@ export function getAirlineMeta(code?: string, airline?: string, preferredLogo?: 
     : undefined;
 
   const finalCode = byCode?.code || byName?.code || key;
-  const finalName = airlineName || byCode?.name || byName?.name || finalCode;
+  // Nếu tên gửi lên chỉ là mã hãng (vd "9G") mà ta có tên chuẩn theo mã → ưu tiên tên chuẩn.
+  const finalName = (airlineName && !nameLooksLikeCode) ? airlineName : (byCode?.name || byName?.name || airlineName || finalCode);
   const sourceLogo = normalizeLogoUrl(preferredLogo) || byCode?.logo || byName?.logo || '';
   const finalLogo = cacheLogoUrl(finalCode, sourceLogo);
 
   return { code: finalCode, name: finalName, logo: finalLogo };
+}
+
+const AIRLINE_CHIP_OVERRIDES: Record<string, string> = {
+  "9G": "Sun Phú Quốc",
+};
+
+// Nhãn ngắn cho chip lọc hãng (mặc định lấy từ đầu tiên; riêng vài hãng dùng nhãn tuỳ biến).
+export function airlineChipLabel(code?: string, name?: string): string {
+  const meta = getAirlineMeta(code, name);
+  if (AIRLINE_CHIP_OVERRIDES[meta.code]) return AIRLINE_CHIP_OVERRIDES[meta.code];
+  return (meta.name || meta.code || String(name || "")).split(" ")[0];
 }
