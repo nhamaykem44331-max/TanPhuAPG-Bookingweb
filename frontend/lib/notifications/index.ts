@@ -275,7 +275,11 @@ async function notifySepayPaymentMatched(event: Extract<NotificationEvent, { typ
     `Admin: ${context.adminUrl}`,
   ].join("\n");
 
-  await sendTelegram({ text });
+  // Thanh toán thành công: báo nhân sự qua Telegram + nhóm Zalo (webhook n8n).
+  await Promise.all([
+    sendTelegram({ text }),
+    sendN8nZalo({ content: text.replace(/\*/g, "") }),
+  ]);
 }
 
 async function notifySepayPaymentReview(event: Extract<NotificationEvent, { type: "SEPAY_PAYMENT_REVIEW" }>): Promise<void> {
