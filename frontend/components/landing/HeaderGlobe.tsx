@@ -516,9 +516,39 @@ function startHeaderGlobe(canvas: HTMLCanvasElement): () => void {
 export default function HeaderGlobe() {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    return startHeaderGlobe(canvas);
+    if (!ref.current) return;
+
+    // Canvas quả cầu là hiệu ứng nền trang trí + chạy rAF liên tục (~1.6s eval trên
+    // CPU mobile bị tiết lưu). Nếu khởi động ngay lúc hydrate, nó chiếm main-thread
+    // đúng lúc trình duyệt cần paint ảnh hero (LCP) → đẩy render delay lên ~3s.
+    // Vì vậy HOÃN khởi động tới khi trang tải xong + trình duyệt rảnh.
+    let cleanup: (() => void) | undefined;
+    let cancelled = false;
+    const idleWin = window as typeof window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    let idleId = 0;
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+
+    const start = () => {
+      if (!cancelled && ref.current) cleanup = startHeaderGlobe(ref.current);
+    };
+    const schedule = () => {
+      if (idleWin.requestIdleCallback) idleId = idleWin.requestIdleCallback(start, { timeout: 2500 });
+      else timerId = setTimeout(start, 1200);
+    };
+
+    if (document.readyState === 'complete') schedule();
+    else window.addEventListener('load', schedule, { once: true });
+
+    return () => {
+      cancelled = true;
+      if (cleanup) cleanup();
+      if (idleId && idleWin.cancelIdleCallback) idleWin.cancelIdleCallback(idleId);
+      if (timerId) clearTimeout(timerId);
+      window.removeEventListener('load', schedule);
+    };
   }, []);
   return <canvas ref={ref} className="apgx-globe-canvas" aria-hidden="true" />;
 }
