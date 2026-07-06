@@ -72,6 +72,16 @@ function formatBaggageLabel(prefix: string, value: string): string {
   return `${prefix} ${text}`;
 }
 
+// Hành lý thật của vé (để hiện icon nhanh trên hàng vé). KHÔNG bịa: chỉ true khi
+// Nam Thành trả text hành lý tương ứng.
+export function flightBaggageInfo(flight: FlightResult): { carryOn: boolean; checked: boolean } {
+  const meta = selectedFareMetadata(flight);
+  return {
+    carryOn: Boolean(cleanText(meta.carryOnText)),
+    checked: Boolean(cleanText(meta.checkedBaggageText)),
+  };
+}
+
 export function flightTotalAmount(flight: FlightResult): number {
   return Number(flight.fareBreakdown?.totalAmount ?? flight.price.amount ?? 0);
 }

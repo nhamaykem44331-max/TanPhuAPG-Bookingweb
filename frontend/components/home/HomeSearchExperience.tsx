@@ -1074,36 +1074,25 @@ export default function HomeSearchExperience() {
   // Đã có ngữ cảnh tìm (đến từ landing ?go=1 hoặc đã tìm) + không đang sửa → thu gọn form.
   const cameFromLanding = searchParams?.get('go') === '1';
   const searchCollapsed = (!!searchedRoute || cameFromLanding) && !editingSearch;
-  const fmtD = (d?: string) => (d && d.length >= 10 ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '');
-  const paxSummaryText = `${adults} người lớn${children ? ` · ${children} trẻ em` : ''}${infants ? ` · ${infants} em bé` : ''}`;
-  const cabinSummaryText = ({ economy: 'Phổ thông', premium_economy: 'Phổ thông đặc biệt', premium: 'Phổ thông đặc biệt', business: 'Thương gia', first: 'Hạng nhất' } as Record<string, string>)[String(cabin).toLowerCase()] || 'Phổ thông';
 
   return (
     <main className="apgx min-h-screen" style={{ backgroundColor: 'var(--apg-bg-page)' }}>
-        <SiteGlobeHeader />
+        <SiteGlobeHeader
+          right={searchCollapsed ? (
+            <button
+              type="button"
+              aria-label="Chọn lại chuyến bay"
+              onClick={() => { setEditingSearch(true); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/40 bg-white/10 px-3 py-1.5 text-[13px] font-semibold text-white transition hover:bg-white/20"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>
+              <span>Đổi</span>
+            </button>
+          ) : undefined}
+        />
 
         {searchCollapsed ? (
           <>
-            {/* Thanh tóm tắt tìm kiếm (thay form đầy đủ khi đã có ngữ cảnh tìm) */}
-            <div className="sticky top-[60px] z-30 mx-auto w-full max-w-[1320px] bg-[var(--apg-bg-page)] px-3 pb-1 pt-3 lg:px-7">
-              <div className="flex flex-nowrap items-center justify-between gap-2 rounded-2xl border border-[var(--apg-border-default)] bg-white px-4 py-2 shadow-sm">
-                <div className="flex min-w-0 flex-nowrap items-center gap-x-2 text-[13px]">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="shrink-0 text-[var(--apg-aviation-navy)]"><path d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z" /></svg>
-                  <span className="shrink-0 font-bold text-[var(--apg-aviation-navy)]">{fromCode} {tripType === 'roundtrip' ? '⇄' : '→'} {toCode}</span>
-                  <span className="truncate text-[var(--apg-text-secondary)]">· {tripType === 'roundtrip' ? 'Khứ hồi' : 'Một chiều'} · {fmtD(date)}{tripType === 'roundtrip' ? ` → ${fmtD(returnDate || defaultReturnDate)}` : ''} · {paxSummaryText} · {cabinSummaryText}</span>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Chọn lại chuyến bay"
-                  onClick={() => { setEditingSearch(true); if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-[var(--apg-aviation-navy)] px-2.5 text-[12px] font-semibold text-[var(--apg-aviation-navy)] transition hover:bg-[var(--apg-aviation-navy)] hover:text-white"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>
-                  <span className="hidden sm:inline">Chọn lại chuyến bay</span>
-                  <span className="sm:hidden">Đổi</span>
-                </button>
-              </div>
-            </div>
             {loading && !hasResults && (
               <div className="mx-auto w-full max-w-[1320px] px-4 pt-6 text-center text-sm text-[var(--apg-text-secondary)] lg:px-7">Đang tìm chuyến bay…</div>
             )}

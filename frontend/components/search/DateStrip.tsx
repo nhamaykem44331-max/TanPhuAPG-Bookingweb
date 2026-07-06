@@ -11,6 +11,9 @@ export interface DateStripProps {
   direction: "depart" | "return";
   onSelect: (date: string) => void;
   className?: string;
+  // compact: dùng cho cột hẹp (mobile 2-cột) — ẩn 2 mũi tên + nút "Tháng",
+  // để 3 ngày chiếm đủ bề rộng; ô ngày thu gọn padding.
+  compact?: boolean;
 }
 
 interface DateStripDay {
@@ -305,6 +308,7 @@ export default function DateStrip({
   direction,
   onSelect,
   className = "",
+  compact = false,
 }: DateStripProps) {
   const routeKey = `${origin.trim().toUpperCase()}-${destination.trim().toUpperCase()}`;
   const [data, setData] = useState<NamThanhLowestFareResponse | null>(() => routeCache.get(routeKey) || null);
@@ -433,6 +437,7 @@ export default function DateStrip({
       className={`relative border-t border-[var(--apg-border-default)]/60 bg-gradient-to-b from-white/85 via-slate-50/55 to-white/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-xl backdrop-saturate-150 ${className}`}
     >
       <div className="flex items-stretch">
+        {!compact && (
         <button
           aria-label="Ngày trước đó"
           className="flex w-9 shrink-0 items-center justify-center text-[var(--apg-text-secondary)] opacity-60 transition hover:bg-white hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-25"
@@ -450,6 +455,7 @@ export default function DateStrip({
             />
           </svg>
         </button>
+        )}
 
         <div className="grid flex-1 grid-cols-3 divide-x divide-[var(--apg-border-default)]/60 md:grid-cols-5 lg:grid-cols-7">
           {loading
@@ -471,7 +477,7 @@ export default function DateStrip({
                     aria-disabled={disabled}
                     aria-label={buildAriaLabel(day)}
                     aria-pressed={day.isSelected}
-                    className={`relative flex min-h-[56px] flex-col justify-center gap-0.5 px-3 py-2 text-left transition focus:outline-none focus-visible:bg-white disabled:cursor-not-allowed disabled:opacity-50 ${responsiveDayClass(index)} ${
+                    className={`relative flex flex-col justify-center gap-0.5 text-left transition focus:outline-none focus-visible:bg-white disabled:cursor-not-allowed disabled:opacity-50 ${compact ? 'min-h-[46px] items-center px-0.5 py-1.5 text-center' : 'min-h-[56px] px-3 py-2'} ${responsiveDayClass(index)} ${
                       day.isSelected
                         ? "bg-white shadow-[inset_0_-2px_0_var(--apg-brand-gold)]"
                         : day.isBest
@@ -525,6 +531,7 @@ export default function DateStrip({
               })}
         </div>
 
+        {!compact && (
         <button
           aria-label="Ngày kế tiếp"
           className="flex w-9 shrink-0 items-center justify-center text-[var(--apg-text-secondary)] opacity-60 transition hover:bg-white hover:opacity-100"
@@ -541,7 +548,9 @@ export default function DateStrip({
             />
           </svg>
         </button>
+        )}
 
+        {!compact && (
         <button
           aria-expanded={calendarOpen}
           aria-label={calendarOpen ? "Đóng lịch tháng" : "Mở lịch tháng"}
@@ -551,6 +560,7 @@ export default function DateStrip({
         >
           Tháng
         </button>
+        )}
       </div>
 
       {calendarOpen ? (

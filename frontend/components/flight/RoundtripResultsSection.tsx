@@ -15,6 +15,24 @@ import { isBookablePair, pairSourceLabel } from '@/lib/roundtrip';
 export type RoundtripViewMode = 'pair' | 'legs';
 export type RoundtripMobileTab = 'outbound' | 'inbound';
 
+// YMD ("2026-07-09") → "09/07/2026" cho hiển thị (ngày/tháng/năm).
+function fmtDMY(ymd: string): string {
+  if (!ymd || ymd.length < 10) return ymd || '';
+  return `${ymd.slice(8, 10)}/${ymd.slice(5, 7)}/${ymd.slice(0, 4)}`;
+}
+
+// Pill ngày nổi bật trên header cột (khắc phục "ngày quá mờ").
+function HeaderDatePill({ ymd }: { ymd: string }) {
+  return (
+    <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-white/25 px-2 py-[3px] text-[12px] font-extrabold leading-none text-white ring-1 ring-white/30">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+      </svg>
+      {fmtDMY(ymd)}
+    </span>
+  );
+}
+
 function RoundtripDateStripSkeleton() {
   return (
     <div className="grid min-h-[76px] grid-cols-3 overflow-hidden border-t border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] md:grid-cols-4 lg:grid-cols-5">
@@ -498,7 +516,7 @@ export default function RoundtripResultsSection({
                 </div>
                 <div className="mt-1 text-sm text-slate-500">
                   {routeMatchesResults
-                    ? `${visiblePairOptions.length}/${sourceScopedPairCount || pairOptions.length} cặp hiển thị${pairLoadedNotice} · ${date} - ${returnDateLabel}`
+                    ? `${visiblePairOptions.length}/${sourceScopedPairCount || pairOptions.length} cặp hiển thị${pairLoadedNotice} · ${fmtDMY(date)} - ${fmtDMY(returnDateLabel)}`
                     : `Bấm "Tìm vé" để cập nhật cặp khứ hồi cho chặng mới`}
                 </div>
                 {routeMatchesResults && pairAnchorFlight && (
@@ -641,10 +659,22 @@ export default function RoundtripResultsSection({
             <div className="grid grid-cols-2 gap-0 overflow-hidden rounded-[var(--apg-radius-md)]" style={{ border: '1px solid var(--apg-border-default)' }}>
               <div style={{ borderRight: '1px solid var(--apg-border-default)' }}>
                 <div className="px-2 py-2 text-center text-white" style={{ background: '#ee8b1e' }}>
-                  <div className="apg-display text-[9px] font-semibold uppercase tracking-[0.14em] text-white/85">Chiều đi · {date}</div>
+                  <div className="apg-display text-[9px] font-semibold uppercase tracking-[0.14em] text-white/80">Chiều đi</div>
                   <div className="text-[12px] font-bold leading-tight">{fromCode} → {toCode}</div>
-                  <div className="apg-tabular text-[9px] font-normal text-white/80">{routeMatchesResults ? `${sortedOutbound.length}/${outboundResults.length} chuyến` : '—/—'}</div>
+                  <HeaderDatePill ymd={date} />
+                  <div className="apg-tabular mt-0.5 text-[8.5px] font-normal text-white/75">{routeMatchesResults ? `${sortedOutbound.length}/${outboundResults.length} chuyến` : '—/—'}</div>
                 </div>
+                {isMobileViewport === true && routeMatchesResults && (
+                  <DateStrip
+                    compact
+                    className="rounded-none border-x-0 border-t-0 shadow-none"
+                    destination={toCode}
+                    direction="depart"
+                    origin={fromCode}
+                    selectedDate={date}
+                    onSelect={onSelectDepartDate}
+                  />
+                )}
                 <div className="border-b border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-1.5 py-1 text-center text-[8.5px] leading-tight text-[var(--apg-text-muted)]">Giá gốc/khách (nghìn đ) · thuế phí ở bước chọn</div>
                 {routeMatchesResults ? (
                   renderFlightList({
@@ -673,10 +703,22 @@ export default function RoundtripResultsSection({
 
               <div>
                 <div className="px-2 py-2 text-center text-white" style={{ background: 'var(--apg-aviation-navy)' }}>
-                  <div className="apg-display text-[9px] font-semibold uppercase tracking-[0.14em] text-white/85">Chiều về · {returnDateLabel}</div>
+                  <div className="apg-display text-[9px] font-semibold uppercase tracking-[0.14em] text-white/80">Chiều về</div>
                   <div className="text-[12px] font-bold leading-tight">{toCode} → {fromCode}</div>
-                  <div className="apg-tabular text-[9px] font-normal text-white/80">{routeMatchesResults ? `${sortedInbound.length}/${inboundResults.length} chuyến` : '—/—'}</div>
+                  <HeaderDatePill ymd={returnDateLabel} />
+                  <div className="apg-tabular mt-0.5 text-[8.5px] font-normal text-white/75">{routeMatchesResults ? `${sortedInbound.length}/${inboundResults.length} chuyến` : '—/—'}</div>
                 </div>
+                {isMobileViewport === true && routeMatchesResults && (
+                  <DateStrip
+                    compact
+                    className="rounded-none border-x-0 border-t-0 shadow-none"
+                    destination={fromCode}
+                    direction="return"
+                    origin={toCode}
+                    selectedDate={returnDateLabel}
+                    onSelect={onSelectReturnDate}
+                  />
+                )}
                 <div className="border-b border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-1.5 py-1 text-center text-[8.5px] leading-tight text-[var(--apg-text-muted)]">Giá gốc/khách (nghìn đ) · thuế phí ở bước chọn</div>
                 {routeMatchesResults ? (
                   renderFlightList({
@@ -710,7 +752,7 @@ export default function RoundtripResultsSection({
               <div className="px-1.5 py-2 text-center text-[10px] font-bold text-white" style={{ background: 'linear-gradient(135deg, var(--apg-aviation-navy), var(--apg-aviation-navy-mid))' }}>
                 <div className="truncate">Đi: {fromCode}→{toCode}</div>
                 <div className="mt-0.5 flex items-center justify-center gap-1 text-[9px] font-normal text-white/80">
-                  <span>{date}</span>
+                  <span>{fmtDMY(date)}</span>
                   <span className="text-white/60">• {routeMatchesResults ? `${sortedOutbound.length}/${outboundResults.length}` : '—/—'}</span>
                 </div>
               </div>
@@ -757,7 +799,7 @@ export default function RoundtripResultsSection({
               <div className="px-1.5 py-2 text-center text-[10px] font-bold text-white" style={{ background: 'linear-gradient(135deg, var(--apg-aviation-navy), color-mix(in srgb, var(--apg-route-inbound) 72%, var(--apg-aviation-navy)))' }}>
                 <div className="truncate">Về: {toCode}→{fromCode}</div>
                 <div className="mt-0.5 flex items-center justify-center gap-1 text-[9px] font-normal text-white/80">
-                  <span>{returnDateLabel}</span>
+                  <span>{fmtDMY(returnDateLabel)}</span>
                   <span className="text-white/60">• {routeMatchesResults ? `${sortedInbound.length}/${inboundResults.length}` : '—/—'}</span>
                 </div>
               </div>
@@ -810,7 +852,7 @@ export default function RoundtripResultsSection({
                     <div className="apg-display text-[24px] font-semibold text-white">{fromCode} → {toCode}</div>
                     <div className="apg-tabular text-sm font-semibold text-white/90">{routeMatchesResults ? `${sortedOutbound.length}/${outboundResults.length}` : '—/—'}</div>
                   </div>
-                  <div className="mt-1 text-xs text-white/80">{date}</div>
+                  <div className="mt-1 text-xs text-white/80">{fmtDMY(date)}</div>
                 </div>
                 {isReloading && <div className="apg-reload-bar" aria-hidden="true" />}
                 {isDesktopViewport === true && (
@@ -866,7 +908,7 @@ export default function RoundtripResultsSection({
                     <div className="apg-display text-[24px] font-semibold text-white">{toCode} → {fromCode}</div>
                     <div className="apg-tabular text-sm font-semibold text-white/90">{routeMatchesResults ? `${sortedInbound.length}/${inboundResults.length}` : '—/—'}</div>
                   </div>
-                  <div className="mt-1 text-xs text-white/80">{returnDateLabel}</div>
+                  <div className="mt-1 text-xs text-white/80">{fmtDMY(returnDateLabel)}</div>
                 </div>
                 {isReloading && <div className="apg-reload-bar" aria-hidden="true" />}
                 {isDesktopViewport === true && (

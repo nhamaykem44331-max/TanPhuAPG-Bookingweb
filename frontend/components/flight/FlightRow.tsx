@@ -2,7 +2,7 @@
 
 import AirlineLogo from '@/components/flight/AirlineLogo';
 import FlightBadgePills from '@/components/flight/FlightBadgePills';
-import { buildFlightConditionBadges } from '@/lib/flight-badges';
+import { buildFlightConditionBadges, flightBaggageInfo } from '@/lib/flight-badges';
 import type { FlightResult } from '@/lib/types';
 import { durationText, fmtVND, hhmm } from '@/lib/utils';
 
@@ -44,6 +44,21 @@ export default function FlightRow({
   const price = Number(f.fareBreakdown?.totalAmount ?? f.price.amount);
   const basePrice = Number(f.fareBreakdown?.baseAmount ?? f.price.amount);
   const serifNum = { fontFamily: "'Times New Roman', Times, serif" };
+  const baggage = flightBaggageInfo(f);
+
+  // Icon hành lý ký gửi (chỉ khi có dữ liệu thật) — hiển thị gọn trên hàng vé kiểu abay.
+  const BaggageIcon = () =>
+    baggage.checked ? (
+      <svg
+        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+        strokeLinecap="round" strokeLinejoin="round"
+        className="shrink-0 text-[var(--apg-brand-gold)]"
+        role="img" aria-label="Có hành lý ký gửi"
+      >
+        <title>Có hành lý ký gửi</title>
+        <rect x="4" y="8" width="16" height="12" rx="2" /><path d="M9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" /><path d="M9 12v4M15 12v4" />
+      </svg>
+    ) : null;
 
   const PriceBlock = ({ size = 'md' }: { size?: 'sm' | 'md' }) => (
     <div className="text-right">
@@ -87,6 +102,7 @@ export default function FlightRow({
         <div className="flex items-center gap-1">
           <AirlineLogo code={f.airlineCode} airline={f.airline} logo={f.airlineLogo} size={24} />
           <span className="shrink-0 text-[13px] font-bold leading-none text-[var(--apg-aviation-navy)]" style={serifNum}>{hhmm(f.departure.time)}</span>
+          <BaggageIcon />
           <span className="ml-auto text-[15px] font-bold leading-none text-[#1a1a1a]" style={serifNum}>{Math.round(basePrice / 1000).toLocaleString('vi-VN')}</span>
           <SelectOrCheck compact />
         </div>
