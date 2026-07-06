@@ -11,6 +11,7 @@
   --mint:#7FE3A8;            /* accent xanh trên nền tối */
   --slate:#44506A;          /* tab active */
   --amber:#C76A12;--amber-soft:#EA8A2A;  /* ghi chú / ưu đãi */
+  --amber-ink:#A35800;  /* amber ĐẬM cho CHỮ/nền badge trên nền sáng — đạt tương phản WCAG ≥4.5 */
   --ink:#14253B;--muted:#5B6776;--muted-navy:#A9BBD0;
   --line:#E3E7EC;--line-2:#EDEFF2;--page:#EFF1F3;--white:#FFFFFF;
   --radius:14px;--radius-sm:10px;--maxw:1200px;
@@ -102,7 +103,7 @@
 .lp .globe-inner{position:relative;z-index:3;height:100%;display:flex;flex-direction:column;justify-content:flex-start;padding-top:38px}
 .lp .promo{max-width:580px;transition:opacity .3s ease}
 .lp .promo.fading{opacity:0}
-.lp .promo .badge{font-family:var(--font-sans),system-ui,sans-serif;display:inline-block;background:var(--amber);color:#fff;font-size:.74rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 11px;border-radius:6px;vertical-align:middle;margin-left:10px;transform:translateY(-6px)}
+.lp .promo .badge{font-family:var(--font-sans),system-ui,sans-serif;display:inline-block;background:var(--amber-ink);color:#fff;font-size:.74rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:5px 11px;border-radius:6px;vertical-align:middle;margin-left:10px;transform:translateY(-6px)}
 .lp .promo h1{font-family:var(--font-fancy),'Playfair Display',Georgia,serif;color:#fff;font-size:clamp(2.1rem,4.8vw,3.5rem);font-weight:800;line-height:1.08;letter-spacing:-.01em;text-shadow:0 2px 24px rgba(0,0,0,.55)}
 .lp .promo .sub{color:rgba(255,255,255,.93);margin-top:12px;font-size:1.06rem;text-shadow:0 1px 16px rgba(0,0,0,.55)}
 .lp .promo .plink{display:inline-flex;align-items:center;gap:8px;color:#fff;font-weight:700;margin-top:22px;border-bottom:2px solid var(--mint);padding-bottom:5px;transition:gap .15s}
@@ -171,9 +172,9 @@
 .lp .btn-search{width:100%;justify-content:center;padding:15px;font-size:1.05rem}
 
 /* note */
-.lp .sc-note{margin-top:12px;font-size:.82rem;color:var(--amber);display:flex;gap:7px;align-items:flex-start;line-height:1.5}
+.lp .sc-note{margin-top:12px;font-size:.82rem;color:var(--amber-ink);display:flex;gap:7px;align-items:flex-start;line-height:1.5}
 .lp .sc-note .ic{width:15px;height:15px;flex:none;margin-top:3px}
-.lp .sc-note b{color:var(--amber-soft)}
+.lp .sc-note b{color:var(--amber-ink)}
 
 /* chips horizontal scroll */
 .lp .chips-scroll{margin-top:14px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:2px}
@@ -243,7 +244,7 @@
 .lp .deal-price{display:flex;align-items:baseline;gap:9px;margin-top:2px}
 .lp .deal-price .now{font-weight:800;font-size:1.35rem;color:var(--navy)}
 .lp .deal-price .old{color:var(--muted);text-decoration:line-through;font-size:.92rem}
-.lp .deal-count{display:flex;align-items:center;gap:8px;background:rgba(199,106,18,.08);border-radius:9px;padding:9px 12px;color:var(--amber);font-weight:700;font-size:.92rem;margin-top:auto}
+.lp .deal-count{display:flex;align-items:center;gap:8px;background:rgba(199,106,18,.08);border-radius:9px;padding:9px 12px;color:var(--amber-ink);font-weight:700;font-size:.92rem;margin-top:auto}
 .lp .deal-count .ic{width:16px;height:16px}
 .lp .deal-count .lbl{color:var(--muted);font-weight:500;font-size:.82rem}
 
@@ -310,7 +311,7 @@
 .lp .footer .brand{margin-bottom:16px}
 .lp .footer .brand .foot-logo{border-radius:9px;flex:none;box-shadow:0 2px 8px rgba(0,0,0,.12);object-fit:cover}
 .lp .foot-about{font-size:.9rem;color:var(--muted-navy);max-width:320px}
-.lp .foot-col h4{color:#fff;font-size:.78rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px}
+.lp .foot-col h3{color:#fff;font-size:.78rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;margin-bottom:16px}
 .lp .foot-col ul{list-style:none}
 .lp .foot-col li{margin-bottom:10px}
 .lp .foot-col a{font-size:.9rem;color:#bccadb;transition:color .15s}

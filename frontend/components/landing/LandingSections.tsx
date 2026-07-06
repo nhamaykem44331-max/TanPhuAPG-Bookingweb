@@ -218,7 +218,7 @@ export function FooterSection() {
             <p className="foot-about">Đại lý vé máy bay cấp 1 (Amadeus GDS) thuộc HTX Vận tải Ô tô Tân Phú. Phục vụ doanh nghiệp, đại lý cấp dưới và khách lẻ trên mọi đường bay trong nước và quốc tế.</p>
           </div>
           <div className="foot-col">
-            <h4>Dịch vụ</h4>
+            <h3>Dịch vụ</h3>
             <ul>
               <li><a href="/#routes">Đường bay phổ biến</a></li>
               <li><a href="/#services">Vé đoàn 9+ khách</a></li>
@@ -228,7 +228,7 @@ export function FooterSection() {
             </ul>
           </div>
           <div className="foot-col">
-            <h4>Thông tin</h4>
+            <h3>Thông tin</h3>
             <ul>
               <li><a href="/ve-chung-toi">Về chúng tôi</a></li>
               <li><a href="/huong-dan-dat-ve">Hướng dẫn đặt vé</a></li>

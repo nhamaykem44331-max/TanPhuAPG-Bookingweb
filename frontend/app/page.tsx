@@ -155,6 +155,7 @@ export default function LandingPage() {
       <div className="lp">
         <LandingIcons />
 
+      <main>
       {/* HERO */}
       <section className="hero" id="search">
         <div className="globe-hero">
@@ -182,6 +183,8 @@ export default function LandingPage() {
       <TestimonialsSection />
       <BlogSection />
       <CtaSection />
+      </main>
+
       <FooterSection />
       </div>
     </>

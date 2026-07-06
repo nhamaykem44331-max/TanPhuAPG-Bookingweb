@@ -15,10 +15,10 @@ export default function SiteGlobeHeader({ right }: { right?: ReactNode }) {
     <header className="apgx-topnav apgx-globe">
       <HeaderGlobe />
       <div className="in">
-        <a href="/" className="brand" aria-label="Trang chủ Tân Phú APG">
+        <a href="/" className="brand">
           <Image
             src="/assets/tanphu-apg-logo.jpg"
-            alt="Tân Phú APG"
+            alt=""
             width={30}
             height={30}
             className="object-contain"
