@@ -91,7 +91,8 @@
 .lp .hero{position:relative}
 .lp .globe-hero{position:relative;height:450px;overflow:hidden;background:radial-gradient(55% 45% at 50% 60%,rgba(18,95,70,0.40) 0%,transparent 65%),radial-gradient(120% 115% at 70% 40%,#12406f 0%,#0c2a4d 42%,#081c34 72%,#06162a 100%)}
 .lp .globe-bg{position:absolute;inset:0;overflow:hidden}
-.lp .gbg-slide{position:absolute;inset:0;background-size:cover;background-position:center;opacity:0;transition:opacity 1.5s ease}
+.lp .gbg-slide{position:absolute;inset:0;overflow:hidden;opacity:0;transition:opacity 1.5s ease}
+.lp .gbg-img{object-fit:cover;object-position:center}
 .lp .gbg-slide.active{opacity:1;animation:gbgKen 9s ease forwards}
 @keyframes gbgKen{from{transform:scale(1.04)}to{transform:scale(1.15)}}
 .lp .globe-bg-overlay{position:absolute;inset:0;background:linear-gradient(95deg,rgba(7,20,40,.86) 0%,rgba(7,20,40,.55) 42%,rgba(7,20,40,.18) 100%),linear-gradient(180deg,rgba(7,20,40,0) 55%,rgba(6,17,34,.5) 100%)}

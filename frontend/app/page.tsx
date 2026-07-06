@@ -148,8 +148,8 @@ export default function LandingPage() {
 
   return (
     <>
-      {/* Preload the hero LCP image so it's discovered in the initial HTML, not after hydration */}
-      <link rel="preload" as="image" href="/landing/hero-1.jpg" fetchPriority="high" />
+      {/* Ảnh hero LCP giờ dùng next/image priority → Next tự inject preload bản đã tối ưu
+          (AVIF/WebP responsive); không preload JPG gốc để tránh tải trùng. */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ld }} />
       <LandingHeader />
       <div className="lp">

@@ -13,11 +13,14 @@ const fontSans = Be_Vietnam_Pro({
   display: 'swap',
 });
 
+// Các font trang trí (display/serif/fancy/mono) đặt preload:false để KHÔNG tranh
+// băng thông preload với ảnh hero (LCP mobile). Vẫn tải qua CSS khi cần, display:swap.
 const fontDisplay = Raleway({
   subsets: ['latin', 'vietnamese'],
   weight: ['400', '500', '600', '700', '800'],
   variable: '--font-display',
   display: 'swap',
+  preload: false,
 });
 
 const fontMono = JetBrains_Mono({
@@ -25,6 +28,7 @@ const fontMono = JetBrains_Mono({
   weight: ['500', '600', '700', '800'],
   variable: '--font-mono',
   display: 'swap',
+  preload: false,
 });
 
 // Fraunces (serif) — chỉ dùng cho con số/tiêu đề "điểm nhấn" cần cảm giác cao cấp.
@@ -33,6 +37,7 @@ const fontSerif = Fraunces({
   weight: ['400', '500', '600', '700', '900'],
   variable: '--font-serif',
   display: 'swap',
+  preload: false,
 });
 
 // Playfair Display — serif sang trọng cho riêng tiêu đề hero landing.
@@ -41,6 +46,7 @@ const fontFancy = Playfair_Display({
   weight: ['700', '800', '900'],
   variable: '--font-fancy',
   display: 'swap',
+  preload: false,
 });
 
 export const metadata: Metadata = {
