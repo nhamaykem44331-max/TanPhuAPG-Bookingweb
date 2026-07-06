@@ -6,19 +6,17 @@ import WebVitalsReporter from '@/components/analytics/WebVitalsReporter';
 import FloatingSupport from '@/components/FloatingSupport';
 import { SITE_URL, OG_IMAGE } from '@/lib/site';
 
-// KHÔNG preload font nào — trên mobile 4G giả lập, việc preload nhiều file font ở
-// mức High tranh băng thông với CSS render-blocking, làm chậm FCP/LCP. LCP của
-// landing là ẢNH hero (không phải chữ) nên để font swap (display:swap) không ảnh
-// hưởng LCP; chữ hiện ngay bằng fallback khớp metric rồi swap sang font thật.
+// Font body chính — GIỮ preload (dùng cho chữ trên mọi trang; bỏ preload gây
+// nháy fallback toàn site mà không cải thiện điểm ổn định).
 const fontSans = Be_Vietnam_Pro({
   subsets: ['latin', 'vietnamese'],
   weight: ['400', '500', '600', '700', '800', '900'],
   variable: '--font-sans',
   display: 'swap',
-  preload: false,
 });
 
-// Font trang trí (display/serif/fancy/mono): preload:false + weight đúng mức thực dùng.
+// Font trang trí (display/serif/fancy/mono): preload:false + weight đúng mức thực dùng
+// để không tranh băng thông preload với ảnh hero (LCP mobile).
 
 const fontDisplay = Raleway({
   subsets: ['latin', 'vietnamese'],
