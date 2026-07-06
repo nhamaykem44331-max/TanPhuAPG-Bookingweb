@@ -57,7 +57,7 @@ export default function HeroEffects() {
                 fill
                 priority={i === 0}
                 sizes="100vw"
-                quality={68}
+                quality={55}
                 className="gbg-img"
               />
             </div>
