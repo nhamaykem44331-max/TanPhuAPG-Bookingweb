@@ -5,6 +5,7 @@ import { sendEmail } from "@/lib/notifications/channels/email";
 import { sendSlack } from "@/lib/notifications/channels/slack";
 import { sendN8nZalo } from "@/lib/notifications/channels/n8nZalo";
 import { sendTelegram } from "@/lib/notifications/channels/telegram";
+import { buildFlightLegSummaries, flightLegLines } from "@/lib/notifications/flightSummary";
 import { enqueueNotification } from "@/lib/notifications/queue";
 import { renderBookingCancelled } from "@/lib/notifications/templates/bookingCancelled";
 import { renderBookingHold } from "@/lib/notifications/templates/bookingHold";
@@ -171,12 +172,15 @@ async function notifyBookingHoldCreated(event: Extract<NotificationEvent, { type
   const vatLine = vat && (vat.companyName || vat.taxId)
     ? `🧾 XUẤT HĐ VAT: ${vat.companyName || "-"} · MST ${vat.taxId || "-"}${vat.address ? ` · ${vat.address}` : ""}${vat.email ? ` · ${vat.email}` : ""}`
     : "";
+  const flightLegs = buildFlightLegSummaries(booking);
+  const flightLines = flightLegLines(flightLegs);
   const text = [
     "*PNR MỚI - CẦN THEO DÕI*",
     `Đơn: ${booking.orderCode}`,
     `PNR: ${context.pnrs}`,
     `Khách: ${context.customerName} - ${context.customerPhone}`,
     `Hành trình: ${booking.routeSummary}`,
+    ...flightLines,
     `Số tiền cần thu: ${formatMoney(paymentIntent?.amount ?? booking.saleAmount)} ${booking.currency}`,
     `Nội dung CK: ${paymentIntent?.transferContent ?? "Chưa tạo được QR SePay"}`,
     `TTL: ${formatDate(booking.ttlExpiresAt)}`,
@@ -208,6 +212,7 @@ async function notifyBookingHoldCreated(event: Extract<NotificationEvent, { type
         pnr: context.pnrs,
         route: booking.routeSummary,
         departAt: formatDate(booking.departAt),
+        flightLegs,
         passengerCount: booking.adt + booking.chd + booking.inf,
         sellAmount: formatMoney(booking.saleAmount),
         currency: booking.currency,

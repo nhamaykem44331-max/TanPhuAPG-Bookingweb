@@ -1,3 +1,5 @@
+import type { FlightLegSummary } from "@/lib/notifications/flightSummary";
+
 export interface BookingEmailContext {
   orderCode?: string | null;
   customerName: string;
@@ -5,6 +7,7 @@ export interface BookingEmailContext {
   pnr: string;
   route: string;
   departAt: string;
+  flightLegs?: FlightLegSummary[];
   passengerCount: number;
   sellAmount: string;
   currency: string;

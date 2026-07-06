@@ -1,3 +1,4 @@
+import { flightLegLines, type FlightLegSummary } from "@/lib/notifications/flightSummary";
 import type { BookingEmailContext } from "@/lib/notifications/templates/types";
 
 // Map BIN → tên ngân hàng thân thiện (hiển thị trong email). Không khớp thì bỏ dòng ngân hàng
@@ -40,8 +41,26 @@ function infoRow(label: string, value: string, opts: { strong?: boolean; mono?: 
   </tr>`;
 }
 
+function legCard(leg: FlightLegSummary): string {
+  const isReturn = leg.direction === "inbound";
+  const accent = isReturn ? NAVY : "#C2740F";
+  const tag = isReturn ? "CHIỀU VỀ" : "CHIỀU ĐI";
+  const timeRange = leg.departTime ? `${leg.departTime}${leg.arriveTime ? ` &rarr; ${leg.arriveTime}` : ""}` : "";
+  const sub = [leg.airline, leg.flightNumber].filter(Boolean).join(" · ");
+  const whenLine = [timeRange ? `<strong>${timeRange}</strong>` : "", leg.dateLabel ?? ""].filter(Boolean).join(" · ");
+  return `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #E5E9EE;border-left:3px solid ${accent};border-radius:8px;margin-bottom:8px;">
+    <tr><td style="padding:9px 13px;">
+      <div style="font-size:10.5px;font-weight:bold;letter-spacing:.6px;color:${accent};">${tag}</div>
+      <div style="font-size:15px;font-weight:bold;color:#16212B;margin-top:2px;">${leg.route}</div>
+      ${sub ? `<div style="font-size:12.5px;color:#586675;margin-top:2px;">${sub}</div>` : ""}
+      ${whenLine ? `<div style="font-size:13px;color:#16212B;margin-top:3px;">${whenLine}</div>` : ""}
+    </td></tr>
+  </table>`;
+}
+
 export function renderBookingHold(context: BookingEmailContext) {
   const subject = `[Tân Phú APG] Xác nhận giữ chỗ ${context.pnr}`;
+  const hasLegs = Array.isArray(context.flightLegs) && context.flightLegs.length > 0;
 
   // ---------- Plain text (fallback) ----------
   const textLines = [
@@ -50,8 +69,9 @@ export function renderBookingHold(context: BookingEmailContext) {
     "Chúng tôi đã giữ chỗ thành công cho quý khách:",
     context.orderCode ? `- Mã đơn: ${context.orderCode}` : null,
     `- PNR: ${context.pnr}`,
-    `- Hành trình: ${context.route}`,
-    `- Ngày bay: ${context.departAt}`,
+    ...(hasLegs
+      ? ["- Chuyến bay:", ...flightLegLines(context.flightLegs!).map((line) => `   • ${line}`)]
+      : [`- Hành trình: ${context.route}`, `- Ngày bay: ${context.departAt}`]),
     `- Hành khách: ${context.passengerCount}`,
     `- Tổng tiền: ${context.sellAmount} ${context.currency}`,
     `- Hạn thanh toán: ${context.ttlExpiresAt}`,
@@ -128,8 +148,8 @@ export function renderBookingHold(context: BookingEmailContext) {
           <table role="presentation" cellpadding="0" cellspacing="0" width="100%">
             ${context.orderCode ? infoRow("Mã đơn", context.orderCode, { strong: true, mono: true }) : ""}
             ${infoRow("PNR", context.pnr, { strong: true, mono: true })}
-            ${infoRow("Hành trình", context.route)}
-            ${infoRow("Ngày bay", context.departAt)}
+            ${hasLegs ? "" : infoRow("Hành trình", context.route)}
+            ${hasLegs ? "" : infoRow("Ngày bay", context.departAt)}
             ${infoRow("Hành khách", String(context.passengerCount))}
             ${infoRow("Tổng tiền", `${context.sellAmount} ${context.currency}`, { strong: true })}
             ${infoRow("Hạn thanh toán", context.ttlExpiresAt, { strong: true })}
@@ -137,6 +157,11 @@ export function renderBookingHold(context: BookingEmailContext) {
         </td></tr>
       </table>
     </td></tr>
+
+    ${hasLegs ? `<tr><td style="padding:12px 28px 2px;">
+      <div style="font-size:11px;color:#7A8794;text-transform:uppercase;letter-spacing:.7px;margin:0 0 7px;">Chi tiết chuyến bay</div>
+      ${context.flightLegs!.map(legCard).join("")}
+    </td></tr>` : ""}
 
     <tr><td style="padding:14px 28px 4px;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F5FAF7;border:1px solid #CDEBD9;border-radius:12px;">
