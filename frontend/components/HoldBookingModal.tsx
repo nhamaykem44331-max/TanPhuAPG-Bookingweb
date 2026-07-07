@@ -571,12 +571,18 @@ export default function HoldBookingModal({
     },
     { ADT: 0, CHD: 0, INF: 0 } as Record<PassengerType, number>,
   );
+  const partyPaxCount = paxCounts.ADT + paxCounts.CHD + paxCounts.INF;
   const partyFareForFlight = (item: FlightResult) => {
     const perPax = item.fareBreakdown?.perPax;
-    const adt = perPax?.adt ?? item.fareBreakdown?.totalAmount ?? item.price.amount ?? 0;
-    const chd = perPax?.chd ?? adt;
-    const inf = perPax?.inf ?? 0;
-    return adt * paxCounts.ADT + chd * paxCounts.CHD + inf * paxCounts.INF;
+    // totalAmount đã được cộng markup lúc search (chỉ trên người lớn); perPax là NET thô.
+    const adtSell = item.fareBreakdown?.totalAmount ?? item.price.amount ?? 0;
+    const adtNet = perPax?.adt ?? adtSell;
+    const chdNet = perPax?.chd ?? adtNet;
+    const infNet = perPax?.inf ?? 0;
+    // markup mỗi khách = phần chênh trên người lớn; áp đều cho mọi khách (markup × số khách).
+    const markupPerPax = Math.max(0, adtSell - adtNet);
+    const netParty = adtNet * paxCounts.ADT + chdNet * paxCounts.CHD + infNet * paxCounts.INF;
+    return netParty + markupPerPax * partyPaxCount;
   };
   const fareTotal = holdFlights.reduce((sum, item) => sum + partyFareForFlight(item), 0);
   const baggageTotal = passengers.reduce(
