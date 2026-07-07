@@ -26,7 +26,7 @@ export default function SiteGlobeHeader({ right }: { right?: ReactNode }) {
           />
           <span>
             Tân Phú APG
-            <span className="sub hidden sm:block">Corporate Aviation Services</span>
+            <span className="sub block">Corporate Aviation Services</span>
           </span>
         </a>
 
