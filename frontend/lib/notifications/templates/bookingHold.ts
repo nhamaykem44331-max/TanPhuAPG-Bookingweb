@@ -1,4 +1,4 @@
-import { flightLegLines, type FlightLegSummary } from "@/lib/notifications/flightSummary";
+import { flightLegLines, passengerLines, type FlightLegSummary, type PassengerSummary } from "@/lib/notifications/flightSummary";
 import type { BookingEmailContext } from "@/lib/notifications/templates/types";
 
 // Map BIN → tên ngân hàng thân thiện (hiển thị trong email). Không khớp thì bỏ dòng ngân hàng
@@ -41,6 +41,26 @@ function infoRow(label: string, value: string, opts: { strong?: boolean; mono?: 
   </tr>`;
 }
 
+function passengerBlock(passengers: PassengerSummary[]): string {
+  if (passengers.length === 0) {
+    return "";
+  }
+  const rows = passengers
+    .map(
+      (pax, index) => `<tr>
+        <td style="padding:4px 0;font-size:13px;color:#16212B;">${index + 1}. <strong>${pax.name}</strong></td>
+        <td style="padding:4px 0;text-align:right;font-size:12px;color:#7A8794;">${pax.typeLabel}</td>
+      </tr>`,
+    )
+    .join("");
+  return `<tr><td style="padding:10px 28px 2px;">
+      <div style="font-size:11px;color:#7A8794;text-transform:uppercase;letter-spacing:.7px;margin:0 0 5px;">Hành khách (${passengers.length})</div>
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid #E5E9EE;border-radius:8px;">
+        <tr><td style="padding:5px 13px;"><table role="presentation" cellpadding="0" cellspacing="0" width="100%">${rows}</table></td></tr>
+      </table>
+    </td></tr>`;
+}
+
 function legCard(leg: FlightLegSummary): string {
   const isReturn = leg.direction === "inbound";
   const accent = isReturn ? NAVY : "#C2740F";
@@ -61,6 +81,7 @@ function legCard(leg: FlightLegSummary): string {
 export function renderBookingHold(context: BookingEmailContext) {
   const subject = `[Tân Phú APG] Xác nhận giữ chỗ ${context.pnr}`;
   const hasLegs = Array.isArray(context.flightLegs) && context.flightLegs.length > 0;
+  const hasPassengers = Array.isArray(context.passengers) && context.passengers.length > 0;
 
   // ---------- Plain text (fallback) ----------
   const textLines = [
@@ -72,7 +93,9 @@ export function renderBookingHold(context: BookingEmailContext) {
     ...(hasLegs
       ? ["- Chuyến bay:", ...flightLegLines(context.flightLegs!).map((line) => `   • ${line}`)]
       : [`- Hành trình: ${context.route}`, `- Ngày bay: ${context.departAt}`]),
-    `- Hành khách: ${context.passengerCount}`,
+    ...(hasPassengers
+      ? ["- Hành khách:", ...passengerLines(context.passengers!).map((line) => `   • ${line}`)]
+      : [`- Hành khách: ${context.passengerCount}`]),
     `- Tổng tiền: ${context.sellAmount} ${context.currency}`,
     `- Hạn thanh toán: ${context.ttlExpiresAt}`,
     "",
@@ -162,6 +185,8 @@ export function renderBookingHold(context: BookingEmailContext) {
       <div style="font-size:11px;color:#7A8794;text-transform:uppercase;letter-spacing:.7px;margin:0 0 7px;">Chi tiết chuyến bay</div>
       ${context.flightLegs!.map(legCard).join("")}
     </td></tr>` : ""}
+
+    ${hasPassengers ? passengerBlock(context.passengers!) : ""}
 
     <tr><td style="padding:14px 28px 4px;">
       <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="background:#F5FAF7;border:1px solid #CDEBD9;border-radius:12px;">

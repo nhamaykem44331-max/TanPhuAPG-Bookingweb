@@ -5,12 +5,18 @@ import { sendEmail } from "@/lib/notifications/channels/email";
 import { sendSlack } from "@/lib/notifications/channels/slack";
 import { sendN8nZalo } from "@/lib/notifications/channels/n8nZalo";
 import { sendTelegram } from "@/lib/notifications/channels/telegram";
-import { buildFlightLegSummaries, flightLegLines } from "@/lib/notifications/flightSummary";
+import {
+  buildFlightLegSummaries,
+  buildPassengerSummaries,
+  flightLegLines,
+  passengerLines,
+} from "@/lib/notifications/flightSummary";
 import { enqueueNotification } from "@/lib/notifications/queue";
 import { renderBookingCancelled } from "@/lib/notifications/templates/bookingCancelled";
 import { renderBookingHold } from "@/lib/notifications/templates/bookingHold";
 import { renderBookingIssued } from "@/lib/notifications/templates/bookingIssued";
 import { renderInternalAlert } from "@/lib/notifications/templates/internalAlert";
+import { renderPaymentReceived } from "@/lib/notifications/templates/paymentReceived";
 import type { BookingEmailContext } from "@/lib/notifications/templates/types";
 
 export type NotificationEvent =
@@ -40,7 +46,10 @@ export type NotificationEvent =
   | { type: "INTERNAL_ALERT"; severity: "info" | "warn" | "error"; message: string; context?: Record<string, unknown> };
 
 function formatDate(value: Date | null): string {
-  return value ? new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short" }).format(value) : "-";
+  // timeZone VN bắt buộc: runtime Vercel là UTC, thiếu tz sẽ hiển thị sớm 7h (vd TTL 19:35 thành 12:35).
+  return value
+    ? new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Ho_Chi_Minh" }).format(value)
+    : "-";
 }
 
 function formatMoney(value: number): string {
@@ -170,24 +179,42 @@ async function notifyBookingHoldCreated(event: Extract<NotificationEvent, { type
   const rawRequest = (booking.namthanhRawJson as { request?: { vatInvoice?: { companyName?: string; taxId?: string; address?: string; email?: string } | null } } | null)?.request;
   const vat = rawRequest?.vatInvoice;
   const vatLine = vat && (vat.companyName || vat.taxId)
-    ? `🧾 XUẤT HĐ VAT: ${vat.companyName || "-"} · MST ${vat.taxId || "-"}${vat.address ? ` · ${vat.address}` : ""}${vat.email ? ` · ${vat.email}` : ""}`
+    ? `VAT: ${vat.companyName || "-"} · MST ${vat.taxId || "-"}${vat.address ? ` · ${vat.address}` : ""}${vat.email ? ` · ${vat.email}` : ""}`
     : "";
   const flightLegs = buildFlightLegSummaries(booking);
   const flightLines = flightLegLines(flightLegs);
+  const paxSummaries = buildPassengerSummaries(booking);
+  const paxLines = passengerLines(paxSummaries);
+  const paxCount = booking.adt + booking.chd + booking.inf;
+  const paxMix = [
+    booking.adt ? `${booking.adt} người lớn` : null,
+    booking.chd ? `${booking.chd} trẻ em` : null,
+    booking.inf ? `${booking.inf} em bé` : null,
+  ].filter(Boolean).join(", ");
+  const amountDue = paymentIntent?.amount ?? booking.saleAmount;
+  const marginLine = `Giá vốn: ${formatMoney(booking.netAmount)} · Markup: ${formatMoney(booking.markupAmount)}`
+    + (booking.serviceFeeAmount ? ` · Phí DV: ${formatMoney(booking.serviceFeeAmount)}` : "");
   const text = [
-    "*PNR MỚI - CẦN THEO DÕI*",
+    "🔔 *GIỮ CHỖ MỚI — CẦN THU TIỀN*",
+    "",
     `Đơn: ${booking.orderCode}`,
     `PNR: ${context.pnrs}`,
-    `Khách: ${context.customerName} - ${context.customerPhone}`,
-    `Hành trình: ${booking.routeSummary}`,
-    ...flightLines,
-    `Số tiền cần thu: ${formatMoney(paymentIntent?.amount ?? booking.saleAmount)} ${booking.currency}`,
+    "",
+    `*HÀNH KHÁCH (${paxCount}${paxMix ? ` · ${paxMix}` : ""})*`,
+    ...(paxLines.length > 0 ? paxLines : [`1. ${context.customerName}`]),
+    "",
+    ...(flightLines.length > 0 ? ["*CHUYẾN BAY*", ...flightLines, ""] : []),
+    "*THANH TOÁN*",
+    `Cần thu: ${formatMoney(amountDue)} ${booking.currency}`,
+    marginLine,
     `Nội dung CK: ${paymentIntent?.transferContent ?? "Chưa tạo được QR SePay"}`,
-    `TTL: ${formatDate(booking.ttlExpiresAt)}`,
+    `Hạn giữ chỗ: ${formatDate(booking.ttlExpiresAt)}`,
     `QR SePay: ${paymentIntent ? (event.reused ? "Đã có sẵn" : "Đã tạo mới") : "Chưa tạo"}`,
-    vatLine,
+    "",
+    `Liên hệ: ${context.customerName} · ${context.customerPhone}`,
+    ...(vatLine ? [vatLine] : []),
     `Admin: ${context.adminUrl}`,
-  ].filter(Boolean).join("\n");
+  ].join("\n");
 
   // Thông báo hold cho nhân sự: Telegram + nhóm Zalo (qua webhook n8n).
   await Promise.all([
@@ -213,6 +240,7 @@ async function notifyBookingHoldCreated(event: Extract<NotificationEvent, { type
         route: booking.routeSummary,
         departAt: formatDate(booking.departAt),
         flightLegs,
+        passengers: paxSummaries,
         passengerCount: booking.adt + booking.chd + booking.inf,
         sellAmount: formatMoney(booking.saleAmount),
         currency: booking.currency,
@@ -285,6 +313,23 @@ async function notifySepayPaymentMatched(event: Extract<NotificationEvent, { typ
     sendTelegram({ text }),
     sendN8nZalo({ content: text.replace(/\*/g, "") }),
   ]);
+
+  // Đã thu ĐỦ + khách có email → gửi email xác nhận "đã nhận thanh toán, đang xuất vé".
+  if (remainingAmount <= 0 && context.booking.customer?.email) {
+    await sendEmail({
+      to: context.booking.customer.email,
+      ...renderPaymentReceived({
+        customerName: context.booking.customer.fullName ?? "Quý khách",
+        orderCode: context.booking.orderCode,
+        pnr: context.pnrs,
+        flightLegs: buildFlightLegSummaries(context.booking),
+        // Đã thu ĐỦ → hiển thị TỔNG giá vé (không phải số của lần chuyển cuối, tránh hiểu nhầm khi trả nhiều lần).
+        paidAmount: formatMoney(context.booking.saleAmount),
+        currency: context.booking.currency,
+        lookupUrl: `${appBaseUrl()}/tra-cuu`,
+      }),
+    });
+  }
 }
 
 async function notifySepayPaymentReview(event: Extract<NotificationEvent, { type: "SEPAY_PAYMENT_REVIEW" }>): Promise<void> {

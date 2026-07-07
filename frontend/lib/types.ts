@@ -64,6 +64,8 @@ export interface FlightResult {
     taxesFees: number;
     totalAmount: number;
     currency: 'VND';
+    /** Net (giá vốn) từng loại khách — adt = totalAmount. Dùng để báo giá đúng khi đơn nhiều khách. */
+    perPax?: { adt: number; chd: number; inf: number };
   };
   fareOptions?: {
     id: string;

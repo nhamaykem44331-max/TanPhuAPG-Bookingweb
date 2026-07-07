@@ -4,12 +4,32 @@ import type { MarkupRule } from "@prisma/client";
 import type { HoldInput } from "@/lib/bookings/schemas";
 import { priceNamThanhFlight, NamThanhApiError } from "@/lib/namthanh";
 import type { FlightResult } from "@/lib/types";
-import { computeMarkup } from "@/lib/pricing/markupEngine";
+import { computeMarkup, type MarkupResult } from "@/lib/pricing/markupEngine";
 import { QuoteExpiredError, QuoteUnavailableError } from "@/lib/pricing/errors";
 import { prisma } from "@/lib/db";
 
 const { Prisma } = prismaClient;
 const DEFAULT_BACKEND_URL = "http://localhost:3100";
+
+/** Net (giá vốn) cả đoàn cho một chặng = Σ (net từng loại khách × số khách loại đó). */
+export function multiPaxNet(
+  perPax: { adt: prismaClient.Prisma.Decimal; chd: prismaClient.Prisma.Decimal; inf: prismaClient.Prisma.Decimal },
+  counts: { adults: number; children: number; infants: number },
+): prismaClient.Prisma.Decimal {
+  return perPax.adt
+    .mul(counts.adults)
+    .plus(perPax.chd.mul(counts.children))
+    .plus(perPax.inf.mul(counts.infants))
+    .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+/**
+ * Markup theo SỐ KHÁCH (quyết định nghiệp vụ): FIXED × số khách; PERCENT đã tự nhân theo
+ * net cả đoàn nên giữ nguyên. markup.markupAmount lúc này được tính trên net cả đoàn.
+ */
+export function paxScaledMarkupAmount(markup: MarkupResult, paxCount: number): prismaClient.Prisma.Decimal {
+  return markup.markupType === "FIXED" ? markup.markupAmount.mul(paxCount) : markup.markupAmount;
+}
 
 type QuoteChannel = "web" | "admin";
 
@@ -128,6 +148,44 @@ function extractNetPrice(rawQuote: unknown, fallbackFlight: FlightResult): prism
       : 0;
 
   return toDecimal(scalarCandidate).toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+/**
+ * Net (giá vốn) từng loại khách cho một chặng. Nguồn: fareBreakdown.perPax do backend trả
+ * (adt = totalAmount). Khi thiếu perPax (cache cũ / path khác) → coi mọi khách như người lớn
+ * để KHÔNG thu thiếu; con số cuối vẫn được đối soát lại với tổng thật Nam Thành sau khi giữ chỗ.
+ */
+function extractPerPaxNet(
+  rawQuote: unknown,
+  fallbackFlight: FlightResult,
+): { adt: prismaClient.Prisma.Decimal; chd: prismaClient.Prisma.Decimal; inf: prismaClient.Prisma.Decimal } {
+  const adt = extractNetPrice(rawQuote, fallbackFlight);
+  const raw = rawQuote && typeof rawQuote === "object" ? (rawQuote as Record<string, unknown>) : {};
+  const flight = raw.flight && typeof raw.flight === "object" ? (raw.flight as Record<string, unknown>) : {};
+  const fareBreakdown =
+    (raw.fareBreakdown && typeof raw.fareBreakdown === "object" ? (raw.fareBreakdown as Record<string, unknown>) : null) ??
+    (flight.fareBreakdown && typeof flight.fareBreakdown === "object" ? (flight.fareBreakdown as Record<string, unknown>) : null);
+  const perPax =
+    fareBreakdown && fareBreakdown.perPax && typeof fareBreakdown.perPax === "object"
+      ? (fareBreakdown.perPax as Record<string, unknown>)
+      : null;
+
+  if (!perPax) {
+    return { adt, chd: adt, inf: adt };
+  }
+
+  const toNet = (value: unknown, fallback: prismaClient.Prisma.Decimal): prismaClient.Prisma.Decimal => {
+    const num = typeof value === "number" || typeof value === "string" ? Number(value) : NaN;
+    return Number.isFinite(num) && num > 0 ? toDecimal(num).toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP) : fallback;
+  };
+
+  return {
+    adt: toNet(perPax.adt, adt),
+    // Thiếu giá trẻ em → tính như người lớn (an toàn, không thu thiếu).
+    chd: toNet(perPax.chd, adt),
+    // Em bé thường 0 nếu không có vé em bé; đối soát sau khi giữ chỗ sẽ bù nếu cần.
+    inf: toNet(perPax.inf, toDecimal(0)),
+  };
 }
 
 function routeOfFlight(flight: FlightResult): string {
@@ -378,7 +436,13 @@ async function quoteLeg(input: {
   const cabin = guessCabin(quotedFlight, rawQuote);
   const paxType = resolveMarkupPaxType(input.passengers);
   const domesticInternational = await classifyDomesticInternational(route);
-  const netPrice = extractNetPrice(rawQuote, quotedFlight);
+
+  // Net cả đoàn cho chặng này = Σ (net từng loại khách × số khách loại đó).
+  const perPax = extractPerPaxNet(rawQuote, quotedFlight);
+  const counts = passengerCounts(input.passengers);
+  const paxCount = counts.adults + counts.children + counts.infants;
+  const netPrice = multiPaxNet(perPax, counts);
+
   const markup = await computeMarkup(
     {
       airline: quotedFlight.airlineCode,
@@ -393,7 +457,9 @@ async function quoteLeg(input: {
     input.rules,
   );
   const matchedRule = markup.ruleId ? input.rules.find((rule) => rule.id === markup.ruleId) ?? null : null;
-  const serviceFeeAmount = toDecimal(matchedRule?.serviceFee ?? 0);
+  const markupAmount = paxScaledMarkupAmount(markup, paxCount);
+  // Phí dịch vụ (nếu có) tính theo từng khách.
+  const serviceFeeAmount = toDecimal(matchedRule?.serviceFee ?? 0).mul(paxCount);
 
   return {
     legKey: input.legKey,
@@ -404,9 +470,9 @@ async function quoteLeg(input: {
     paxType,
     domesticInternational,
     netPrice,
-    markupAmount: markup.markupAmount,
+    markupAmount,
     serviceFeeAmount,
-    sellPrice: markup.sellPrice.plus(serviceFeeAmount),
+    sellPrice: netPrice.plus(markupAmount).plus(serviceFeeAmount),
     currency: "VND",
     departureAt: quotedFlight.departure.time || null,
     arrivalAt: quotedFlight.arrival.time || null,

@@ -646,6 +646,8 @@ function fareBreakdown(summary) {
     taxesFees: Number(summary.taxADT || 0) + Number(summary.vatADT || 0) + Number(summary.issueFeeADT || 0),
     totalAmount: Number(summary.total || 0),
     currency: summary.currencyCode || 'VND',
+    // Net từng loại khách để báo giá đúng khi đơn nhiều khách (adt = totalAmount).
+    perPax: summary.perPax || { adt: Number(summary.total || 0), chd: 0, inf: 0 },
   };
 }
 

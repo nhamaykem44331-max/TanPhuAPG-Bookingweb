@@ -562,9 +562,23 @@ export default function HoldBookingModal({
   const holdFlights = useMemo(() => (
     flight ? [flight, ...(isRoundtrip && inbound ? [inbound] : [])] : []
   ), [flight, inbound, isRoundtrip]);
-  const totalBaseFare = holdFlights.reduce((sum, item) => sum + (item.price.amount ?? 0), 0);
-  const fareTotal = holdFlights.reduce((sum, item) => sum + (item.fareBreakdown?.totalAmount ?? item.price.amount ?? 0), 0);
-  const taxesAndFees = Math.max(0, fareTotal - totalBaseFare);
+  // Tổng theo SỐ KHÁCH: mỗi chặng nhân net từng loại khách (perPax) với số khách loại đó.
+  // Thiếu perPax (search cũ) → coi mọi khách như người lớn để không hiển thị thiếu.
+  const paxCounts = passengers.reduce(
+    (acc, p) => {
+      acc[p.type] += 1;
+      return acc;
+    },
+    { ADT: 0, CHD: 0, INF: 0 } as Record<PassengerType, number>,
+  );
+  const partyFareForFlight = (item: FlightResult) => {
+    const perPax = item.fareBreakdown?.perPax;
+    const adt = perPax?.adt ?? item.fareBreakdown?.totalAmount ?? item.price.amount ?? 0;
+    const chd = perPax?.chd ?? adt;
+    const inf = perPax?.inf ?? 0;
+    return adt * paxCounts.ADT + chd * paxCounts.CHD + inf * paxCounts.INF;
+  };
+  const fareTotal = holdFlights.reduce((sum, item) => sum + partyFareForFlight(item), 0);
   const baggageTotal = passengers.reduce(
     (sum, p) => sum + p.listLuggage.reduce((s, l) => s + Number(l.price || 0), 0),
     0
@@ -1164,10 +1178,7 @@ export default function HoldBookingModal({
       })}
 
       <div className="rounded-[var(--apg-radius-md)] border border-[var(--apg-aviation-navy-soft)] bg-[var(--apg-bg-surface-soft)] px-3 py-3 text-xs">
-        <div className="flex justify-between text-slate-600"><span>Giá vé ({holdFlights.length} chặng)</span><span className="apg-tabular">{fmtVND(totalBaseFare)}</span></div>
-        {taxesAndFees > 0 && (
-          <div className="mt-1 flex justify-between text-slate-600"><span>Thuế &amp; phí</span><span className="apg-tabular">{fmtVND(taxesAndFees)}</span></div>
-        )}
+        <div className="flex justify-between text-slate-600"><span>Vé máy bay ({passengers.length} khách{holdFlights.length > 1 ? ` · ${holdFlights.length} chặng` : ''})</span><span className="apg-tabular">{fmtVND(fareTotal)}</span></div>
         {baggageTotal > 0 && (
           <div className="mt-1 flex justify-between text-slate-600"><span>Hành lý ký gửi</span><span className="apg-tabular">{fmtVND(baggageTotal)}</span></div>
         )}

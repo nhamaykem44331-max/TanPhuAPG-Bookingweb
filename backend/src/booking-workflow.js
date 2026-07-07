@@ -615,6 +615,16 @@ function summarizeFlightFare(flight, fare) {
   const issueFeeADT = getIssueFeeADT(fare, flight);
   const total = fullFareForAdult(fare, flight);
 
+  // Giá NET (giá vốn) từng loại khách, để báo giá đúng khi đơn có nhiều khách.
+  // adt = total (= fare+tax+vat+issueFee của 1 người lớn). chd/inf tính riêng theo dữ liệu
+  // fareCHD/fareINF của Nam Thành. Trẻ em chịu phí xuất vé như người lớn khi có fareCHD;
+  // em bé (ngồi lòng) không tính phí xuất vé. Con số cuối vẫn được đối soát lại với tổng
+  // thật Nam Thành trả về sau khi giữ chỗ (holdResult.pricing.byPnr).
+  const fareCHD = money(fare.fareCHD);
+  const fareINF = money(fare.fareINF);
+  const netCHD = fareCHD + money(fare.taxCHD) + money(fare.vatCHD) + (fareCHD > 0 ? issueFeeADT : 0);
+  const netINF = fareINF + money(fare.taxINF) + money(fare.vatINF);
+
   return {
     id: flight.id,
     airline: flight.airline,
@@ -643,8 +653,14 @@ function summarizeFlightFare(flight, fare) {
     fareADT: money(fare.fareADT),
     taxADT: money(fare.taxADT),
     vatADT: money(fare.vatADT),
+    fareCHD,
+    taxCHD: money(fare.taxCHD) + money(fare.vatCHD),
+    fareINF,
+    taxINF: money(fare.taxINF) + money(fare.vatINF),
     issueFeeADT,
     total,
+    // Net theo từng loại khách (nguồn cho báo giá nhiều khách ở frontend).
+    perPax: { adt: total, chd: netCHD, inf: netINF },
   };
 }
 

@@ -1,9 +1,9 @@
 // Tóm tắt hành trình cho thông báo (email khách + Telegram/Zalo nhân sự).
 // Đọc itinerary đã lưu (extractItinerary) → tên hãng + số hiệu + ngày + giờ đi/đến từng chặng.
 //
-// Lưu ý múi giờ: các mốc giờ trong itinerary được lưu dạng "wall-clock as UTC"
-// (giống booking.departAt mà formatDate hiện dùng), nên PHẢI format ở timeZone "UTC"
-// để ra đúng giờ Việt Nam đang hiển thị (13:30), không dùng Asia/Ho_Chi_Minh (lệch +7h).
+// Lưu ý múi giờ: các mốc giờ trong itinerary được lưu dạng INSTANT thật (toIso đã gắn +07:00
+// khi tạo, ví dụ chuyến 05:45 VN lưu 22:45Z hôm trước). Vì vậy PHẢI format ở "Asia/Ho_Chi_Minh"
+// để ra đúng giờ bay Việt Nam; nếu dùng "UTC" sẽ lệch −7h và có thể sai cả ngày.
 import { getAirlineMeta } from "@/lib/airlines";
 import { extractItinerary, type ItinerarySourceBooking } from "@/lib/bookings/itinerary";
 
@@ -26,7 +26,7 @@ function fmt(iso: string | null, opts: Intl.DateTimeFormatOptions): string | nul
   if (Number.isNaN(date.getTime())) {
     return null;
   }
-  return new Intl.DateTimeFormat("vi-VN", { timeZone: "UTC", ...opts }).format(date);
+  return new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", ...opts }).format(date);
 }
 
 export function buildFlightLegSummaries(booking: ItinerarySourceBooking): FlightLegSummary[] {
@@ -56,6 +56,40 @@ export function buildFlightLegSummaries(booking: ItinerarySourceBooking): Flight
       dateLabel: fmt(departIso, { day: "2-digit", month: "2-digit", year: "numeric" }),
     } satisfies FlightLegSummary;
   });
+}
+
+export interface PassengerSummary {
+  name: string; // "NGUYEN TO HOAN" (Họ + Tên)
+  typeLabel: string; // "Người lớn" | "Trẻ em" | "Em bé"
+}
+
+const PAX_TYPE_LABEL: Record<string, string> = {
+  ADT: "Người lớn",
+  CHD: "Trẻ em",
+  INF: "Em bé",
+};
+
+/** Danh sách hành khách từ namthanhRawJson.request.passengers (đủ mọi khách, không chỉ người đặt). */
+export function buildPassengerSummaries(booking: { namthanhRawJson: unknown }): PassengerSummary[] {
+  const raw = booking.namthanhRawJson;
+  const request = raw && typeof raw === "object" ? (raw as Record<string, unknown>).request : null;
+  const list = request && typeof request === "object" ? (request as Record<string, unknown>).passengers : null;
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return list.map((item) => {
+    const rec = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+    const last = String(rec.lastName ?? "").trim();
+    const first = String(rec.firstName ?? "").trim();
+    const name = [last, first].filter(Boolean).join(" ") || String(rec.fullName ?? rec.name ?? "").trim();
+    const type = String(rec.type ?? "ADT").toUpperCase();
+    return { name: name || "(chưa có tên)", typeLabel: PAX_TYPE_LABEL[type] ?? type };
+  });
+}
+
+/** Dòng danh sách hành khách cho Telegram/Zalo/email text. */
+export function passengerLines(passengers: PassengerSummary[]): string[] {
+  return passengers.map((pax, index) => `${index + 1}. ${pax.name} — ${pax.typeLabel}`);
 }
 
 /** Dòng chữ thuần cho Telegram/Zalo + phần text fallback của email. */

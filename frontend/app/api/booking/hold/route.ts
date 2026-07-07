@@ -14,8 +14,10 @@ import { derivePassengerTitle } from "@/lib/bookings/passengerTitle";
 import { holdInputSchema } from "@/lib/bookings/schemas";
 import { holdNamThanhBooking, NamThanhApiError } from "@/lib/namthanh";
 import { notify } from "@/lib/notifications";
+import { createSepayIntentForBooking } from "@/lib/payments/sepayService";
 import { QuoteExpiredError, QuoteUnavailableError } from "@/lib/pricing/errors";
 import { quoteBooking, type QuoteServiceResult } from "@/lib/pricing/quoteService";
+import { realCostFromHold, reconcileHoldAmounts } from "@/lib/pricing/reconcile";
 import type { FlightResult, HoldBookingPassenger, HoldBookingResponse } from "@/lib/types";
 
 const { BookingStatus, Prisma } = prismaClient;
@@ -1005,6 +1007,18 @@ export async function POST(request: NextRequest) {
       : null;
     const auditMeta = getAuditRequestMeta();
 
+    // ---- Chốt chặn an toàn về TIỀN ---- (xem lib/pricing/reconcile.ts để hiểu bất biến)
+    // Quote đã tính theo số khách. Sau khi giữ chỗ, Nam Thành trả giá vốn THẬT (realCost, ĐÃ gồm
+    // hành lý). Lệch đáng kể → lấy realCost làm chuẩn (sửa cả thu thiếu lẫn thu dư trẻ em) + cảnh báo.
+    const { netAmount: finalNetAmount, saleAmount: finalSaleAmount, profit: finalProfit, reconcile: priceReconcile } =
+      reconcileHoldAmounts({
+        quoteNet: Number(quote.totalNetPrice.toFixed(0)),
+        quoteSell: Number(quote.totalSellPrice.toFixed(0)),
+        quoteMargin: Number(quote.totalMarkupAmount.toFixed(0)) + Number(quote.totalServiceFeeAmount.toFixed(0)),
+        baggageTotal,
+        realCost: realCostFromHold(holdResult),
+      });
+
     const booking = await prisma.$transaction(async (tx) => {
       const existingCustomer =
         input.contact.email || input.contact.phone
@@ -1054,11 +1068,11 @@ export async function POST(request: NextRequest) {
           chd: passengerCounts.chd,
           inf: passengerCounts.inf,
           cabin: input.cabin ?? null,
-          netAmount: Number(quote.totalNetPrice.toFixed(0)) + baggageTotal,
-          saleAmount: Number(quote.totalSellPrice.toFixed(0)) + baggageTotal,
+          netAmount: finalNetAmount,
+          saleAmount: finalSaleAmount,
           markupAmount: Number(quote.totalMarkupAmount.toFixed(0)),
           serviceFeeAmount: Number(quote.totalServiceFeeAmount.toFixed(0)),
-          profit: Number(quote.totalSellPrice.minus(quote.totalNetPrice).toFixed(0)),
+          profit: finalProfit,
           currency: quote.currency,
           status: BookingStatus.HELD,
           ttlExpiresAt: holdExpiresAt ? new Date(holdExpiresAt) : null,
@@ -1085,6 +1099,7 @@ export async function POST(request: NextRequest) {
             quote: serializeQuote(quote),
             holdResult,
             priceDelta,
+            priceReconcile,
             itinerary: buildItinerary(normalized.outboundFlight, normalized.inboundFlight, input.cabin),
           }),
         },
@@ -1135,12 +1150,47 @@ export async function POST(request: NextRequest) {
       return createdBooking;
     });
 
+    // Tạo QR SePay NGAY khi giữ chỗ (chờ xong trước khi báo) để thông báo nhân sự có nội dung
+    // chuyển khoản và email khách có sẵn mã QR. Lỗi tạo QR không được làm hỏng lệnh giữ chỗ.
+    let heldPaymentIntentId: string | null = null;
+    let heldPaymentReused = false;
+    try {
+      const sepay = await createSepayIntentForBooking(booking.id, actorId);
+      heldPaymentIntentId = sepay.intent.id;
+      heldPaymentReused = sepay.reused;
+    } catch (error) {
+      console.error("[booking/hold] tạo QR SePay khi giữ chỗ thất bại", {
+        bookingId: booking.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     void notify({
       type: "BOOKING_HOLD_CREATED",
       bookingId: booking.id,
+      paymentIntentId: heldPaymentIntentId,
+      reused: heldPaymentReused,
     }).catch((error) => {
       console.error("booking hold notification enqueue failed", error);
     });
+
+    if (priceReconcile) {
+      void notify({
+        type: "INTERNAL_ALERT",
+        severity: "warn",
+        message: `Giá quote lệch giá vốn Nam Thành ${priceReconcile.diff.toLocaleString("vi-VN")}đ ở đơn ${booking.orderCode} — đã chốt theo Nam Thành (vốn ${priceReconcile.realCost.toLocaleString("vi-VN")}đ, bán ${finalSaleAmount.toLocaleString("vi-VN")}đ). Kiểm tra lại quy tắc giá.`,
+        context: {
+          bookingId: booking.id,
+          orderCode: booking.orderCode,
+          quoteNet: priceReconcile.quoteNet,
+          realCost: priceReconcile.realCost,
+          diff: priceReconcile.diff,
+          saleAmount: finalSaleAmount,
+        },
+      }).catch((error) => {
+        console.error("price reconcile alert enqueue failed", error);
+      });
+    }
 
     if (holdResult.sessionID) {
       void syncNamThanhBookingStatus(booking.id).catch((error) => {
@@ -1156,22 +1206,22 @@ export async function POST(request: NextRequest) {
       bookingId: booking.id,
       orderCode: booking.orderCode,
       pnr: firstActualPnr ?? undefined,
-      netPrice: quote.totalNetPrice.toFixed(0),
+      netPrice: String(finalNetAmount),
       markupAmount: quote.totalMarkupAmount.toFixed(0),
-      sellPrice: quote.totalSellPrice.toFixed(0),
+      sellPrice: String(finalSaleAmount),
       currency: quote.currency,
       holdExpiresAt,
       markupRuleApplied,
       priceDelta,
       dryRun: false,
-      totalAmount: Number(quote.totalSellPrice.toFixed(0)) + baggageTotal,
+      totalAmount: finalSaleAmount,
       sessionID: holdResult.sessionID,
       passenger: input.contact.fullName,
       paymentIntent: null,
       pricing: {
         verified: true,
         source: "admin-quote",
-        totalAmount: Number(quote.totalSellPrice.toFixed(0)) + baggageTotal,
+        totalAmount: finalSaleAmount,
         currency: quote.currency,
         byPnr: serializePnrPricing(quote, holdResult.pnrs || []),
         unresolvedPnrs: [],
