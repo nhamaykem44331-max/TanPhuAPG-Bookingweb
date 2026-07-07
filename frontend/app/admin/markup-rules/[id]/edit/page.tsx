@@ -47,8 +47,8 @@ export default async function EditMarkupRulePage({ params }: EditMarkupRulePageP
       <div className="apg-admin-sheet overflow-hidden">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1.4fr)_360px]">
           <div className="px-5 py-6 lg:px-6">
-            <Link className="text-sm font-semibold text-[var(--apg-aviation-navy)] hover:underline" href="/admin/markup-rules">
-              ← Quay lại danh sách markup rules
+            <Link className="text-sm font-semibold text-[var(--apg-aviation-navy)] hover:underline" href="/admin/markup">
+              ← Quay lại danh sách markup
             </Link>
             <p className="apg-eyebrow mt-5">Markup Control</p>
             <h2 className="mt-3 text-3xl font-semibold text-[var(--apg-aviation-navy-deep)]">Chỉnh sửa markup rule</h2>

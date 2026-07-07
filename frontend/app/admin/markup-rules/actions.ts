@@ -100,6 +100,7 @@ function notifyRulesChanged() {
   } catch {
     /* swallow — cache có thể chưa khởi tạo */
   }
+  revalidatePath("/admin/markup");
   revalidatePath("/admin/markup-rules");
 }
 
@@ -124,7 +125,7 @@ export async function createMarkupRuleAction(
 
   // redirect() phải nằm NGOÀI try/catch vì nó throw NEXT_REDIRECT (Next.js intercept).
   // Nếu nuốt trong catch sẽ chặn navigation và làm hỏng useFormState.
-  redirect("/admin/markup-rules?created=1");
+  redirect("/admin/markup?created=1");
 }
 
 export async function updateMarkupRuleAction(
@@ -147,7 +148,7 @@ export async function updateMarkupRuleAction(
     return buildExceptionState(error, values);
   }
 
-  redirect("/admin/markup-rules?updated=1");
+  redirect("/admin/markup?updated=1");
 }
 
 export async function toggleMarkupRuleActiveAction(formData: FormData): Promise<void> {
@@ -174,9 +175,9 @@ export async function toggleMarkupRuleActiveAction(formData: FormData): Promise<
   }
 
   if (shouldRedirect) {
-    redirect("/admin/markup-rules?toggled=1");
+    redirect("/admin/markup?toggled=1");
   } else {
-    redirect("/admin/markup-rules?error=toggle");
+    redirect("/admin/markup?error=toggle");
   }
 }
 
@@ -200,7 +201,7 @@ export async function deleteMarkupRuleAction(formData: FormData): Promise<void> 
     console.error("[markup-rules/delete] failed:", error);
   }
 
-  redirect(success ? "/admin/markup-rules?deleted=1" : "/admin/markup-rules?error=delete");
+  redirect(success ? "/admin/markup?deleted=1" : "/admin/markup?error=delete");
 }
 
 /**
@@ -223,5 +224,5 @@ export async function softDeleteMarkupRuleAction(formData: FormData): Promise<vo
     console.error("[markup-rules/soft-delete] failed:", error);
   }
 
-  redirect(success ? "/admin/markup-rules?archived=1" : "/admin/markup-rules?error=archive");
+  redirect(success ? "/admin/markup?archived=1" : "/admin/markup?error=archive");
 }

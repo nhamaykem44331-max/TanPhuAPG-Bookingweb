@@ -1,3 +1,7 @@
+import Link from "next/link";
+
+import { toggleMarkupRuleActiveAction } from "@/app/admin/markup-rules/actions";
+import { DeleteRuleForm } from "@/components/admin/ConfirmDeleteRuleButton";
 import { MiniChip } from "@/components/admin/ui/Chip";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
 import { formatNumber, formatVnd } from "@/lib/admin/ui/format";
@@ -41,9 +45,37 @@ function markupValueLabel(rule: MarkupRuleRecord): string {
   return `+${formatVnd(amount)}/khách`;
 }
 
-export default async function AdminMarkupPage() {
+function firstParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function statusMessage(sp: AdminMarkupPageProps["searchParams"]): { message: string; tone: "success" | "error" } | null {
+  if (firstParam(sp?.created) === "1") return { message: "Đã tạo quy tắc markup mới.", tone: "success" };
+  if (firstParam(sp?.updated) === "1") return { message: "Đã cập nhật quy tắc markup.", tone: "success" };
+  if (firstParam(sp?.toggled) === "1") return { message: "Đã đổi trạng thái áp dụng.", tone: "success" };
+  if (firstParam(sp?.deleted) === "1") return { message: "Đã xoá quy tắc khỏi hệ thống.", tone: "success" };
+  if (firstParam(sp?.archived) === "1") return { message: "Đã tạm dừng quy tắc.", tone: "success" };
+  const err = firstParam(sp?.error);
+  if (err === "delete") return { message: "Xoá quy tắc thất bại — kiểm tra audit log.", tone: "error" };
+  if (err === "toggle") return { message: "Đổi trạng thái thất bại.", tone: "error" };
+  return null;
+}
+
+interface AdminMarkupPageProps {
+  searchParams?: {
+    created?: string | string[];
+    updated?: string | string[];
+    toggled?: string | string[];
+    deleted?: string | string[];
+    archived?: string | string[];
+    error?: string | string[];
+  };
+}
+
+export default async function AdminMarkupPage({ searchParams }: AdminMarkupPageProps) {
   await requireRole(MARKUP_RULE_MANAGER_ROLES);
   const rules = await listMarkupRules(markupRuleListFilterSchema.parse({}));
+  const status = statusMessage(searchParams);
 
   const columns: DataTableColumn<MarkupRuleRecord>[] = [
     {
@@ -61,23 +93,70 @@ export default async function AdminMarkupPage() {
     {
       key: "value",
       header: "MỨC CỘNG",
-      width: "150px",
+      width: "140px",
       render: (row) => <span className="ofly-serif text-[15px] font-medium text-[var(--rust)]">{markupValueLabel(row)}</span>,
     },
     {
       key: "status",
       header: "TRẠNG THÁI",
-      width: "110px",
+      width: "100px",
       render: (row) =>
         row.active ? <MiniChip tone="ok">Đang áp dụng</MiniChip> : <MiniChip tone="muted">Tạm dừng</MiniChip>,
+    },
+    {
+      key: "actions",
+      header: "THAO TÁC",
+      width: "220px",
+      align: "right",
+      render: (row) => (
+        <div className="flex items-center justify-end gap-3">
+          <Link
+            href={`/admin/markup-rules/${row.id}/edit`}
+            className="text-[12px] font-semibold text-[var(--rust)] hover:underline"
+          >
+            Sửa
+          </Link>
+          <form action={toggleMarkupRuleActiveAction}>
+            <input type="hidden" name="id" value={row.id} />
+            <input type="hidden" name="active" value={String(!row.active)} />
+            <button
+              type="submit"
+              className="text-[12px] font-semibold text-[var(--ink-soft)] hover:text-[var(--ink)] hover:underline"
+            >
+              {row.active ? "Tạm dừng" : "Bật lại"}
+            </button>
+          </form>
+          <DeleteRuleForm ruleId={row.id} scope={row.scope} />
+        </div>
+      ),
     },
   ];
 
   return (
     <div>
-      <p className="mb-[22px] max-w-[560px] text-[14px] leading-[1.6] text-[var(--ink-soft)]">
-        Quy tắc markup quyết định giá khách thấy trên web. Áp dụng theo thứ tự ưu tiên: đường bay → hãng → mặc định.
-      </p>
+      <div className="mb-[22px] flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <p className="max-w-[560px] text-[14px] leading-[1.6] text-[var(--ink-soft)]">
+          Quy tắc markup quyết định giá khách thấy trên web. Áp dụng theo thứ tự ưu tiên: đường bay → hãng → mặc định.
+        </p>
+        <Link
+          href="/admin/markup-rules/new"
+          className="apg-btn-primary inline-flex h-10 shrink-0 items-center justify-center px-4 text-sm font-bold text-white"
+        >
+          + Tạo quy tắc
+        </Link>
+      </div>
+
+      {status ? (
+        <div
+          className={`mb-4 rounded-[10px] border px-4 py-3 text-[13px] font-medium ${
+            status.tone === "success"
+              ? "border-[color:rgba(31,122,84,0.28)] bg-[color:rgba(31,122,84,0.08)] text-[#1f7a54]"
+              : "border-[color:rgba(200,76,58,0.28)] bg-[color:rgba(200,76,58,0.08)] text-[#c2513a]"
+          }`}
+        >
+          {status.message}
+        </div>
+      ) : null}
 
       <DataTable
         columns={columns}
