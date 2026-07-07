@@ -53,6 +53,21 @@ const overlay: React.CSSProperties = {
   opacity: 0, cursor: 'pointer', border: 0, padding: 0, margin: 0,
 };
 
+// Desktop: click vào ô <input type="date"> KHÔNG tự mở lịch (chỉ icon lịch mới mở),
+// nên phải gọi showPicker() trong cùng cử chỉ click. Trên thiết bị cảm ứng (pointer thô)
+// giữ nguyên hành vi chạm mặc định để không đổi trải nghiệm mobile đang chạy tốt.
+function openDatePicker(event: React.MouseEvent<HTMLInputElement>) {
+  if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(pointer: fine)').matches) {
+    return;
+  }
+  const input = event.currentTarget as HTMLInputElement & { showPicker?: () => void };
+  try {
+    input.showPicker?.();
+  } catch {
+    // showPicker có thể ném lỗi nếu lịch đã mở / trình duyệt không cho phép — bỏ qua.
+  }
+}
+
 export default function LandingSearchForm() {
   const router = useRouter();
   const [trip, setTrip] = useState<Trip>('roundtrip');
@@ -173,12 +188,12 @@ export default function LandingSearchForm() {
             <label className="cell depart" style={{ position: 'relative' }}>
               <span className="f-label">Ngày đi</span>
               <span className="f-value" suppressHydrationWarning><svg className="ic"><use href="#i-cal" /></svg> {fmtVN(depart) || 'Chọn ngày'}</span>
-              <input type="date" value={depart} min={todayStr} onChange={(e) => setDepart(e.target.value)} style={overlay} aria-label="Ngày đi" />
+              <input type="date" value={depart} min={todayStr} onChange={(e) => setDepart(e.target.value)} onClick={openDatePicker} style={overlay} aria-label="Ngày đi" />
             </label>
             <label className="cell return" style={{ position: 'relative' }}>
               <span className="f-label">Ngày về</span>
               <span className="f-value" suppressHydrationWarning><svg className="ic"><use href="#i-cal" /></svg> {fmtVN(ret) || 'Chọn ngày'}</span>
-              <input type="date" value={ret} min={minReturn} onChange={(e) => setRet(e.target.value)} style={overlay} aria-label="Ngày về" />
+              <input type="date" value={ret} min={minReturn} onChange={(e) => setRet(e.target.value)} onClick={openDatePicker} style={overlay} aria-label="Ngày về" />
             </label>
             <div className="pax-box" ref={paxBoxRef}>
               <button className="pax-summary" aria-expanded={paxOpen} onClick={() => setPaxOpen((v) => !v)}>

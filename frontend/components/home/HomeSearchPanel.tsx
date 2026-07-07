@@ -1,8 +1,22 @@
 "use client";
 
-import { useState } from 'react';
+import { type MouseEvent, useState } from 'react';
 import type { AirportOption, AirportSelection, Cabin } from '@/lib/types';
 import { filterAirports } from '@/lib/useAirports';
+
+// Desktop: click vào <input type="date"> không tự mở lịch (chỉ icon lịch mới mở) → gọi
+// showPicker() trong cùng cử chỉ. Thiết bị cảm ứng giữ hành vi chạm mặc định (mobile OK).
+function openDatePicker(event: MouseEvent<HTMLInputElement>) {
+  if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(pointer: fine)').matches) {
+    return;
+  }
+  const input = event.currentTarget as HTMLInputElement & { showPicker?: () => void };
+  try {
+    input.showPicker?.();
+  } catch {
+    // lịch đã mở / trình duyệt không cho phép — bỏ qua.
+  }
+}
 
 const DOW = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 const MONTHS = ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'];
@@ -293,7 +307,7 @@ export default function HomeSearchPanel({
                 <label style={fieldLabel}>Ngày đi</label>
                 <label style={{ ...fieldBox, position: 'relative', cursor: 'pointer' }}>
                   <span className="tnum" style={{ fontSize: 15, color: '#16212b' }}>{fmtDateNumeric(date) || 'Chọn ngày'}</span><IconCal />
-                  <input type="date" aria-label="Ngày đi" value={date} min={todayYmd} onChange={(e) => onDateChange(e.target.value)}
+                  <input type="date" aria-label="Ngày đi" value={date} min={todayYmd} onChange={(e) => onDateChange(e.target.value)} onClick={openDatePicker}
                     style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
                 </label>
               </div>
@@ -302,7 +316,7 @@ export default function HomeSearchPanel({
                   <label style={fieldLabel}>Ngày về</label>
                   <label style={{ ...fieldBox, position: 'relative', cursor: 'pointer' }}>
                     <span className="tnum" style={{ fontSize: 15, color: '#16212b' }}>{fmtDateNumeric(retValue) || 'Chọn ngày'}</span><IconCal />
-                    <input type="date" aria-label="Ngày về" value={retValue} min={minReturnDate} onChange={(e) => onReturnDateChange(e.target.value)}
+                    <input type="date" aria-label="Ngày về" value={retValue} min={minReturnDate} onChange={(e) => onReturnDateChange(e.target.value)} onClick={openDatePicker}
                       style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
                   </label>
                 </div>
