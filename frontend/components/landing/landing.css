@@ -168,6 +168,25 @@
 .lp .pax-done{margin-top:15px;width:100%;background:var(--navy);color:#fff;border:none;border-radius:10px;padding:12px;font-weight:700;font-size:.95rem;cursor:pointer;font-family:inherit}
 .lp .pax-done:hover{background:var(--navy-light)}
 
+/* Airport picker popover — cơ chế tìm/lọc giống Booking Desk, phối màu landing */
+.lp .route-field[role="button"]:focus-visible{outline:2px solid var(--green);outline-offset:-2px;border-radius:12px}
+.lp .ap-backdrop{position:fixed;inset:0;z-index:55}
+.lp .ap-panel{position:absolute;top:calc(100% + 8px);left:0;z-index:60;width:min(380px,100%);background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 46px -18px rgba(8,32,63,.45);padding:12px;animation:apIn .14s ease}
+.lp .ap-panel.right{left:auto;right:0}
+@keyframes apIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.lp .ap-head{font-size:.9rem;font-weight:700;color:var(--ink);padding:2px 2px 10px}
+.lp .ap-search{width:100%;height:44px;border:1px solid var(--line);border-radius:10px;padding:0 14px;font-family:inherit;font-size:.95rem;color:var(--ink);background:#fff}
+.lp .ap-search:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(15,123,67,.12)}
+.lp .ap-list{max-height:288px;overflow-y:auto;margin-top:8px}
+.lp .ap-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px;border:none;background:none;border-radius:10px;cursor:pointer;font-family:inherit}
+.lp .ap-row:hover{background:rgba(15,123,67,.08)}
+.lp .ap-lead{width:22px;flex:none;display:grid;place-items:center;color:var(--green)}
+.lp .ap-main{min-width:0;display:flex;flex-direction:column}
+.lp .ap-city{font-size:.95rem;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lp .ap-city .ap-code{color:var(--muted);font-weight:600;font-size:.8rem;margin-left:6px}
+.lp .ap-name{font-size:.76rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lp .ap-empty{padding:14px 10px;font-size:.85rem;color:var(--muted)}
+
 /* Search button */
 .lp .btn-search{width:100%;justify-content:center;padding:15px;font-size:1.05rem}
 

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { SEARCH_STATE_KEY } from '@/lib/homeSearchStore';
-import type { Cabin } from '@/lib/types';
+import type { AirportOption, Cabin } from '@/lib/types';
+import { filterAirports, findAirportByCode, useAirports } from '@/lib/useAirports';
 
 type Trip = 'roundtrip' | 'oneway';
 
@@ -39,8 +40,12 @@ const DOW = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 function pad2(n: number) { return n < 10 ? `0${n}` : `${n}`; }
 function ymd(d: Date) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 function addDays(base: Date, days: number) { const d = new Date(base); d.setDate(d.getDate() + days); return d; }
-function cityOf(code: string) { return AIRPORTS.find((a) => a.code === code)?.city || code; }
-function labelOf(code: string) { return `${cityOf(code)} (${code})`; }
+// Fallback khi danh sách sân bay động (useAirports) chưa tải xong → popover không rỗng
+// lúc đầu và SSR/hydration ổn định. Dạng AirportOption để dùng chung filterAirports.
+const FALLBACK_AIRPORTS: AirportOption[] = AIRPORTS.map((a) => ({
+  code: a.code, city: a.city, name: a.city, country: a.intl ? '' : 'VN',
+  domestic: !a.intl, label: `${a.city} (${a.code})`, aliases: [],
+}));
 function fmtVN(s: string) {
   if (!s) return '';
   const [y, m, dd] = s.split('-').map(Number);
@@ -82,6 +87,9 @@ export default function LandingSearchForm() {
   const [paxOpen, setPaxOpen] = useState(false);
   const [swap, setSwap] = useState(false);
   const paxBoxRef = useRef<HTMLDivElement>(null);
+  const { airports } = useAirports();
+  const [apOpen, setApOpen] = useState<null | 'from' | 'to'>(null);
+  const [apQuery, setApQuery] = useState('');
 
   // Khởi tạo ngày sau khi mount để tránh lệch SSR/hydration theo timezone.
   useEffect(() => {
@@ -99,6 +107,55 @@ export default function LandingSearchForm() {
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [paxOpen]);
+
+  // Danh sách sân bay động (giống Booking Desk); fallback danh sách tối thiểu khi chưa tải.
+  const airportList = airports.length > 0 ? airports : FALLBACK_AIRPORTS;
+  const cityOf = (code: string) =>
+    findAirportByCode(airportList, code)?.city || FALLBACK_AIRPORTS.find((a) => a.code === code)?.city || code;
+  const labelOf = (code: string) => `${cityOf(code)} (${code})`;
+  const openAirport = (which: 'from' | 'to') => { setApQuery(''); setApOpen(which); };
+  const closeAirport = () => setApOpen(null);
+  const pickAirport = (which: 'from' | 'to', code: string) => {
+    if (which === 'from') changeFrom(code); else changeTo(code);
+    closeAirport();
+  };
+
+  // Popover chọn sân bay: cơ chế giống Booking Desk (ô tìm + danh sách lọc theo điểm số),
+  // phối màu theo landing.
+  const renderAirportPopover = (which: 'from' | 'to') => {
+    const list = filterAirports(airportList, apQuery, 40);
+    return (
+      <>
+        <div className="ap-backdrop" onClick={closeAirport} />
+        <div className={which === 'to' ? 'ap-panel right' : 'ap-panel'} onClick={(e) => e.stopPropagation()}>
+          <div className="ap-head">{which === 'to' ? 'Chọn điểm đến' : 'Chọn điểm đi'}</div>
+          <input
+            className="ap-search"
+            placeholder="Tìm thành phố, sân bay hoặc mã"
+            value={apQuery}
+            onChange={(e) => setApQuery(e.target.value)}
+            autoFocus
+            aria-label={which === 'to' ? 'Tìm điểm đến' : 'Tìm điểm đi'}
+          />
+          {list.length === 0 ? (
+            <div className="ap-empty">Không tìm thấy sân bay phù hợp.</div>
+          ) : (
+            <div className="ap-list">
+              {list.map((a) => (
+                <button className="ap-row" key={a.code} type="button" onClick={() => pickAirport(which, a.code)}>
+                  <span className="ap-lead"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M2 16l9-3 9-3" /><path d="M11 13l-2-6 1.5-.5 4 5" /></svg></span>
+                  <span className="ap-main">
+                    <span className="ap-city">{a.city} <span className="ap-code">{a.code}</span></span>
+                    {a.name && a.name !== a.city ? <span className="ap-name">{a.name}</span> : null}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </>
+    );
+  };
 
   const total = adt + chd + inf;
   const todayStr = ymd(new Date());
@@ -165,23 +222,34 @@ export default function LandingSearchForm() {
           </div>
 
           <div className="route-box">
-            <div className="route-field from" style={{ position: 'relative' }}>
+            <div
+              className="route-field from"
+              role="button"
+              tabIndex={0}
+              aria-haspopup="listbox"
+              aria-expanded={apOpen === 'from'}
+              aria-label="Chọn điểm đi"
+              onClick={() => openAirport('from')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openAirport('from'); } }}
+            >
               <span className="rf-ic from"><svg className="ic"><use href="#i-plane" /></svg></span>
-              <span className="rf-text"><span className="f-label">Từ</span><span className="f-value"><span className="code">{from}</span> {cityOf(from)}</span></span>
-              <select aria-label="Điểm đi" value={from} onChange={(e) => changeFrom(e.target.value)} style={overlay}>
-                <optgroup label="Trong nước">{AIRPORTS.filter((a) => !a.intl).map((a) => <option key={a.code} value={a.code}>{a.code} — {a.city}</option>)}</optgroup>
-                <optgroup label="Quốc tế">{AIRPORTS.filter((a) => a.intl).map((a) => <option key={a.code} value={a.code}>{a.code} — {a.city}</option>)}</optgroup>
-              </select>
+              <span className="rf-text"><span className="f-label">Từ</span><span className="f-value" suppressHydrationWarning><span className="code">{from}</span> {cityOf(from)}</span></span>
             </div>
             <button className={swap ? 'route-swap spin' : 'route-swap'} onClick={doSwap} aria-label="Đổi chiều"><svg className="ic"><use href="#i-swap" /></svg></button>
-            <div className="route-field to" style={{ position: 'relative' }}>
+            <div
+              className="route-field to"
+              role="button"
+              tabIndex={0}
+              aria-haspopup="listbox"
+              aria-expanded={apOpen === 'to'}
+              aria-label="Chọn điểm đến"
+              onClick={() => openAirport('to')}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openAirport('to'); } }}
+            >
               <span className="rf-ic to"><svg className="ic"><use href="#i-plane" /></svg></span>
-              <span className="rf-text"><span className="f-label">Đến</span><span className="f-value"><span className="code">{to}</span> {cityOf(to)}</span></span>
-              <select aria-label="Điểm đến" value={to} onChange={(e) => changeTo(e.target.value)} style={overlay}>
-                <optgroup label="Trong nước">{AIRPORTS.filter((a) => !a.intl).map((a) => <option key={a.code} value={a.code}>{a.code} — {a.city}</option>)}</optgroup>
-                <optgroup label="Quốc tế">{AIRPORTS.filter((a) => a.intl).map((a) => <option key={a.code} value={a.code}>{a.code} — {a.city}</option>)}</optgroup>
-              </select>
+              <span className="rf-text"><span className="f-label">Đến</span><span className="f-value" suppressHydrationWarning><span className="code">{to}</span> {cityOf(to)}</span></span>
             </div>
+            {apOpen && renderAirportPopover(apOpen)}
           </div>
 
           <div className="sc-dates">
