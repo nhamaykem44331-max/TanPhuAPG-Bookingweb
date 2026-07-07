@@ -43,19 +43,32 @@ test("KHÔNG double-count hành lý: realCost đã gồm hành lý → sale = re
   assert.equal(r.profit, 300_000); // markup, KHÔNG bị hành lý làm sai
 });
 
-test("THU DƯ trẻ em được sửa XUỐNG khi realCost thấp hơn quote", () => {
-  // Quote tính 2 trẻ em như người lớn (thiếu perPax): quoteNet cao; realCost thật thấp hơn.
+test("VỐN GIẢM → GIỮ giá khách đã chốt, công ty ăn thêm lời (không hạ giá khách)", () => {
+  // Giá hãng giảm giữa lúc xem và lúc giữ: khách vẫn trả giá đã chốt, phần chênh thành lợi nhuận.
   const r = reconcileHoldAmounts({
-    quoteNet: 8_000_000, // 4 × người lớn (sai)
-    quoteSell: 8_400_000,
-    quoteMargin: 400_000, // FIXED 100k × 4
+    quoteNet: 8_000_000,
+    quoteSell: 8_400_000, // giá khách đã chốt (net + markup 400k)
+    quoteMargin: 400_000,
     baggageTotal: 0,
-    realCost: 7_000_000, // thật: 2 người lớn + 2 trẻ em
+    realCost: 7_000_000, // vốn thật thấp hơn
   });
   assert.ok(r.reconcile);
-  assert.equal(r.netAmount, 7_000_000);
-  assert.equal(r.saleAmount, 7_400_000); // vốn thật + margin (FIXED giữ nguyên)
-  assert.equal(r.profit, 400_000);
+  assert.equal(r.netAmount, 7_000_000); // vốn thật
+  assert.equal(r.saleAmount, 8_400_000); // GIỮ giá khách (KHÔNG hạ)
+  assert.equal(r.profit, 1_400_000); // margin 400k + tiết kiệm vốn 1.000.000
+});
+
+test("VỐN TĂNG NHỎ (trong ngưỡng) → công ty tự chịu, giữ giá khách", () => {
+  const r = reconcileHoldAmounts({
+    quoteNet: 2_000_000,
+    quoteSell: 2_100_000,
+    quoteMargin: 100_000,
+    baggageTotal: 0,
+    realCost: 2_008_000, // tăng 8.000 < tolerance 10.000
+  });
+  assert.equal(r.saleAmount, 2_100_000); // giữ giá khách, không thu thêm 8k
+  assert.equal(r.netAmount, 2_008_000);
+  assert.equal(r.profit, 92_000); // margin 100k − 8k tự chịu
 });
 
 test("THU THIẾU (bug cũ) được sửa LÊN khi realCost cao hơn quote", () => {

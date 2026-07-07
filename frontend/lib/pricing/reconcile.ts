@@ -44,9 +44,12 @@ export interface ReconcileResult {
  * - baggageTotal: hành lý pass-through (không markup).
  * - realCost: tổng vốn thật Nam Thành (ĐÃ gồm hành lý) hoặc null nếu chưa có.
  *
- * Không reconcile → net/sale = quote (+ hành lý). Reconcile (lệch > tolerance) → lấy realCost làm net,
- * sale = realCost + margin. KHÔNG cộng thêm baggageTotal ở nhánh reconcile vì realCost đã gồm hành lý.
- * Vì margin >= 0 nên sale luôn >= vốn (không bao giờ bán dưới vốn).
+ * netAmount = realCost (vốn thật, đã gồm hành lý) khi có; không thì quoteNet+hành lý.
+ * saleAmount = giá khách phải trả, theo NGUYÊN TẮC TỐI ƯU LỢI NHUẬN + KHÔNG BÁN DƯỚI VỐN:
+ *   - Vốn TĂNG đáng kể (realCost+margin > giá khách đã chốt + tolerance) → thu = vốn + margin.
+ *   - Còn lại (vốn giảm, hoặc tăng không đáng kể) → GIỮ NGUYÊN giá khách đã chốt (quoteSell):
+ *       vốn giảm → công ty ăn thêm phần chênh; vốn tăng nhỏ → công ty tự chịu (không làm phiền khách).
+ * KHÔNG cộng thêm baggageTotal ở nhánh vốn-tăng vì realCost đã gồm hành lý.
  */
 export function reconcileHoldAmounts(args: {
   quoteNet: number;
@@ -60,15 +63,23 @@ export function reconcileHoldAmounts(args: {
   const quoteNetWithBaggage = args.quoteNet + args.baggageTotal;
   const quoteSellWithBaggage = args.quoteSell + args.baggageTotal;
 
-  let netAmount = quoteNetWithBaggage;
-  let saleAmount = quoteSellWithBaggage;
-  let reconcile: ReconcileResult["reconcile"] = null;
-
-  if (args.realCost != null && Math.abs(args.realCost - quoteNetWithBaggage) > tolerance) {
-    reconcile = { quoteNet: quoteNetWithBaggage, realCost: args.realCost, diff: args.realCost - quoteNetWithBaggage };
-    netAmount = args.realCost;
-    saleAmount = args.realCost + args.quoteMargin;
+  if (args.realCost == null) {
+    return {
+      netAmount: quoteNetWithBaggage,
+      saleAmount: quoteSellWithBaggage,
+      profit: quoteSellWithBaggage - quoteNetWithBaggage,
+      reconcile: null,
+    };
   }
+
+  const netAmount = args.realCost; // vốn thật (đã gồm hành lý)
+  const costPlusMargin = args.realCost + args.quoteMargin;
+  const saleAmount =
+    costPlusMargin > quoteSellWithBaggage + tolerance ? costPlusMargin : quoteSellWithBaggage;
+  const reconcile =
+    Math.abs(args.realCost - quoteNetWithBaggage) > tolerance
+      ? { quoteNet: quoteNetWithBaggage, realCost: args.realCost, diff: args.realCost - quoteNetWithBaggage }
+      : null;
 
   return { netAmount, saleAmount, profit: saleAmount - netAmount, reconcile };
 }

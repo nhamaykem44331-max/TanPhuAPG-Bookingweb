@@ -548,6 +548,19 @@ function toPriceDeltaPayload(delta: ReturnType<typeof comparePrices>) {
   };
 }
 
+/**
+ * Cảnh báo giá cho KHÁCH — CHỈ khi phải trả NHIỀU HƠN đáng kể (>5%) so với giá đã xem.
+ * Giá giảm / không đổi → không cảnh báo (hệ thống đã giữ giá khách ở bước reconcile, không hạ giá).
+ * So sánh phần vé (finalFlightSell = saleAmount − hành lý) với input.displayedNetPrice (giá vé, chưa hành lý).
+ */
+function customerPriceIncrease(displayedNetPrice: number, finalFlightSell: number) {
+  const cmp = comparePrices(displayedNetPrice, new Prisma.Decimal(finalFlightSell));
+  if (!cmp || !cmp.shouldWarn || cmp.delta.lessThanOrEqualTo(0)) {
+    return undefined;
+  }
+  return toPriceDeltaPayload(cmp);
+}
+
 function firstMarkupRule(quote: QuoteServiceResult): { id: string; name: string } | undefined {
   const rules = quote.legs
     .map((leg) => leg.markupRule)
@@ -904,7 +917,10 @@ export async function POST(request: NextRequest) {
 
     const input = parsedInput.data;
     const existingAuth = await auth();
-    const channel: QuoteChannel = existingAuth?.user?.id ? "admin" : "web";
+    // Luồng đặt vé công khai (endpoint này) LUÔN tính giá kênh "web" → markup luôn áp cho khách,
+    // kể cả khi người thao tác đang đăng nhập admin. actorId vẫn ghi lại ai tạo đơn để audit.
+    // (Nếu sau này cần luồng đặt giá net cho nhân sự thì làm endpoint/nút riêng trong /admin.)
+    const channel: QuoteChannel = "web";
 
     if (!input.dryRun && input.idempotencyKey) {
       const existingBooking = await prisma.booking.findUnique({
@@ -1018,6 +1034,8 @@ export async function POST(request: NextRequest) {
         baggageTotal,
         realCost: realCostFromHold(holdResult),
       });
+    // Cảnh báo giá cho khách dựa trên GIÁ CUỐI (sau reconcile) — chỉ khi khách phải trả nhiều hơn.
+    const finalPriceDelta = customerPriceIncrease(input.displayedNetPrice, finalSaleAmount - baggageTotal);
 
     const booking = await prisma.$transaction(async (tx) => {
       const existingCustomer =
@@ -1098,7 +1116,7 @@ export async function POST(request: NextRequest) {
             },
             quote: serializeQuote(quote),
             holdResult,
-            priceDelta,
+            priceDelta: finalPriceDelta,
             priceReconcile,
             itinerary: buildItinerary(normalized.outboundFlight, normalized.inboundFlight, input.cabin),
           }),
@@ -1121,7 +1139,7 @@ export async function POST(request: NextRequest) {
           payload: toJsonValue({
             quote: serializeQuote(quote),
             holdResult,
-            priceDelta,
+            priceDelta: finalPriceDelta,
           }),
           occurredAt: new Date(),
         },
@@ -1140,7 +1158,7 @@ export async function POST(request: NextRequest) {
             netAmount: createdBooking.netAmount,
             markupAmount: createdBooking.markupAmount,
             saleAmount: createdBooking.saleAmount,
-            priceDelta,
+            priceDelta: finalPriceDelta,
           }),
           ip: auditMeta.ip,
           userAgent: auditMeta.userAgent,
@@ -1175,10 +1193,13 @@ export async function POST(request: NextRequest) {
     });
 
     if (priceReconcile) {
+      const costRose = priceReconcile.diff > 0;
       void notify({
         type: "INTERNAL_ALERT",
-        severity: "warn",
-        message: `Giá quote lệch giá vốn Nam Thành ${priceReconcile.diff.toLocaleString("vi-VN")}đ ở đơn ${booking.orderCode} — đã chốt theo Nam Thành (vốn ${priceReconcile.realCost.toLocaleString("vi-VN")}đ, bán ${finalSaleAmount.toLocaleString("vi-VN")}đ). Kiểm tra lại quy tắc giá.`,
+        severity: costRose ? "warn" : "info",
+        message: costRose
+          ? `Giá vốn Nam Thành TĂNG ${priceReconcile.diff.toLocaleString("vi-VN")}đ ở đơn ${booking.orderCode} — đã thu khách theo vốn thật (vốn ${priceReconcile.realCost.toLocaleString("vi-VN")}đ, khách trả ${finalSaleAmount.toLocaleString("vi-VN")}đ). Khách đã được báo giá tăng.`
+          : `Giá vốn Nam Thành GIẢM ${Math.abs(priceReconcile.diff).toLocaleString("vi-VN")}đ ở đơn ${booking.orderCode} — GIỮ giá khách để tối ưu lợi nhuận (vốn ${priceReconcile.realCost.toLocaleString("vi-VN")}đ, khách trả ${finalSaleAmount.toLocaleString("vi-VN")}đ, lời thêm ${(finalSaleAmount - priceReconcile.realCost).toLocaleString("vi-VN")}đ).`,
         context: {
           bookingId: booking.id,
           orderCode: booking.orderCode,
@@ -1212,7 +1233,7 @@ export async function POST(request: NextRequest) {
       currency: quote.currency,
       holdExpiresAt,
       markupRuleApplied,
-      priceDelta,
+      priceDelta: finalPriceDelta,
       dryRun: false,
       totalAmount: finalSaleAmount,
       sessionID: holdResult.sessionID,
