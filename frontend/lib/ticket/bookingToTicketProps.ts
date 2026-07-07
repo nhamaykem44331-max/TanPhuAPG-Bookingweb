@@ -4,6 +4,7 @@ import type {
   TicketPassenger,
   TicketStatus,
 } from '@/components/ticket/TicketFace';
+import { derivePassengerTitle, type PassengerKind } from '@/lib/bookings/passengerTitle';
 
 // Map dữ liệu booking (đã chuẩn hoá) sang props cho <TicketFace>.
 // Dùng chung cho: màn thanh toán thành công, trang tra cứu đơn, mặt vé giữ chỗ.
@@ -26,6 +27,7 @@ export interface TicketSourceLeg {
 
 export interface TicketSourcePassenger {
   type: string; // ADT | CHD | INF
+  title?: string; // MR | MRS | MS | MSTR | MISS (đơn cũ có thể thiếu → derive mặc định)
   firstName: string;
   lastName: string;
   ticketNumber?: string | null;
@@ -163,12 +165,10 @@ function airlineName(airline: string | null): string {
   return AIRLINE_NAMES[code] ?? (airline ?? '').trim() ?? code;
 }
 
-function passengerTitle(type: string): TicketPassenger['title'] {
-  // Không lưu gender ở namthanhRawJson → suy theo loại khách (mặc định lịch sự).
-  const t = (type || 'ADT').toUpperCase();
-  if (t === 'CHD') return 'MSTR';
-  if (t === 'INF') return 'MSTR';
-  return 'MR';
+function resolvePassengerTitle(p: TicketSourcePassenger): TicketPassenger['title'] {
+  // Ưu tiên title thật đã lưu; đơn cũ chưa lưu title → derive mặc định theo loại khách.
+  const kind: PassengerKind = p.type === 'CHD' || p.type === 'INF' ? p.type : 'ADT';
+  return derivePassengerTitle(p.title, kind, undefined);
 }
 
 function toTicketLeg(leg: TicketSourceLeg, airportNames?: Record<string, AirportName>): TicketLeg {
@@ -208,7 +208,7 @@ export function bookingToTicketProps(
   const legs = src.legs.map((leg) => toTicketLeg(leg, airportNames));
   const passengers: TicketPassenger[] = src.passengers.map((p, i) => ({
     index: i + 1,
-    title: passengerTitle(p.type),
+    title: resolvePassengerTitle(p),
     fullName: `${p.lastName} ${p.firstName}`.trim().toUpperCase(),
     ticketNumber: p.ticketNumber || undefined,
   }));

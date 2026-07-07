@@ -33,6 +33,7 @@ const serviceSelectionSchema = z.object({
 
 export const holdPassengerSchema = z.object({
   type: z.enum(["ADT", "CHD", "INF"]),
+  title: z.enum(["MR", "MRS", "MS", "MSTR", "MISS"]).optional(),
   firstName: z.string().trim().min(1, "Thiếu tên hành khách."),
   lastName: z.string().trim().min(1, "Thiếu họ hành khách."),
   fullName: z.string().trim().min(1).optional(),
@@ -61,6 +62,15 @@ export const holdPassengerSchema = z.object({
     const ms = Date.parse(p.dob);
     if (Number.isFinite(ms) && ms > Date.now()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["dob"], message: "Ngày sinh không hợp lệ." });
+    }
+  }
+  // Danh xưng phải khớp loại khách: người lớn = MR/MRS/MS, trẻ em/em bé = MSTR/MISS.
+  // Guard chống dữ liệu title sai giới tính/loại lọt vào PNR (dữ liệu → tiền + check-in).
+  if (p.title) {
+    const adultTitles = ["MR", "MRS", "MS"];
+    const ok = p.type === "ADT" ? adultTitles.includes(p.title) : !adultTitles.includes(p.title);
+    if (!ok) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["title"], message: "Danh xưng không khớp loại khách." });
     }
   }
 });

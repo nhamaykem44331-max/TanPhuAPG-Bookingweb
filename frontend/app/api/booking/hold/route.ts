@@ -10,6 +10,7 @@ import type { HoldInput, HoldPassengerInput } from "@/lib/bookings/schemas";
 import { generateUniqueOrderCode } from "@/lib/bookings/orderManagement";
 import { buildItinerary } from "@/lib/bookings/itinerary";
 import { syncNamThanhBookingStatus } from "@/lib/bookings/namthanhStatusSync";
+import { derivePassengerTitle } from "@/lib/bookings/passengerTitle";
 import { holdInputSchema } from "@/lib/bookings/schemas";
 import { holdNamThanhBooking, NamThanhApiError } from "@/lib/namthanh";
 import { notify } from "@/lib/notifications";
@@ -221,6 +222,8 @@ function normalizePassengers(value: unknown): HoldPassengerInput[] {
 
       return {
         type,
+        // Ưu tiên title thật client gửi; chỉ suy từ gender / mặc định khi thiếu.
+        title: derivePassengerTitle(passenger.title, type, gender),
         firstName: compactText(passenger.firstName) || split.firstName,
         lastName: compactText(passenger.lastName) || split.lastName,
         fullName,
@@ -242,8 +245,9 @@ function normalizePassengers(value: unknown): HoldPassengerInput[] {
           ? (passenger.ancillaryServices as HoldPassengerInput["ancillaryServices"])
           : undefined,
       };
-    })
-    .filter((passenger) => passenger.firstName && passenger.lastName);
+    });
+  // KHÔNG lọc bỏ hành khách thiếu họ/tên ở đây: để schema báo lỗi rõ ("Thiếu tên/họ hành khách.")
+  // thay vì âm thầm tạo PNR thiếu người → tránh sai lệch số khách so với dữ liệu khách nhập.
 }
 
 function countPassengers(passengers: HoldPassengerInput[]): { adt: number; chd: number; inf: number } {
@@ -408,7 +412,7 @@ function toLegacyPassengers(passengers: HoldPassengerInput[]): HoldBookingPassen
     return {
       id: `${passenger.type}${index + 1}`,
       type: passenger.type,
-      title: passenger.gender === "F" ? (passenger.type === "ADT" ? "MS" : "MISS") : passenger.type === "ADT" ? "MR" : "MSTR",
+      title: passenger.title ?? derivePassengerTitle(undefined, passenger.type, passenger.gender),
       firstName: compactText(passenger.firstName),
       lastName: compactText(passenger.lastName),
       fullName,
@@ -1070,6 +1074,7 @@ export async function POST(request: NextRequest) {
               tripType: input.tripType,
               passengers: input.passengers.map((passenger) => ({
                 type: passenger.type,
+                title: passenger.title ?? derivePassengerTitle(undefined, passenger.type, passenger.gender),
                 firstName: passenger.firstName,
                 lastName: passenger.lastName,
                 dob: passenger.dob,

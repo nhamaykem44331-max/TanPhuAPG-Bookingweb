@@ -1,6 +1,8 @@
 // Trích hành trình + hành khách từ bản ghi booking (namthanhRawJson + pnrs).
 // Dùng chung cho trang thanh toán và API tra cứu đơn để không lệch logic.
 
+import { derivePassengerTitle, type PassengerKind, type PassengerTitle } from "@/lib/bookings/passengerTitle";
+
 export interface QuoteLeg {
   legKey?: string;
   route?: string;
@@ -36,7 +38,7 @@ export interface NamThanhRaw {
   quote?: { legs?: QuoteLeg[] };
   request?: {
     contact?: { fullName?: string; phone?: string; email?: string };
-    passengers?: { firstName?: string; lastName?: string; type?: string; dob?: string }[];
+    passengers?: { firstName?: string; lastName?: string; type?: string; dob?: string; title?: string }[];
   };
   holdResult?: {
     flight?: HoldFlight;
@@ -62,6 +64,7 @@ export interface PaymentItineraryLeg {
 
 export interface TicketViewPassenger {
   type: string;
+  title: PassengerTitle;
   firstName: string;
   lastName: string;
 }
@@ -149,11 +152,16 @@ export function buildTicketView(booking: BookingViewInput): {
         };
       });
 
-  const passengers: TicketViewPassenger[] = (raw?.request?.passengers ?? []).map((p) => ({
-    type: p.type ?? "ADT",
-    firstName: p.firstName ?? "",
-    lastName: p.lastName ?? "",
-  }));
+  const passengers: TicketViewPassenger[] = (raw?.request?.passengers ?? []).map((p) => {
+    const kind: PassengerKind = p.type === "CHD" || p.type === "INF" ? p.type : "ADT";
+    return {
+      type: p.type ?? "ADT",
+      // Đơn cũ chưa lưu title → derive về mặc định như trước (không vỡ dữ liệu cũ).
+      title: derivePassengerTitle(p.title, kind, undefined),
+      firstName: p.firstName ?? "",
+      lastName: p.lastName ?? "",
+    };
+  });
 
   return { itinerary, passengers };
 }
