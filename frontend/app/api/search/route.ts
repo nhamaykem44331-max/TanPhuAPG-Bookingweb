@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       error: partnerAirportUnsupported
         ? `Sân bay ${body.from} hoặc ${body.to} không được hỗ trợ bởi đối tác.`
-        : 'Lỗi tìm chuyến bay từ Nam Thanh backend. Vui lòng kiểm tra namthanh-auto-login localhost.',
+        : 'Không tìm được chuyến bay lúc này. Vui lòng thử lại sau ít phút.',
       details: process.env.NODE_ENV === 'development' || error instanceof NamThanhApiError ? msg : undefined,
     }, { status: error instanceof NamThanhApiError ? Math.min(Math.max(error.status, 400), 599) : 500 });
   }

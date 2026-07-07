@@ -479,7 +479,7 @@ export default function RoundtripResultsSection({
             <div>
               <div className="apg-eyebrow">Chế độ hiển thị khứ hồi</div>
               <div className="mt-1 text-sm text-slate-500">
-                Bạn có thể chọn nhanh theo cặp khứ hồi dựng sẵn như Nam Thanh, hoặc quay về chế độ chọn từng chiều.
+                Bạn có thể chọn nhanh theo cặp khứ hồi dựng sẵn, hoặc quay về chế độ chọn từng chiều.
               </div>
             </div>
             <div className="inline-flex rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] p-1">

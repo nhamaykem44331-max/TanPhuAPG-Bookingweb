@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
 
     if (!searchId || !flightId) {
       return NextResponse.json({
-        error: 'Nam Thanh fare detail cần đúng searchId và flightId. Search mới đã trả sẵn fareBreakdown nên thường không cần gọi endpoint này.',
+        error: 'Thiếu searchId hoặc flightId. Kết quả tìm kiếm đã kèm sẵn chi tiết giá.',
       }, { status: 400 });
     }
 
@@ -27,6 +27,6 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: msg || 'Lỗi fare detail Nam Thanh' }, { status: 500 });
+    return NextResponse.json({ error: msg || 'Lỗi tải chi tiết giá vé' }, { status: 500 });
   }
 }

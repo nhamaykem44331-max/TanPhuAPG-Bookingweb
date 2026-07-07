@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
           success: true,
           routes: [],
           warning: 'ANCILLARY_SESSION_TIMEOUT',
-          message: 'Hành lý ký gửi tạm thời chưa tải được từ Nam Thanh. Anh vẫn có thể giữ chỗ không kèm hành lý.',
+          message: 'Hành lý ký gửi tạm thời chưa tải được. Anh vẫn có thể giữ chỗ không kèm hành lý.',
           details: error.details,
         });
       }
@@ -118,12 +118,12 @@ export async function POST(req: NextRequest) {
       const status = error.status >= 400 ? error.status : 502;
       return NextResponse.json({
         success: false,
-        error: msg || 'Lỗi ancillaries Nam Thanh',
+        error: msg || 'Lỗi tải dịch vụ hành lý',
         details: error.details,
       }, { status });
     }
 
     const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ success: false, error: msg || 'Lỗi ancillaries Nam Thanh' }, { status: 500 });
+    return NextResponse.json({ success: false, error: msg || 'Lỗi tải dịch vụ hành lý' }, { status: 500 });
   }
 }

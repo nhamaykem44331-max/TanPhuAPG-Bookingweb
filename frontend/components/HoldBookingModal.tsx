@@ -79,8 +79,8 @@ function routeCodeLabel(airports: AirportList, route?: string) {
 const HOLD_PROGRESS_STEPS: HoldProgressStep[] = [
   { from: 0, to: 15, durationMs: 1200, text: 'Đang kiểm tra dữ liệu hành khách...' },
   { from: 15, to: 45, durationMs: 2400, text: 'Đang gửi yêu cầu tạo PNR...' },
-  { from: 45, to: 80, durationMs: 6000, text: 'Đang chờ Nam Thanh trả PNR...' },
-  { from: 80, to: 95, durationMs: 5000, text: 'Đang đồng bộ giá chuẩn từ ticket-info-by-id...' },
+  { from: 45, to: 80, durationMs: 6000, text: 'Đang xác nhận chỗ với hãng hàng không...' },
+  { from: 80, to: 95, durationMs: 5000, text: 'Đang xác nhận giá & mã đặt chỗ...' },
 ];
 
 function progressFromElapsed(elapsedMs: number) {
@@ -190,7 +190,7 @@ function holdErrorText(data: unknown) {
   const bodyErrors = recordOf(body.errors);
   const errorCode = normalizeMessageText(body.error);
   const topMessage = errorCode === 'UPSTREAM_UNAVAILABLE'
-    ? 'Chưa giữ được chỗ do hệ thống hãng/Nam Thanh phản hồi không ổn định'
+    ? 'Chưa giữ được chỗ do hệ thống hãng hàng không phản hồi không ổn định'
     : errorCode === 'QUOTE_EXPIRED'
       ? 'Phiên giá đã hết hạn. Vui lòng làm mới hoặc chọn lại chuyến.'
       : errorCode === 'FLIGHT_NOT_AVAILABLE'
@@ -571,7 +571,8 @@ export default function HoldBookingModal({
     },
     { ADT: 0, CHD: 0, INF: 0 } as Record<PassengerType, number>,
   );
-  const partyPaxCount = paxCounts.ADT + paxCounts.CHD + paxCounts.INF;
+  // Em bé ngồi lòng KHÔNG tính markup → chỉ người lớn + trẻ em.
+  const chargeablePaxCount = paxCounts.ADT + paxCounts.CHD;
   const partyFareForFlight = (item: FlightResult) => {
     const perPax = item.fareBreakdown?.perPax;
     // totalAmount đã được cộng markup lúc search (chỉ trên người lớn); perPax là NET thô.
@@ -579,10 +580,10 @@ export default function HoldBookingModal({
     const adtNet = perPax?.adt ?? adtSell;
     const chdNet = perPax?.chd ?? adtNet;
     const infNet = perPax?.inf ?? 0;
-    // markup mỗi khách = phần chênh trên người lớn; áp đều cho mọi khách (markup × số khách).
+    // markup mỗi khách = phần chênh trên người lớn; áp cho mỗi khách CÓ GHẾ (không tính em bé).
     const markupPerPax = Math.max(0, adtSell - adtNet);
     const netParty = adtNet * paxCounts.ADT + chdNet * paxCounts.CHD + infNet * paxCounts.INF;
-    return netParty + markupPerPax * partyPaxCount;
+    return netParty + markupPerPax * chargeablePaxCount;
   };
   const fareTotal = holdFlights.reduce((sum, item) => sum + partyFareForFlight(item), 0);
   const baggageTotal = passengers.reduce(
@@ -951,7 +952,7 @@ export default function HoldBookingModal({
       });
       if (createRealHold) {
         setHoldProgressPct((prev) => Math.max(prev, 85));
-        setHoldProgressText('Đang đồng bộ giá chuẩn từ ticket-info-by-id...');
+        setHoldProgressText('Đang xác nhận giá & mã đặt chỗ...');
       }
       const data = await res.json();
       if (!res.ok || data.success === false) {
@@ -1286,13 +1287,6 @@ export default function HoldBookingModal({
         </a>
         <button
           type="button"
-          onClick={() => window.open('https://booking.namthanh.vn/booking/reservation-status', '_blank', 'noopener,noreferrer')}
-          className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          Mở Nam Thanh booking
-        </button>
-        <button
-          type="button"
           onClick={() => { setPartialHold(null); setError(''); }}
           className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
         >
@@ -1309,13 +1303,12 @@ export default function HoldBookingModal({
         <div role="alert" className="rounded-[var(--apg-radius-md)] border border-red-200 bg-red-50 px-3 py-3 text-xs text-red-700">{error}</div>
       )}
       {holdTimedOut && (
-        <button
-          type="button"
-          className="apg-btn-secondary h-10 px-3 text-xs font-semibold text-[var(--apg-aviation-navy)]"
-          onClick={() => window.open('https://booking.namthanh.vn/booking/reservation-status', '_blank', 'noopener,noreferrer')}
+        <a
+          href="tel:0918752686"
+          className="apg-btn-secondary inline-flex h-10 items-center px-3 text-xs font-semibold text-[var(--apg-aviation-navy)]"
         >
-          Mở lịch sử đặt chỗ
-        </button>
+          📞 Gọi CSKH 0918.752.686
+        </a>
       )}
     </div>
   ) : null;
@@ -1476,7 +1469,7 @@ export default function HoldBookingModal({
             )}
             {shouldShowPricingPending && (
               <div className="text-[11px] text-slate-500">
-                {pricing?.message || 'Đang đồng bộ giá chuẩn từ hệ thống Nam Thanh...'}
+                {pricing?.message || 'Đang xác nhận giá chuẩn theo mã đặt chỗ...'}
                 {unresolvedPricingPnrs.length > 0 ? ` · PNR chờ đồng bộ: ${unresolvedPricingPnrs.join(', ')}` : ''}
               </div>
             )}

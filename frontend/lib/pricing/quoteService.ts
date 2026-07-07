@@ -437,11 +437,14 @@ async function quoteLeg(input: {
   const paxType = resolveMarkupPaxType(input.passengers);
   const domesticInternational = await classifyDomesticInternational(route);
 
-  // Net cả đoàn cho chặng này = Σ (net từng loại khách × số khách loại đó).
+  // Net cả đoàn cho chặng này = Σ (net từng loại khách × số khách loại đó) — GỒM vé em bé.
   const perPax = extractPerPaxNet(rawQuote, quotedFlight);
   const counts = passengerCounts(input.passengers);
-  const paxCount = counts.adults + counts.children + counts.infants;
   const netPrice = multiPaxNet(perPax, counts);
+  // Em bé ngồi lòng (INF <2 tuổi) KHÔNG tính markup / phí dịch vụ → chỉ người lớn + trẻ em.
+  const chargeablePaxCount = counts.adults + counts.children;
+  // Base cho markup PERCENT: net KHÔNG gồm em bé (để % không cộng lên phần vé em bé).
+  const markupBaseNet = multiPaxNet(perPax, { adults: counts.adults, children: counts.children, infants: 0 });
 
   const markup = await computeMarkup(
     {
@@ -452,14 +455,14 @@ async function quoteLeg(input: {
       domesticInternational,
       tripType: input.tripType,
       route,
-      netPrice,
+      netPrice: markupBaseNet,
     },
     input.rules,
   );
   const matchedRule = markup.ruleId ? input.rules.find((rule) => rule.id === markup.ruleId) ?? null : null;
-  const markupAmount = paxScaledMarkupAmount(markup, paxCount);
-  // Phí dịch vụ (nếu có) tính theo từng khách.
-  const serviceFeeAmount = toDecimal(matchedRule?.serviceFee ?? 0).mul(paxCount);
+  const markupAmount = paxScaledMarkupAmount(markup, chargeablePaxCount);
+  // Phí dịch vụ (nếu có) tính theo từng khách có ghế (không tính em bé ngồi lòng).
+  const serviceFeeAmount = toDecimal(matchedRule?.serviceFee ?? 0).mul(chargeablePaxCount);
 
   return {
     legKey: input.legKey,

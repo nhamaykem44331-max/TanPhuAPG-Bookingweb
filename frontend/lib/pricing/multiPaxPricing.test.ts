@@ -58,6 +58,23 @@ test("DECISION: markup FIXED nhân theo số khách", async () => {
   assert.equal(paxScaledMarkupAmount(markup, 3).toString(), "300000");
 });
 
+test("DECISION: em bé ngồi lòng (INF) KHÔNG bị tính markup, nhưng VẪN tính vé", async () => {
+  // 2 ADT + 1 INF. Vé em bé (150k) VẪN nằm trong giá vốn; markup CHỈ tính cho 2 người lớn.
+  const perPax = { adt: D(1_000_000), chd: D(0), inf: D(150_000) };
+  const netAll = multiPaxNet(perPax, { adults: 2, children: 0, infants: 1 });
+  assert.equal(netAll.toString(), "2150000"); // gồm vé em bé
+  const markupBaseNet = multiPaxNet(perPax, { adults: 2, children: 0, infants: 0 });
+  assert.equal(markupBaseNet.toString(), "2000000"); // loại em bé khỏi base markup
+  const markup = await computeMarkup(
+    { airline: "VJ", tripType: "ONEWAY", route: "HAN-SGN", netPrice: markupBaseNet },
+    [fixedRule(100_000)],
+  );
+  const chargeablePaxCount = 2; // ADT + CHD (không gồm INF)
+  assert.equal(paxScaledMarkupAmount(markup, chargeablePaxCount).toString(), "200000"); // 100k × 2, KHÔNG × 3
+  // saleAmount = vốn (gồm vé em bé) + markup 2 khách = 2.150.000 + 200.000
+  assert.equal(Number(netAll.plus(paxScaledMarkupAmount(markup, chargeablePaxCount)).toFixed(0)), 2_350_000);
+});
+
 test("markup PERCENT tự nhân theo net cả đoàn (không nhân pax lần nữa)", async () => {
   const net = multiPaxNet({ adt: D(1_000_000), chd: D(0), inf: D(0) }, { adults: 3, children: 0, infants: 0 });
   const markup = await computeMarkup(
