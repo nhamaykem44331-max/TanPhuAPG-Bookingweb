@@ -49,7 +49,7 @@ export const SAMPLE_LEGS: TicketLeg[] = [
 ];
 
 export const SAMPLE_PASSENGERS: TicketPassenger[] = [
-  { index: 1, title: 'MR', fullName: 'NGUYEN VAN AN', ticketNumber: '738-2401234567' },
+  { index: 1, title: 'MR', fullName: 'NGUYEN VAN AN', dobLabel: '12/05/1990', ticketNumber: '738-2401234567' },
   { index: 2, title: 'MS', fullName: 'TRAN THI BICH', ticketNumber: '738-2401234568' },
 ];
 

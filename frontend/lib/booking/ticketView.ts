@@ -67,6 +67,7 @@ export interface TicketViewPassenger {
   title: PassengerTitle;
   firstName: string;
   lastName: string;
+  dob?: string; // YYYY-MM-DD (chỉ khách có nhập)
 }
 
 interface BookingPnrLike {
@@ -160,6 +161,7 @@ export function buildTicketView(booking: BookingViewInput): {
       title: derivePassengerTitle(p.title, kind, undefined),
       firstName: p.firstName ?? "",
       lastName: p.lastName ?? "",
+      dob: p.dob || undefined,
     };
   });
 

@@ -42,7 +42,7 @@ interface LookupResult {
   pnr: string | null;
   customerName: string | null;
   itinerary: LookupItineraryLeg[];
-  passengers: { type: string; firstName: string; lastName: string; title?: string }[];
+  passengers: { type: string; firstName: string; lastName: string; title?: string; dob?: string }[];
   intent: {
     amount: number;
     bankCode: string | null;

@@ -47,7 +47,7 @@ interface BookingInfo {
   balance: number;
   totalPaid: number;
   itinerary: ItineraryLeg[];
-  passengers: { type: string; firstName: string; lastName: string; title?: string }[];
+  passengers: { type: string; firstName: string; lastName: string; title?: string; dob?: string }[];
 }
 
 interface IntentInfo {

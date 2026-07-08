@@ -253,6 +253,16 @@ function passengerKindLabel(type: PassengerType) {
   return 'Người lớn';
 }
 
+// Ngày sinh từ ô date (YYYY-MM-DD) → hiển thị DD/MM/YYYY. Rỗng/không hợp lệ → ''.
+function formatDobDisplay(value: string) {
+  const text = String(value || '').trim();
+  const ymd = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) return `${ymd[3]}/${ymd[2]}/${ymd[1]}`;
+  const dmy = text.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+  if (dmy) return `${dmy[1]}/${dmy[2]}/${dmy[3]}`;
+  return '';
+}
+
 function defaultTitle(type: PassengerType) {
   return type === 'ADT' ? 'MR' : 'MSTR';
 }
@@ -1199,6 +1209,59 @@ export default function HoldBookingModal({
     </div>
   );
 
+  // Rà soát hành khách trực tiếp (cột phải) — cập nhật theo từng ký tự tên + ngày sinh khách nhập.
+  const anyPassengerNamed = passengers.some((p) => compactUpper(p.lastName) || compactUpper(p.firstName));
+  const passengerReviewBlock = !result ? (
+    <div className="overflow-hidden rounded-[14px] border border-[var(--apg-border-default)] bg-white">
+      <div className="flex items-center justify-between border-b border-[var(--apg-border-default)] bg-[#FAFBFC] px-3.5 py-2.5">
+        <div className="flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--apg-aviation-navy)" strokeWidth="2" aria-hidden><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+          <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--apg-aviation-navy)]">Rà soát hành khách</span>
+        </div>
+        <span className="text-[10.5px] font-medium text-[#93A0AC]">{passengers.length} khách</span>
+      </div>
+      <div className="divide-y divide-[var(--apg-border-default)]">
+        {passengers.map((p, i) => {
+          const ticketName = `${compactUpper(p.lastName)} ${compactUpper(p.firstName)}`.trim();
+          const dob = formatDobDisplay(p.dateOfBirth);
+          const filled = !!ticketName;
+          return (
+            <div key={p.id} className="flex items-center gap-2.5 px-3.5 py-2.5">
+              <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-bold transition-colors ${filled ? 'bg-[var(--apg-aviation-navy)] text-white' : 'bg-slate-100 text-slate-400'}`}>{i + 1}</span>
+              <div className="min-w-0 flex-1">
+                {filled ? (
+                  <div className="truncate text-[12.5px] font-bold uppercase tracking-[0.02em] text-[#16212B]">
+                    <span className="mr-1 rounded bg-[var(--apg-bg-surface-soft)] px-1 py-px text-[9.5px] font-bold text-[var(--apg-aviation-navy)]">{p.title}</span>
+                    {ticketName}
+                  </div>
+                ) : (
+                  <div className="text-[12px] italic text-slate-400">Chưa nhập tên</div>
+                )}
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] text-[#7a8794]">
+                  <span>{passengerKindLabel(p.type)}</span>
+                  {dob && (
+                    <span className="inline-flex items-center gap-1 text-[var(--apg-aviation-navy)]">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                      {dob}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {filled && (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1f8a5b" strokeWidth="2.6" className="shrink-0" aria-hidden><polyline points="20 6 9 17 4 12"/></svg>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="border-t border-[var(--apg-border-default)] bg-[#FAFBFC] px-3.5 py-2 text-[10.5px] leading-relaxed text-[#93A0AC]">
+        {anyPassengerNamed
+          ? 'Kiểm tra tên & ngày sinh khớp CCCD/Hộ chiếu trước khi giữ chỗ.'
+          : 'Nhập thông tin hành khách bên trái — tên & ngày sinh sẽ hiện tại đây để rà soát.'}
+      </div>
+    </div>
+  ) : null;
+
   const progressBlock = showHoldProgress ? (
     <div className="rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-white px-3 py-3">
       <div className="flex items-center justify-between text-[11px] font-semibold text-[var(--apg-aviation-navy)]">
@@ -1580,6 +1643,7 @@ export default function HoldBookingModal({
             <aside className="space-y-3 lg:order-2 lg:sticky lg:top-4 lg:self-start">
               {tripBanner}
               {itineraryBlock}
+              {passengerReviewBlock}
               <div className="lg:block hidden">
                 {progressBlock}
                 {errorBlock}
@@ -1847,9 +1911,14 @@ export default function HoldBookingModal({
                     const routeOptions = ancillaryRoutes
                       .map((route) => ({ ...route, options: baggageServicesForPassenger(route, passenger) }))
                       .filter((route) => route.options.length > 0);
+                    const baggageName = `${compactUpper(passenger.lastName)} ${compactUpper(passenger.firstName)}`.trim();
                     return (
                       <div key={passenger.id} className="rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)]/40 px-3 py-2.5">
-                        <div className="mb-1.5 text-[11px] font-bold text-[var(--apg-aviation-navy)]">Khách {index + 1} · {passengerKindLabel(passenger.type)}</div>
+                        <div className="mb-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[11px] font-bold text-[var(--apg-aviation-navy)]">
+                          <span>Khách {index + 1}</span>
+                          {baggageName && <span className="uppercase tracking-[0.02em]">· {baggageName}</span>}
+                          <span className="font-medium text-[#93A0AC]">· {passengerKindLabel(passenger.type)}</span>
+                        </div>
                         {routeOptions.length === 0 ? (
                           <div className="text-[11px] text-slate-500">Chưa có gói hành lý phù hợp cho hành khách này.</div>
                         ) : (

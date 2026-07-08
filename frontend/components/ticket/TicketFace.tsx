@@ -39,6 +39,7 @@ export interface TicketPassenger {
   index: number;
   title: 'MR' | 'MRS' | 'MS' | 'MSTR' | 'MISS';
   fullName: string;       // "NGUYEN VAN AN"
+  dobLabel?: string;      // "12/05/1990" — chỉ hiện khi có dữ liệu thật
   ticketNumber?: string;  // chỉ Paid
 }
 
@@ -229,6 +230,9 @@ function PassengerTable({ passengers, showTicketNumbers }: { passengers: TicketP
               <td style={tdStyle}>
                 <span style={{ background: NAVY_SOFT_FILL, color: '#143A5C', fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '1px 5px', marginRight: 6 }}>{p.title}</span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: '#16212B' }}>{p.fullName}</span>
+                {p.dobLabel && (
+                  <span style={{ display: 'block', fontSize: 10.5, fontWeight: 500, color: '#8893A0', marginTop: 1 }}>Ngày sinh: {p.dobLabel}</span>
+                )}
               </td>
               <td style={{ ...tdStyle, textAlign: 'right', fontFamily: 'var(--font-mono), JetBrains Mono, ui-monospace, monospace', fontWeight: 600, fontSize: 11.5, color: showTicketNumbers && p.ticketNumber ? '#16212B' : '#586675' }}>
                 {showTicketNumbers && p.ticketNumber ? p.ticketNumber : '—'}

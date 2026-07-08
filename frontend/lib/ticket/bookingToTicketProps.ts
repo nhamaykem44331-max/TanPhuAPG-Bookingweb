@@ -30,6 +30,7 @@ export interface TicketSourcePassenger {
   title?: string; // MR | MRS | MS | MSTR | MISS (đơn cũ có thể thiếu → derive mặc định)
   firstName: string;
   lastName: string;
+  dob?: string | null; // YYYY-MM-DD (chỉ khách có nhập) → hiện trên mặt vé
   ticketNumber?: string | null;
 }
 
@@ -171,6 +172,17 @@ function resolvePassengerTitle(p: TicketSourcePassenger): TicketPassenger['title
   return derivePassengerTitle(p.title, kind, undefined);
 }
 
+// DOB đã lưu ở dạng YYYY-MM-DD → hiển thị DD/MM/YYYY. Không parse được → bỏ (không bịa).
+function dobDisplayLabel(dob?: string | null): string | undefined {
+  const text = String(dob ?? '').trim();
+  if (!text) return undefined;
+  const ymd = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) return `${ymd[3]}/${ymd[2]}/${ymd[1]}`;
+  const dmy = text.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+  if (dmy) return `${dmy[1]}/${dmy[2]}/${dmy[3]}`;
+  return undefined;
+}
+
 function toTicketLeg(leg: TicketSourceLeg, airportNames?: Record<string, AirportName>): TicketLeg {
   const depCode = (leg.from ?? '').toUpperCase();
   const arrCode = (leg.to ?? '').toUpperCase();
@@ -210,6 +222,7 @@ export function bookingToTicketProps(
     index: i + 1,
     title: resolvePassengerTitle(p),
     fullName: `${p.lastName} ${p.firstName}`.trim().toUpperCase(),
+    dobLabel: dobDisplayLabel(p.dob),
     ticketNumber: p.ticketNumber || undefined,
   }));
 
