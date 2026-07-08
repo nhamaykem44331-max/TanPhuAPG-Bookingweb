@@ -4,6 +4,9 @@ import type { ReactNode } from "react";
 // HANDOFF I.4 / parity bảng thiết kế: bảng dạng CSS grid (div), header eyebrow + hàng
 // viền dưới, hover nền surface-2. Component "trung tính" (không "use client", không hook)
 // nên dùng được ở cả Server lẫn Client Component; điều hướng hàng qua `rowHref` (Link).
+//
+// MOBILE (< lg): grid nhiều cột không đủ chỗ (chồng chữ, tràn cột) nên mỗi hàng đổi thành
+// một THẺ dọc — từng ô kèm nhãn tiêu đề cột (label trái · giá trị phải). Từ lg trở lên giữ grid.
 
 export type DataTableAlign = "left" | "right" | "center";
 
@@ -17,6 +20,8 @@ export interface DataTableColumn<T> {
   render?: (row: T) => ReactNode;
   headClassName?: string;
   cellClassName?: string;
+  /** Ẩn ô này trong thẻ mobile (vd cột phụ ít quan trọng). Desktop vẫn hiển thị. */
+  hideOnMobileCard?: boolean;
 }
 
 export interface DataTableProps<T> {
@@ -39,10 +44,33 @@ export function DataTable<T>({ columns, rows, getRowKey, rowHref, empty, classNa
   const gridTemplateColumns = columns.map((c) => c.width ?? "minmax(0,1fr)").join(" ");
   const rowBase = "grid items-center gap-[14px] border-b border-[var(--line)] px-[22px] py-[15px] text-[13px]";
 
+  function renderCell(row: T, c: DataTableColumn<T>): ReactNode {
+    return c.render ? c.render(row) : ((row as Record<string, ReactNode>)[c.key] ?? null);
+  }
+
+  // Thẻ dọc cho mobile/tablet: từng ô = [nhãn cột] · [giá trị], viền dưới ngăn hàng.
+  function mobileCard(row: T): ReactNode {
+    return (
+      <div className="flex flex-col gap-[9px] border-b border-[var(--line)] px-[18px] py-[15px] last:border-b-0">
+        {columns
+          .filter((c) => !c.hideOnMobileCard)
+          .map((c) => (
+            <div key={c.key} className="flex items-start justify-between gap-3">
+              <span className="shrink-0 pt-[3px] text-[10px] font-semibold uppercase leading-none tracking-[1px] text-[var(--ink-faint)]">
+                {c.header}
+              </span>
+              <div className={`min-w-0 text-right ${c.cellClassName ?? ""}`}>{renderCell(row, c)}</div>
+            </div>
+          ))}
+      </div>
+    );
+  }
+
   return (
     <div className={className}>
+      {/* Header — chỉ desktop (lg+); mobile dùng nhãn trong từng thẻ */}
       <div
-        className="grid gap-[14px] border-b border-[var(--line)] px-[22px] py-[13px] text-[10px] font-semibold uppercase leading-none tracking-[1.5px] text-[var(--ink-faint)]"
+        className="hidden gap-[14px] border-b border-[var(--line)] px-[22px] py-[13px] text-[10px] font-semibold uppercase leading-none tracking-[1.5px] text-[var(--ink-faint)] lg:grid"
         style={{ gridTemplateColumns }}
       >
         {columns.map((c) => (
@@ -58,28 +86,36 @@ export function DataTable<T>({ columns, rows, getRowKey, rowHref, empty, classNa
         </div>
       ) : (
         rows.map((row) => {
-          const cells = columns.map((c) => (
+          const desktopCells = columns.map((c) => (
             <div key={c.key} className={`min-w-0 ${alignClass(c.align)} ${c.cellClassName ?? ""}`}>
-              {c.render ? c.render(row) : ((row as Record<string, ReactNode>)[c.key] ?? null)}
+              {renderCell(row, c)}
             </div>
           ));
+
+          const desktopRow = (
+            <div className={`${rowBase} hidden last:border-b-0 lg:grid`} style={{ gridTemplateColumns }}>
+              {desktopCells}
+            </div>
+          );
+          const mobileRow = <div className="lg:hidden">{mobileCard(row)}</div>;
 
           if (rowHref) {
             return (
               <Link
                 key={getRowKey(row)}
                 href={rowHref(row)}
-                className={`${rowBase} cursor-pointer transition-colors last:border-b-0 hover:bg-[var(--surface-2)]`}
-                style={{ gridTemplateColumns }}
+                className="block cursor-pointer transition-colors hover:bg-[var(--surface-2)]"
               >
-                {cells}
+                {desktopRow}
+                {mobileRow}
               </Link>
             );
           }
 
           return (
-            <div key={getRowKey(row)} className={`${rowBase} last:border-b-0`} style={{ gridTemplateColumns }}>
-              {cells}
+            <div key={getRowKey(row)}>
+              {desktopRow}
+              {mobileRow}
             </div>
           );
         })

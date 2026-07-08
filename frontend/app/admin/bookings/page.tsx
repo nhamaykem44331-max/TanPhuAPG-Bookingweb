@@ -196,13 +196,13 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
           })}
         </div>
 
-        <form action="/admin/bookings" className="flex items-center gap-2">
+        <form action="/admin/bookings" className="flex w-full items-center gap-2 sm:w-auto">
           <input type="hidden" name="tab" value={currentTab} />
           <input
             name="q"
             defaultValue={searchTerm}
             placeholder="Tìm PNR, mã đơn, khách, chặng…"
-            className="w-[260px] rounded-[8px] border border-[var(--line)] bg-[var(--surface)] px-[12px] py-[8px] text-[13px] text-[var(--ink)] outline-none transition placeholder:text-[var(--ink-faint)] focus:border-[var(--line-strong)]"
+            className="min-w-0 flex-1 rounded-[8px] border border-[var(--line)] bg-[var(--surface)] px-[12px] py-[8px] text-[13px] text-[var(--ink)] outline-none transition placeholder:text-[var(--ink-faint)] focus:border-[var(--line-strong)] sm:w-[260px] sm:flex-none"
           />
           <button
             type="submit"
