@@ -464,6 +464,59 @@ function TicketModal({
             </button>
           </div>
 
+          {/* Mở khóa chỉnh sửa trên MOBILE (desktop dùng panel cài đặt bên phải). Có nút này thì
+              admin dùng điện thoại mới sửa được giá/liên hệ trên mặt vé rồi tải về. */}
+          <div className="border-b border-[#e8dcc8] bg-[var(--apg-bg-surface-soft)] px-4 py-2.5 lg:hidden">
+            {locked ? (
+              <div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="password"
+                    value={pwInput}
+                    onChange={(event) => setPwInput(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter') return;
+                      if (pwInput === UNLOCK_PASSWORD) {
+                        setLocked(false);
+                        setPwError('');
+                      } else {
+                        setPwError('Sai mật khẩu');
+                        setPwInput('');
+                      }
+                    }}
+                    placeholder="Mật khẩu để chỉnh sửa mặt vé"
+                    className="min-w-0 flex-1 rounded-lg border border-[var(--apg-border-strong)] px-3 py-2 text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      if (pwInput === UNLOCK_PASSWORD) {
+                        setLocked(false);
+                        setPwError('');
+                      } else {
+                        setPwError('Sai mật khẩu');
+                        setPwInput('');
+                      }
+                    }}
+                    className="apg-btn-primary h-10 shrink-0 px-4 text-sm font-bold text-white"
+                  >
+                    Mở khóa
+                  </button>
+                </div>
+                {pwError && <div className="mt-1 text-xs text-red-500">{pwError}</div>}
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-semibold text-green-700">✓ Đã mở chỉnh sửa — sửa giá/liên hệ bên dưới</span>
+                <button
+                  onClick={() => setLocked(true)}
+                  className="shrink-0 text-xs font-semibold text-slate-500 underline"
+                >
+                  Khóa lại
+                </button>
+              </div>
+            )}
+          </div>
+
           {!locked && (
             <div className="border-b border-[#e8dcc8] bg-[var(--apg-bg-surface-soft)] px-4 py-2 lg:hidden">
               <div className="grid grid-cols-2 gap-2 text-xs">
