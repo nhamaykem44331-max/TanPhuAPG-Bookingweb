@@ -37,7 +37,7 @@ export function Sidebar({ groups, badges, user, logoutAction, onNavigate, onClos
             type="button"
             onClick={onClose}
             aria-label="Đóng menu"
-            className="rounded-md p-1.5 text-[var(--ink-soft)] transition hover:text-[var(--ink)] lg:hidden"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-[var(--ink-soft)] transition hover:text-[var(--ink)] lg:hidden"
           >
             <X className="h-4 w-4" aria-hidden="true" />
           </button>

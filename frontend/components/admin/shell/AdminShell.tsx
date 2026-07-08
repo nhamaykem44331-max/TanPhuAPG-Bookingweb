@@ -94,7 +94,7 @@ export function AdminShell({
           </div>
         ) : null}
 
-        <main className="flex h-screen flex-1 flex-col overflow-y-auto">
+        <main className="flex h-[100dvh] flex-1 flex-col overflow-y-auto">
           <Topbar onOpenMobile={() => setMobileOpen(true)} />
           <div className="flex-1 px-4 py-6 sm:px-6 lg:px-[34px] lg:pb-14 lg:pt-[30px]">{children}</div>
         </main>

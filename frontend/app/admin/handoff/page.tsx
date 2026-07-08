@@ -101,14 +101,14 @@ export default async function AdminHandoffPage() {
 
   return (
     <div>
-      <div className="mb-[22px] flex items-end justify-between gap-4">
+      <div className="mb-[22px] flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
         <p className="max-w-[520px] text-[14px] leading-[1.6] text-[var(--ink-soft)]">
           Đơn đã xuất vé được bàn giao sang <strong className="font-semibold text-[var(--ink)]">RMS</strong> để hạch
           toán net/giá bán/markup. Trang web chỉ giữ vai trò vận hành kênh bán.
         </p>
         <button
           type="button"
-          className="flex-none rounded-[8px] border border-[var(--rust)] bg-[var(--rust)] px-[18px] py-[11px] text-[13px] font-semibold text-[#F5F1EA]"
+          className="w-full shrink-0 rounded-[8px] border border-[var(--rust)] bg-[var(--rust)] px-[18px] py-[11px] text-[13px] font-semibold text-[#F5F1EA] sm:w-auto"
         >
           Đồng bộ sang RMS
         </button>

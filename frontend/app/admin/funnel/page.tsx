@@ -69,7 +69,7 @@ export default async function AdminFunnelPage({ searchParams }: AdminFunnelPageP
               <Link
                 key={range}
                 href={{ pathname: "/admin/funnel", query: range === "today" ? {} : { range } }}
-                className="rounded-[8px] border px-[14px] py-[8px] text-[12px] font-medium leading-none transition"
+                className="inline-flex min-h-[40px] items-center rounded-[8px] border px-[16px] py-[10px] text-[13px] font-medium leading-none transition"
                 style={
                   active
                     ? { borderColor: "var(--rust)", background: "var(--rust)", color: "#F5F1EA" }
@@ -84,7 +84,7 @@ export default async function AdminFunnelPage({ searchParams }: AdminFunnelPageP
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-        <Panel padded={false} className="px-[30px] py-[26px]">
+        <Panel padded={false} className="px-4 py-5 sm:px-[30px] sm:py-[26px]">
           <Eyebrow className="mb-[24px]">
             Phễu vận hành · {RANGE_LABELS[query.range]} · giữ chỗ → xuất vé
           </Eyebrow>

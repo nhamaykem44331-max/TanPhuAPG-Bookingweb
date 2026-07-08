@@ -155,7 +155,7 @@ export function DonutChart({ segments, caption = "ĐƠN", size = 140, legend = t
   });
 
   return (
-    <div className="flex items-center gap-[22px]">
+    <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-[22px]">
       <div className="relative flex-none" style={{ width: size, height: size }}>
         <svg viewBox="0 0 140 140" width={size} height={size}>
           <circle cx={70} cy={70} r={r} fill="none" stroke="var(--surface-2)" strokeWidth={18} />
@@ -181,11 +181,11 @@ export function DonutChart({ segments, caption = "ĐƠN", size = 140, legend = t
       </div>
 
       {legend ? (
-        <div className="flex flex-1 flex-col gap-[9px]">
+        <div className="flex w-full flex-col gap-[9px] sm:flex-1">
           {segs.map((s) => (
             <div key={s.label} className="flex items-center gap-[9px]">
               <span className="h-[9px] w-[9px] flex-none rounded-[3px]" style={{ background: s.solid }} />
-              <span className="flex-1 whitespace-nowrap text-[12px] text-[var(--ink-soft)]">{s.label}</span>
+              <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--ink-soft)]">{s.label}</span>
               <span className="ofly-serif text-[13px] font-medium">{VI.format(s.value)}</span>
               <span className="w-[34px] text-right text-[11px] text-[var(--ink-faint)]">{s.pct}%</span>
             </div>

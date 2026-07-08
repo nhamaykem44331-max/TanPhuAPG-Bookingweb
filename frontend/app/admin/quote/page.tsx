@@ -265,11 +265,11 @@ function FlightSegment({
       <div className="flex items-center gap-3 px-4 py-4">
         <AirlineLogo code={flight.airlineCode} airline={flight.airline} logo={flight.airlineLogo} size={30} />
         <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
-            <span className="apg-mono text-xl font-black text-[#1a1a1a]">{hhmm(flight.departure.time)}</span>
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="apg-mono text-base font-black text-[#1a1a1a] sm:text-xl">{hhmm(flight.departure.time)}</span>
             <span className="text-sm text-[var(--apg-brand-gold)]">→</span>
-            <span className="apg-mono text-xl font-black text-[#1a1a1a]">{hhmm(flight.arrival.time)}</span>
-            <span className="text-xs text-slate-400">{durationText(flight.duration)}</span>
+            <span className="apg-mono text-base font-black text-[#1a1a1a] sm:text-xl">{hhmm(flight.arrival.time)}</span>
+            <span className="whitespace-nowrap text-xs text-slate-400">{durationText(flight.duration)}</span>
           </div>
           <div className="text-sm text-slate-500">
             {flight.airline} · {flight.flightNumber} · {flight.stops === 0 ? 'Bay thẳng' : `${flight.stops} điểm dừng`}

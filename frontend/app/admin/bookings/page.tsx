@@ -222,21 +222,21 @@ export default async function AdminBookingsPage({ searchParams }: AdminBookingsP
         className="overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface)]"
       />
 
-      <div className="mt-4 flex items-center justify-between text-[12px] text-[var(--ink-soft)]">
+      <div className="mt-4 flex flex-col items-center gap-3 text-[12px] text-[var(--ink-soft)] sm:flex-row sm:justify-between">
         <Link
           href={{ pathname: "/admin/bookings", query: pageQuery(previousOffset) }}
-          className={`rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] ${
+          className={`order-2 whitespace-nowrap rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] sm:order-none ${
             parsedQuery.offset === 0 ? "pointer-events-none opacity-40" : ""
           }`}
         >
           Trang trước
         </Link>
-        <span>
+        <span className="order-1 text-center sm:order-none">
           Hiển thị {result.items.length} / {result.total} PNR
         </span>
         <Link
           href={{ pathname: "/admin/bookings", query: pageQuery(nextOffset) }}
-          className={`rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] ${
+          className={`order-3 whitespace-nowrap rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] sm:order-none ${
             !hasNextPage ? "pointer-events-none opacity-40" : ""
           }`}
         >

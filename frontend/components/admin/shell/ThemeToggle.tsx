@@ -12,7 +12,7 @@ export function ThemeToggle() {
       type="button"
       onClick={toggle}
       aria-label={isDark ? "Chuyển sang chế độ sáng (Ngày)" : "Chuyển sang chế độ tối (Đêm)"}
-      className="flex items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs font-medium text-[var(--ink-soft)] transition hover:text-[var(--ink)]"
+      className="flex min-h-[40px] items-center gap-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 text-xs font-medium text-[var(--ink-soft)] transition hover:text-[var(--ink)]"
     >
       <span aria-hidden="true">{isDark ? "☾" : "☀"}</span>
       <span>{isDark ? "Đêm" : "Ngày"}</span>

@@ -37,7 +37,7 @@ export function Topbar({ onOpenMobile }: TopbarProps) {
           type="button"
           onClick={onOpenMobile}
           aria-label="Mở menu"
-          className="rounded-md p-2 text-[var(--ink-soft)] transition hover:text-[var(--ink)] lg:hidden"
+          className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-[var(--ink-soft)] transition hover:text-[var(--ink)] lg:hidden"
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
