@@ -501,3 +501,61 @@ model RateLimitHit {
 
   @@index([bucketKey, hitAt])
 }
+
+// ─── Chatbot AI ──────────────────────────────────────────────────────────────
+
+enum ChatChannel {
+  ZALO
+  WEB
+  MESSENGER
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+model ChatConversation {
+  id            String        @id @default(cuid())
+  channel       ChatChannel
+  // Định danh khách theo kênh (Zalo userId, web anonId, Messenger PSID). (channel, externalId) = 1 hội thoại.
+  externalId    String
+  customerName  String?
+  customerPhone String?
+  lastMessageAt DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  messages      ChatMessage[]
+  leads         ChatLead[]
+
+  @@unique([channel, externalId])
+  @@index([lastMessageAt])
+}
+
+model ChatMessage {
+  id             String           @id @default(cuid())
+  conversationId String
+  role           ChatRole
+  content        String
+  // Theo dõi token/chi phí để canh ngân sách (chỉ điền cho tin của bot).
+  inputTokens    Int?
+  outputTokens   Int?
+  createdAt      DateTime         @default(now())
+  conversation   ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+model ChatLead {
+  id             String            @id @default(cuid())
+  conversationId String?
+  channel        ChatChannel
+  name           String?
+  phone          String?
+  topic          String?
+  summary        String?
+  handled        Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  conversation   ChatConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([handled, createdAt])
+}

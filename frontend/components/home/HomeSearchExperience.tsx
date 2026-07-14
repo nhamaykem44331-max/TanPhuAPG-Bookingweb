@@ -271,6 +271,36 @@ export default function HomeSearchExperience() {
     } catch {
       /**/
     }
+
+    // Cầu nối deep-link: nếu URL mang sẵn tiêu chí (link chatbot/chia sẻ gửi tới), ghi đè
+    // state vừa nạp từ localStorage để autosearch (?go=1) chạy đúng chuyến khách hỏi.
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const urlFrom = (sp.get('from') || '').trim().toUpperCase();
+      const urlTo = (sp.get('to') || '').trim().toUpperCase();
+      const urlDate = (sp.get('date') || '').trim();
+      if (urlFrom && urlTo && urlDate) {
+        setFromSel(resolveSelection(urlFrom, '', DEFAULT_FROM_SEL));
+        setToSel(resolveSelection(urlTo, '', DEFAULT_TO_SEL));
+        setDate(urlDate);
+        const urlTrip = sp.get('tripType') === 'roundtrip' ? 'roundtrip' : 'oneway';
+        setTripType(urlTrip);
+        setReturnDate(urlTrip === 'roundtrip' ? (sp.get('returnDate') || '').trim() : '');
+        setPassengerCounts(
+          normalizePassengerCounts({
+            adults: Number(sp.get('adults') ?? 1),
+            children: Number(sp.get('children') ?? 0),
+            infants: Number(sp.get('infants') ?? 0),
+          }),
+        );
+        const urlCabin = sp.get('cabin');
+        if (urlCabin === 'economy' || urlCabin === 'premium' || urlCabin === 'business' || urlCabin === 'first') {
+          setCabin(urlCabin);
+        }
+      }
+    } catch {
+      /**/
+    }
     setHydrated(true);
   }, []);
 
