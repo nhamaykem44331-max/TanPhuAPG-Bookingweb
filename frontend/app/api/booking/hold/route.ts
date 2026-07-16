@@ -1213,6 +1213,27 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // CHỐT CHẶN LỢI NHUẬN (sự cố 16/07: DB mất markup rules → đơn web bán ĐÚNG GIÁ VỐN im lặng).
+    // Đơn kênh web mà margin quote = 0 → cảnh báo ops NGAY để kiểm tra rules, không chặn khách.
+    const quoteMarginTotal = Number(quote.totalMarkupAmount.toFixed(0)) + Number(quote.totalServiceFeeAmount.toFixed(0));
+    if (quoteMarginTotal <= 0) {
+      void notify({
+        type: "INTERNAL_ALERT",
+        severity: "error",
+        message: `⚠️ ĐƠN KHÔNG CÓ MARKUP: ${booking.orderCode} (kênh ${channel}) đang bán ĐÚNG GIÁ VỐN ${finalSaleAmount.toLocaleString("vi-VN")}đ — lợi nhuận 0đ. Kiểm tra ngay quy tắc markup trong /admin/markup (có thể bảng rules trống hoặc không rule nào khớp ${booking.airline ?? ""} ${booking.routeSummary ?? ""}).`,
+        context: {
+          bookingId: booking.id,
+          orderCode: booking.orderCode,
+          airline: booking.airline,
+          route: booking.routeSummary,
+          saleAmount: finalSaleAmount,
+          netAmount: finalNetAmount,
+        },
+      }).catch((error) => {
+        console.error("zero-markup alert enqueue failed", error);
+      });
+    }
+
     if (holdResult.sessionID) {
       void syncNamThanhBookingStatus(booking.id).catch((error) => {
         console.error("booking hold Nam Thanh status sync failed", {
