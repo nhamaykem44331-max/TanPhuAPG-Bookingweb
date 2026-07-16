@@ -325,13 +325,13 @@ describe('MuadiApiClient', () => {
       expect(spy).not.toHaveBeenCalled();
     });
 
-    it('uses a 90 second timeout for createBooking by default', async () => {
+    it('uses a 150 second timeout for createBooking by default', async () => {
       axios.post.mockResolvedValue({ status: 200, headers: {}, data: { success: true } });
 
       await client.createBooking({ sessionID: 123 });
 
       expect(axios.post.mock.calls[0][0]).toMatch(/booking\/create-booking$/);
-      expect(axios.post.mock.calls[0][2].timeout).toBe(90000);
+      expect(axios.post.mock.calls[0][2].timeout).toBe(150000);
       expect(axios.post.mock.calls[0][2].headers['X-Api-Version']).toBe('3');
     });
 

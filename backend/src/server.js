@@ -70,6 +70,7 @@ if (!API_KEY && !ALLOW_NO_AUTH) {
 const searchCache = new Map();
 const bookingCache = new Map();
 const idempotencyCache = new Map();
+const inflightHolds = new Map();
 const ancillaryCache = new Map();
 const inflightAncillaries = new Map();
 const inflightSearch = new Map();
@@ -2926,47 +2927,61 @@ async function handleHold(body, req) {
     cleanCaches();
     const cached = idempotencyCache.get(idempotencyKey);
     if (cached) return { ...cached.response, idempotentReplay: true };
+    const inflight = inflightHolds.get(idempotencyKey);
+    if (inflight) return { ...(await inflight), idempotentReplay: true };
   }
 
-  let response;
-  if (body.searchId) {
-    response = await holdFromCachedSelection(body);
-  } else {
-    const fastHold = isFastHoldRequest(body);
-    requireFields(body, ['from', 'to', 'date']);
-    const passengers = passengersFromBody(body);
-    const passenger = passengers[0];
-    const holdId = randomId('hold');
-    const params = {
-      ...commandParams(body),
-      passengerObject: passenger,
-      passengersObject: passengers,
-    };
-    const resultWithPricing = await withAutoLogin(async (client) => {
-      const result = await holdFlight(params, {
-        client,
-        dryRun: !!body.dryRun,
-        fastHold,
-        skipPricingSync: fastHold,
-        pollAttempts: body.pollAttempts ?? (fastHold ? 1 : undefined),
-        pollDelayMs: body.pollDelayMs ?? (fastHold ? 0 : undefined),
-        otp: body.otp,
+  const execute = async () => {
+    let response;
+    if (body.searchId) {
+      response = await holdFromCachedSelection(body);
+    } else {
+      const fastHold = isFastHoldRequest(body);
+      requireFields(body, ['from', 'to', 'date']);
+      const passengers = passengersFromBody(body);
+      const passenger = passengers[0];
+      const holdId = randomId('hold');
+      const params = {
+        ...commandParams(body),
+        passengerObject: passenger,
+        passengersObject: passengers,
+      };
+      const resultWithPricing = await withAutoLogin(async (client) => {
+        const result = await holdFlight(params, {
+          client,
+          dryRun: !!body.dryRun,
+          fastHold,
+          skipPricingSync: fastHold,
+          pollAttempts: body.pollAttempts ?? (fastHold ? 1 : undefined),
+          pollDelayMs: body.pollDelayMs ?? (fastHold ? 0 : undefined),
+          otp: body.otp,
+        });
+        return finalizeHoldResultWithPricing(result, body, { client, holdId });
+      }, body);
+      response = normalizeHoldSummary(resultWithPricing, holdId);
+      bookingCache.set(holdId, { createdAt: Date.now(), expiresAt: Date.now() + BOOKING_CACHE_TTL_MS, response });
+    }
+
+    if (idempotencyKey && !body.dryRun) {
+      idempotencyCache.set(idempotencyKey, {
+        createdAt: Date.now(),
+        expiresAt: Date.now() + BOOKING_CACHE_TTL_MS,
+        response,
       });
-      return finalizeHoldResultWithPricing(result, body, { client, holdId });
-    }, body);
-    response = normalizeHoldSummary(resultWithPricing, holdId);
-    bookingCache.set(holdId, { createdAt: Date.now(), expiresAt: Date.now() + BOOKING_CACHE_TTL_MS, response });
-  }
+    }
 
-  if (idempotencyKey && !body.dryRun) {
-    idempotencyCache.set(idempotencyKey, {
-      createdAt: Date.now(),
-      expiresAt: Date.now() + BOOKING_CACHE_TTL_MS,
-      response,
-    });
-  }
+    return response;
+  };
 
-  return response;
+  if (!idempotencyKey || body.dryRun) return execute();
+
+  const promise = execute();
+  inflightHolds.set(idempotencyKey, promise);
+  try {
+    return await promise;
+  } finally {
+    inflightHolds.delete(idempotencyKey);
+  }
 }
 
 async function handleBookingStatus(sessionID, body = {}) {

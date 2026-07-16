@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getNamThanhLowestFare, type NamThanhLowestFareResponse } from "@/lib/namthanh";
 import { computeAirlineAgnosticMarkup, loadMarkupContext } from "@/lib/pricing/searchMarkup";
+import type { MarkupContext } from "@/lib/pricing/searchMarkup";
 import { isValidIATA } from "@/lib/utils";
 
 interface RateLimitBucket {
@@ -22,6 +23,7 @@ interface LowestFareRouteDeps {
   now?: () => number;
   buckets?: Map<string, RateLimitBucket>;
   rateLimit?: RateLimitConfig;
+  getMarkupContext?: () => Promise<MarkupContext>;
 }
 
 export const lowestFareRateLimitBuckets = new Map<string, RateLimitBucket>();
@@ -120,7 +122,9 @@ export async function handleLowestFareApiRequest(
     let depart = data.depart;
     let returnLeg = data.return;
     try {
-      const ctx = await loadMarkupContext("web", "ADT");
+      const ctx = deps.getMarkupContext
+        ? await deps.getMarkupContext()
+        : await loadMarkupContext("web", "ADT");
       const buildMarkupedBucket = async (
         bucket: typeof data.depart,
         legFrom: string,
@@ -148,7 +152,11 @@ export async function handleLowestFareApiRequest(
       depart = await buildMarkupedBucket(data.depart, from, to);
       returnLeg = await buildMarkupedBucket(data.return, to, from);
     } catch (markupError) {
-      console.error("[lowest-fare] Markup apply failed, returning net prices:", markupError);
+      console.error("[lowest-fare] Markup unavailable; refusing to expose net prices:", markupError);
+      return NextResponse.json(
+        { error: "PRICING_CONFIGURATION_UNAVAILABLE" },
+        { status: 503 },
+      );
     }
 
     return NextResponse.json({

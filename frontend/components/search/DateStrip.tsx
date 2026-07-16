@@ -296,7 +296,9 @@ function responsiveDayClass(index: number): string {
 
 function buildAriaLabel(day: DateStripDay): string {
   const dateLabel = LONG_DATE_FORMATTER.format(parseISODate(day.iso));
-  const fareLabel = day.fareAmount === null ? "chưa có giá" : `giá ${formatFullFare(day.fareAmount)}`;
+  const fareLabel = day.fareAmount === null
+    ? "chưa có giá"
+    : `giá vé cơ bản từ ${formatFullFare(day.fareAmount)}, chưa gồm thuế và phí`;
 
   return `${dateLabel}, ${fareLabel}`;
 }
@@ -490,7 +492,7 @@ export default function DateStrip({
                       cellRefs.current[index] = node;
                     }}
                     role="button"
-                    title={day.fareAmount === null ? "Chưa có giá" : `${day.fareDisplay || formatFullFare(day.fareAmount)}`}
+                    title={day.fareAmount === null ? "Chưa có giá" : `Giá vé cơ bản từ ${day.fareDisplay || formatFullFare(day.fareAmount)}, chưa gồm thuế và phí`}
                     type="button"
                     onClick={() => selectDate(day.iso, disabled)}
                     onKeyDown={(event) => {
@@ -525,6 +527,7 @@ export default function DateStrip({
                       >
                         {day.fareAmount === null ? "—" : formatCompactFare(day.fareAmount)}
                       </span>
+                      {day.fareAmount !== null ? <span aria-hidden="true" className="text-[10px] text-[var(--apg-text-muted)]">*</span> : null}
                     </div>
                   </button>
                 );
@@ -562,6 +565,10 @@ export default function DateStrip({
         </button>
         )}
       </div>
+
+      <p className="border-t border-[var(--apg-border-default)]/40 px-3 py-1 text-[9px] text-[var(--apg-text-muted)]">
+        * Giá vé cơ bản tham khảo, chưa gồm thuế và phí.
+      </p>
 
       {calendarOpen ? (
         <div className="border-t border-[var(--apg-border-default)] bg-white/95 px-3 py-3 shadow-xl">

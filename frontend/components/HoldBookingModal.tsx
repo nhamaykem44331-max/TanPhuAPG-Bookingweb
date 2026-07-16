@@ -1155,7 +1155,7 @@ export default function HoldBookingModal({
     <div className="space-y-2.5">
       <div className="pb-0.5">
         <h3 className="text-[19px] font-bold leading-tight text-[var(--apg-aviation-navy)]" style={{ fontFamily: 'var(--font-serif), Georgia, serif' }}>
-          {fromCity} <span className="text-[#C7A24C]">⇄</span> {toCity}
+          {fromCity} <span className="text-[#C7A24C]">{isRoundtrip ? '⇄' : '→'}</span> {toCity}
         </h3>
         <span className="mt-1.5 inline-block rounded-full border border-[var(--apg-border-default)] bg-white px-2.5 py-0.5 text-[11px] font-medium text-[#586675]">{routeChip}</span>
       </div>
@@ -1415,7 +1415,7 @@ export default function HoldBookingModal({
       {result.bookingId && (
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <a
-            href={`/booking/payment/${result.bookingId}`}
+            href={result.paymentUrl || "/tra-cuu"}
             className="group relative flex flex-col overflow-hidden rounded-2xl p-5 text-white shadow-md transition hover:shadow-lg active:scale-[0.99]"
             style={{ background: 'linear-gradient(135deg,#0C2740,#143A5C 55%,#1A4E78)' }}
           >
@@ -1447,7 +1447,7 @@ export default function HoldBookingModal({
           </a>
 
           <a
-            href={`/booking/payment/${result.bookingId}?later=1`}
+            href={result.paymentUrl ? `${result.paymentUrl}&later=1` : "/tra-cuu"}
             className="group flex flex-col rounded-2xl border-2 border-[var(--apg-border-default)] bg-white p-5 transition hover:border-[var(--apg-aviation-navy)]/40 hover:shadow-sm active:scale-[0.99]"
           >
             <span className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--apg-bg-surface-soft)] text-[var(--apg-aviation-navy)]">
@@ -1579,7 +1579,7 @@ export default function HoldBookingModal({
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <button type="button" onClick={onClose} className="h-11 rounded-lg border border-[var(--apg-border-default)] text-sm font-semibold text-slate-600 hover:bg-slate-50">Để sau</button>
-              <button type="button" onClick={() => { if (onHeld && result.bookingId) onHeld(String(result.bookingId)); if (result.bookingId) window.location.href = `/booking/payment/${result.bookingId}`; }} className="h-11 rounded-lg text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg,#0C2740,#143A5C,#1A4E78)' }}>Đồng ý &amp; thanh toán</button>
+              <button type="button" onClick={() => { if (onHeld && result.bookingId) onHeld(String(result.bookingId)); if (result.paymentUrl) window.location.href = result.paymentUrl; }} className="h-11 rounded-lg text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg,#0C2740,#143A5C,#1A4E78)' }}>Đồng ý &amp; thanh toán</button>
             </div>
           </div>
         </div>

@@ -13,29 +13,29 @@ import {
   applyMarkupToFlights,
   applyMarkupToPairs,
 } from '@/lib/pricing/searchMarkup';
-import { isValidIATA, isValidDate } from '@/lib/utils';
 import type { FlightResult, RoundtripPairOption, SearchPayload } from '@/lib/types';
+import { checkSearchRateLimit, normalizeSearchPayload, searchClientIp, validateSearchPayload } from '@/lib/search/requestGuard';
 
 export const runtime = 'nodejs';
 // SSE streams — no hard timeout; stream ends when backend closes
 export const maxDuration = 60;
 
-function localTodayYmd() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
-function validate(body: SearchPayload): string | null {
-  const today = localTodayYmd();
-  if (!body.from || !isValidIATA(body.from)) return 'Mã sân bay đi không hợp lệ';
-  if (!body.to || !isValidIATA(body.to)) return 'Mã sân bay đến không hợp lệ';
-  if (body.from === body.to) return 'Điểm đi và điểm đến không được giống nhau';
-  if (!body.date || !isValidDate(body.date)) return 'Ngày đi không hợp lệ';
-  if (body.date < today) return 'Ngày đi phải từ hôm nay trở đi';
-  return null;
-}
-
 export async function POST(req: NextRequest) {
+  const rateLimit = checkSearchRateLimit(searchClientIp(req));
+  if (!rateLimit.ok) {
+    return NextResponse.json(
+      { error: `Quá nhiều yêu cầu. Vui lòng thử lại sau ${rateLimit.retryAfterSeconds} giây.` },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(rateLimit.retryAfterSeconds),
+          'X-RateLimit-Limit': String(rateLimit.limit),
+          'X-RateLimit-Window': String(rateLimit.windowSeconds),
+        },
+      },
+    );
+  }
+
   let body: SearchPayload;
   try {
     body = await req.json();
@@ -43,18 +43,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  body = {
-    ...body,
-    from: String(body.from || '').toUpperCase(),
-    to: String(body.to || '').toUpperCase(),
-    adults: Number(body.adults ?? 1),
-    children: Number(body.children ?? 0),
-    infants: Number(body.infants ?? 0),
-    cabin: body.cabin || 'economy',
-    tripType: body.tripType || 'oneway',
-  };
+  body = normalizeSearchPayload(body);
 
-  const validErr = validate(body);
+  const validErr = validateSearchPayload(body);
   if (validErr) {
     return NextResponse.json({ error: validErr }, { status: 400 });
   }

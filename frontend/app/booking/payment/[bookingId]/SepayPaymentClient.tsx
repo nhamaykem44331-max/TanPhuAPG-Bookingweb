@@ -68,6 +68,7 @@ interface IntentInfo {
 interface Props {
   booking: BookingInfo;
   initialIntent: IntentInfo | null;
+  accessToken: string;
   payLater?: boolean;
 }
 
@@ -139,7 +140,7 @@ function useCountdown(expiresAt: string | null): { label: string; expired: boole
   return { label, expired: false };
 }
 
-export function SepayPaymentClient({ booking, initialIntent, payLater = false }: Props) {
+export function SepayPaymentClient({ booking, initialIntent, accessToken, payLater = false }: Props) {
   const [intent, setIntent] = useState<IntentInfo | null>(initialIntent);
   const [bookingStatus, setBookingStatus] = useState(booking.status);
   const [balance, setBalance] = useState(booking.balance);
@@ -166,7 +167,7 @@ export function SepayPaymentClient({ booking, initialIntent, payLater = false }:
     lastFetchRef.current = Date.now();
 
     try {
-      const res = await fetch(`/api/payment/sepay/status/${booking.id}`, { cache: "no-store" });
+      const res = await fetch(`/api/payment/sepay/status/${booking.id}?token=${encodeURIComponent(accessToken)}`, { cache: "no-store" });
       if (!res.ok) return;
       const data = (await res.json()) as StatusResponse;
       setBookingStatus(data.bookingStatus);
@@ -177,7 +178,7 @@ export function SepayPaymentClient({ booking, initialIntent, payLater = false }:
     } catch (e) {
       console.warn("[sepay/status] fetch failed", e);
     }
-  }, [booking.id]);
+  }, [accessToken, booking.id]);
 
   // Polling 4s. Chỉ DỪNG ở trạng thái kết thúc thật (đã thanh toán hoặc booking bị huỷ) —
   // KHÔNG dừng khi QR vừa hết giờ đếm ngược, để một giao dịch chuyển sát hạn (webhook trễ)
@@ -203,7 +204,7 @@ export function SepayPaymentClient({ booking, initialIntent, payLater = false }:
       const res = await fetch("/api/payment/sepay/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId: booking.id }),
+        body: JSON.stringify({ bookingId: booking.id, token: accessToken }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -217,7 +218,7 @@ export function SepayPaymentClient({ booking, initialIntent, payLater = false }:
     } finally {
       setCreating(false);
     }
-  }, [booking.id]);
+  }, [accessToken, booking.id]);
 
   useEffect(() => {
     if (
@@ -517,7 +518,7 @@ export function SepayPaymentClient({ booking, initialIntent, payLater = false }:
 
                 <div className="mx-auto mt-5 flex max-w-[600px] flex-wrap items-center justify-center gap-2">
                   <a
-                    href={`/booking/payment/${booking.id}`}
+                    href={`/booking/payment/${booking.id}?token=${encodeURIComponent(accessToken)}`}
                     className="inline-flex h-10 items-center gap-2 rounded-lg px-5 text-sm font-bold text-white shadow-sm"
                     style={{ background: 'linear-gradient(135deg,#1f5f44,#248a3d)' }}
                   >

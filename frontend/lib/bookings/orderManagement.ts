@@ -211,7 +211,7 @@ async function syncBookingOrderByIdTx(tx: Tx, bookingId: string, now: Date): Pro
         nextBooking.paymentIntents.map((intent) =>
           tx.paymentIntent.update({
             where: { id: intent.id },
-            data: { status: PaymentIntentStatus.EXPIRED },
+            data: { status: PaymentIntentStatus.EXPIRED, activeKey: null },
           }),
         ),
       )

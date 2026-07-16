@@ -4,6 +4,7 @@ import { PaymentIntentProvider } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { calculatePaymentSummary } from "@/lib/booking/paymentSummary";
 import { buildTicketView } from "@/lib/booking/ticketView";
+import { bookingPaymentPath, createBookingPublicAccessToken } from "@/lib/booking/publicAccess";
 import { getLoginRateLimitStatus, recordLoginFailure } from "@/lib/ratelimit";
 
 export const dynamic = "force-dynamic";
@@ -94,9 +95,11 @@ export async function POST(request: Request) {
   const summary = calculatePaymentSummary(booking.payments, booking.saleAmount);
   const { itinerary, passengers } = buildTicketView(booking);
   const intent = booking.paymentIntents[0] ?? null;
+  const paymentAccessToken = createBookingPublicAccessToken(booking.id);
 
   return NextResponse.json({
     bookingId: booking.id,
+    paymentUrl: bookingPaymentPath(booking.id, paymentAccessToken),
     orderCode: booking.orderCode,
     bookingStatus: booking.status,
     tripType: booking.tripType,
@@ -114,7 +117,7 @@ export async function POST(request: Request) {
     passengers,
     intent: intent
       ? {
-          amount: intent.amount,
+          amount: summary.balance,
           bankCode: intent.bin,
           accountNumber: intent.accountNumber,
           accountName: intent.accountName,

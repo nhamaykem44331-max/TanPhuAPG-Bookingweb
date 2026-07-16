@@ -1,6 +1,7 @@
 import { PaymentIntentProvider } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
+import { bookingPaymentPath, createBookingPublicAccessToken } from "@/lib/booking/publicAccess";
 import { sendEmail } from "@/lib/notifications/channels/email";
 import { sendSlack } from "@/lib/notifications/channels/slack";
 import { sendN8nZalo } from "@/lib/notifications/channels/n8nZalo";
@@ -246,7 +247,7 @@ async function notifyBookingHoldCreated(event: Extract<NotificationEvent, { type
         currency: booking.currency,
         ttlExpiresAt: formatDate(booking.ttlExpiresAt),
         paymentDue: formatMoney(paymentIntent?.amount ?? booking.saleAmount),
-        checkoutUrl: `${appBaseUrl()}/booking/payment/${booking.id}`,
+        checkoutUrl: `${appBaseUrl()}${bookingPaymentPath(booking.id, createBookingPublicAccessToken(booking.id))}`,
         transferContent: paymentIntent?.transferContent ?? null,
         accountNumber: paymentIntent?.accountNumber ?? null,
         accountName: paymentIntent?.accountName ?? null,

@@ -4,6 +4,7 @@ import { calculatePaymentSummary } from "@/lib/booking/paymentSummary";
 import { prisma } from "@/lib/db";
 import { PaymentIntentProvider, PaymentIntentStatus } from "@prisma/client";
 import { syncExpiredSepayIntentsForBooking } from "@/lib/payments/sepayService";
+import { verifyBookingPublicAccessToken } from "@/lib/booking/publicAccess";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,11 +18,16 @@ export const runtime = "nodejs";
  *  - bookingStatus: HELD | TICKETED | EXPIRED | ...
  *  - intent: thông tin QR đang có hiệu lực (nếu còn)
  */
-export async function GET(_: Request, context: { params: { bookingId: string } }) {
+export async function GET(request: Request, context: { params: { bookingId: string } }) {
   const bookingId = context.params.bookingId?.trim();
 
   if (!bookingId) {
     return NextResponse.json({ error: "BOOKING_ID_REQUIRED" }, { status: 400 });
+  }
+
+  const token = new URL(request.url).searchParams.get("token");
+  if (!verifyBookingPublicAccessToken(bookingId, token)) {
+    return NextResponse.json({ error: "BOOKING_ACCESS_DENIED" }, { status: 403 });
   }
 
   // Auto-expire các intent đã quá hạn trước khi trả về
@@ -89,7 +95,8 @@ export async function GET(_: Request, context: { params: { bookingId: string } }
       ? {
           id: intent.id,
           providerOrderCode: intent.providerOrderCode,
-          amount: intent.amount,
+          amount: summary.balance,
+          targetAmount: intent.amount,
           currency: intent.currency,
           status: intent.status,
           qrCode: intent.qrCode,

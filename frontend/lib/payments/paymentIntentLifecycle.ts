@@ -45,3 +45,16 @@ export function canCancelPaymentIntent(intent: PaymentIntentLike, now = new Date
 export function sortPaymentIntentsNewestFirst<T extends Pick<PaymentIntent, "createdAt">>(intents: T[]): T[] {
   return [...intents].sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime());
 }
+
+export function paymentIntentRemainingAmount(
+  targetAmount: number,
+  payments: Array<{ amount: number; status: string }>,
+): number {
+  const paid = payments.reduce((sum, payment) => {
+    return payment.status === "PAID" || payment.status === "PARTIAL"
+      ? sum + payment.amount
+      : sum;
+  }, 0);
+
+  return Math.max(targetAmount - paid, 0);
+}

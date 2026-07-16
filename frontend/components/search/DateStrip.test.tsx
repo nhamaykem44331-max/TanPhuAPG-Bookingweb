@@ -149,6 +149,7 @@ describe("<DateStrip />", () => {
     );
 
     await findByText("1.790K");
+    await findByText("* Giá vé cơ bản tham khảo, chưa gồm thuế và phí.");
 
     assert.equal(fetchMock.calls.length, 1);
     assert.equal(fetchMock.calls[0], "/api/search/lowest-fare?from=HAN&to=SGN");

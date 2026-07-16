@@ -66,6 +66,13 @@ enum PaymentIntentStatus {
   FAILED
 }
 
+enum BookingHoldAttemptStatus {
+  PROCESSING
+  UPSTREAM_COMPLETED
+  COMPLETED
+  FAILED
+}
+
 enum BankTransactionStatus {
   RECEIVED
   MATCHED
@@ -215,6 +222,7 @@ model Booking {
   notificationJobs          NotificationJob[]
   assignedTo                User?                  @relation("BookingAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   refunds                   Refund[]
+  holdAttempts              BookingHoldAttempt[]
 
   @@index([pnr])
   @@index([orderCode])
@@ -225,6 +233,24 @@ model Booking {
   @@index([customerId, createdAt])
   @@index([createdById, createdAt])
   @@index([appliedMarkupRuleId])
+}
+
+model BookingHoldAttempt {
+  id             String                   @id @default(cuid())
+  idempotencyKey String                   @unique
+  requestHash    String
+  status         BookingHoldAttemptStatus @default(PROCESSING)
+  holdResult     Json?
+  bookingId      String?
+  safeToRetry    Boolean                  @default(false)
+  errorCode      String?
+  errorMessage   String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+  booking        Booking?                 @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([status, updatedAt])
+  @@index([bookingId])
 }
 
 model BookingPnr {
@@ -332,6 +358,8 @@ model PaymentIntent {
   bookingId         String
   provider          PaymentIntentProvider @default(PAYOS)
   providerOrderCode String                @unique
+  /// Non-null only while a self-service intent is active; prevents concurrent active QR creation per booking.
+  activeKey         String?               @unique
   paymentLinkId     String?               @unique
   amount            Int
   currency          String                @default("VND")

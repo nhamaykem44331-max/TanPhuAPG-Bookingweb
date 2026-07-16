@@ -29,6 +29,7 @@ interface LookupItineraryLeg {
 
 interface LookupResult {
   bookingId: string;
+  paymentUrl: string;
   orderCode: string;
   bookingStatus: string;
   tripType: string;
@@ -274,7 +275,7 @@ function ResultView({ result, airportNames }: { result: LookupResult; airportNam
       {isHold ? (
         <div className="mt-4 flex justify-center">
           <Link
-            href={`/booking/payment/${result.bookingId}`}
+            href={result.paymentUrl}
             className="inline-flex h-11 items-center justify-center gap-2 rounded-lg px-6 text-sm font-bold text-white shadow-sm"
             style={{ background: "linear-gradient(135deg,#1f5f44,#248a3d)" }}
           >

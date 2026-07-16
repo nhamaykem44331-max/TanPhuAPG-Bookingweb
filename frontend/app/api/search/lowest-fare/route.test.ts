@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 
 import { handleLowestFareApiRequest } from "./handler";
 import type { NamThanhLowestFareResponse } from "@/lib/namthanh";
+import type { MarkupContext } from "@/lib/pricing/searchMarkup";
 
 function mockSession(id = "user-1"): Session {
   return {
@@ -38,6 +39,13 @@ function request(path: string) {
   return new Request(`http://localhost${path}`);
 }
 
+const getMarkupContext = async (): Promise<MarkupContext> => ({
+  rules: [],
+  airports: null,
+  channel: "web",
+  paxType: "ADT",
+});
+
 async function json(response: Response) {
   return response.json() as Promise<Record<string, unknown>>;
 }
@@ -48,6 +56,7 @@ describe("GET /api/search/lowest-fare", () => {
     const response = await handleLowestFareApiRequest(request("/api/search/lowest-fare?from=HAN&to=SGN"), {
       getSession: async () => null,
       getLowestFare: async () => mockLowestFare(),
+      getMarkupContext,
       now: () => Date.parse("2026-04-25T00:00:00.000Z"),
       buckets,
       rateLimit: { max: 5, windowMs: 60_000 },
@@ -69,6 +78,7 @@ describe("GET /api/search/lowest-fare", () => {
         calledWith = params;
         return mockLowestFare();
       },
+      getMarkupContext,
     });
     const body = await json(response);
 
@@ -107,6 +117,7 @@ describe("GET /api/search/lowest-fare", () => {
     const deps = {
       getSession: async () => mockSession("rate-user"),
       getLowestFare: async () => mockLowestFare(),
+      getMarkupContext,
       now: () => 1_000,
       buckets,
       rateLimit: { max: 2, windowMs: 60_000 },

@@ -1,6 +1,5 @@
 'use strict';
 
-const test = require('node:test');
 const assert = require('node:assert/strict');
 
 process.env.BACKEND_ALLOW_NO_AUTH = 'true';
