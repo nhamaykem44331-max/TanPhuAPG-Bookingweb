@@ -3,6 +3,7 @@ import { PaymentIntentProvider } from "@prisma/client";
 
 import { prisma } from "@/lib/db";
 import { buildTicketView } from "@/lib/booking/ticketView";
+import { verifyBookingPublicAccessToken } from "@/lib/booking/publicAccess";
 
 import { SepayPaymentClient } from "./SepayPaymentClient";
 
@@ -11,11 +12,13 @@ export const runtime = "nodejs";
 
 interface PageProps {
   params: { bookingId: string };
-  searchParams?: { later?: string };
+  searchParams?: { later?: string; token?: string };
 }
 
 export default async function BookingPaymentPage({ params, searchParams }: PageProps) {
   const payLater = searchParams?.later === "1";
+  const accessToken = searchParams?.token;
+  if (!verifyBookingPublicAccessToken(params.bookingId, accessToken)) notFound();
   const booking = await prisma.booking.findUnique({
     where: { id: params.bookingId },
     select: {
@@ -111,6 +114,7 @@ export default async function BookingPaymentPage({ params, searchParams }: PageP
         itinerary,
         passengers,
       }}
+      accessToken={accessToken!}
       payLater={payLater}
       initialIntent={
         initialIntent

@@ -2,6 +2,7 @@ import prismaClient from "@prisma/client";
 
 import type { FlightResult, RoundtripPairOption } from "@/lib/types";
 import { computeMarkup, type CompatibleMarkupRule } from "./markupEngine";
+import { requireActiveMarkupRules } from "./markupPolicy";
 
 const { Prisma } = prismaClient;
 
@@ -10,6 +11,7 @@ const AIRPORT_INDEX_TTL_MS = 5 * 60_000;
 
 let cachedRulesPromise: Promise<CompatibleMarkupRule[]> | null = null;
 let cachedRulesAt = 0;
+let lastKnownGoodRules: CompatibleMarkupRule[] | null = null;
 let cachedAirportIndexPromise: Promise<Map<string, boolean> | null> | null = null;
 let cachedAirportIndexAt = 0;
 
@@ -35,17 +37,18 @@ async function loadActiveRules(): Promise<CompatibleMarkupRule[]> {
   cachedRulesPromise = (async () => {
     try {
       const { prisma } = await import("../db");
-      return await prisma.markupRule.findMany({
+      const rules = await prisma.markupRule.findMany({
         where: { active: true },
         orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
       });
+      lastKnownGoodRules = requireActiveMarkupRules(rules);
+      return lastKnownGoodRules;
     } catch (error) {
-      // Fail-open: DB không kết nối được hoặc test env không có DB → trả mảng rỗng
-      // → không cộng markup, search vẫn trả về giá net (better than blocking)
-      if (process.env.NODE_ENV !== "test") {
-        console.error("[searchMarkup] loadActiveRules failed:", error);
+      if (lastKnownGoodRules?.length) {
+        console.error("[searchMarkup] using last-known-good rules:", error);
+        return lastKnownGoodRules;
       }
-      return [];
+      throw error;
     }
   })();
   return cachedRulesPromise;
@@ -88,6 +91,7 @@ export function clearSearchMarkupCache() {
   cachedRulesPromise = null;
   cachedAirportIndexPromise = null;
   cachedRulesAt = 0;
+  lastKnownGoodRules = null;
   cachedAirportIndexAt = 0;
 }
 

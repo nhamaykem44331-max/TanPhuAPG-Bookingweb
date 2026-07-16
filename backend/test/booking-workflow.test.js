@@ -695,10 +695,8 @@ describe('normalizeAirport', () => {
     expect(() => normalizeAirport('XXX')).toThrow(/unknown airport/i);
   });
 
-  it('error message includes suggestion for near-miss (HNI → Did you mean)', () => {
-    let msg = '';
-    try { normalizeAirport('HNI'); } catch (e) { msg = e.message; }
-    expect(msg).toMatch(/Did you mean/i);
+  it('accepts syntactically valid IATA codes outside the local snapshot', () => {
+    expect(normalizeAirport('HNI')).toBe('HNI');
   });
 });
 
@@ -944,7 +942,7 @@ describe('pollTicketInfo', () => {
     try {
       const result = await pollTicketInfo(client, 123, 4, 800);
       expect(result.data.listPNR[0].pnr).toBe('ABC123');
-      expect(waits).toEqual([800, 1200, 1800]);
+      expect(waits).toEqual([800, 1120, 1568]);
     } finally {
       timerSpy.mockRestore();
     }

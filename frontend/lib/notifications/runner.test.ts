@@ -52,6 +52,7 @@ async function createNotificationFixture(
     paymentStatus?: PaymentStatus;
     jobType: string;
     intentAmount?: number;
+    provider?: PaymentIntentProvider;
   },
 ) {
   const unique = `${Date.now()}-${Math.floor(Math.random() * 100000)}`;
@@ -114,7 +115,7 @@ async function createNotificationFixture(
   const intent = await prisma.paymentIntent.create({
     data: {
       bookingId: booking.id,
-      provider: PaymentIntentProvider.PAYOS,
+      provider: options.provider ?? PaymentIntentProvider.PAYOS,
       providerOrderCode: `${Math.floor(Date.now() / 1000)}${Math.floor(Math.random() * 1000).toString().padStart(3, "0")}`,
       amount: options.intentAmount ?? 1_500_000,
       currency: "VND",
@@ -216,5 +217,21 @@ describe("notification runner", () => {
 
     assert.equal(job.status, NotificationJobStatus.CANCELLED);
     assert.equal(job.lastError, "PAYMENT_INTENT_AMOUNT_OUTDATED");
+  });
+
+  it("giữ reminder SePay sau thanh toán một phần vì target amount là bất biến", async () => {
+    const fixture = await createNotificationFixture({
+      jobType: "PAYMENT_REMINDER_T_MINUS_30M",
+      paymentAmount: 500_000,
+      paymentStatus: PaymentStatus.PARTIAL,
+      intentAmount: 1_500_000,
+      provider: PaymentIntentProvider.SEPAY,
+    });
+
+    await processDueNotificationJobs(10, { id: fixture.job.id });
+    const job = await prisma.notificationJob.findUniqueOrThrow({ where: { id: fixture.job.id } });
+
+    assert.equal(job.status, NotificationJobStatus.SKIPPED);
+    assert.equal(job.lastError, "EMAIL_TRANSPORT_DISABLED");
   });
 });

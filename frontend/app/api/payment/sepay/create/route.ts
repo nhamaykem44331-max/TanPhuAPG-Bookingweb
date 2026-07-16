@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createSepayIntentForBooking, SepayError } from "@/lib/payments/sepayService";
+import { verifyBookingPublicAccessToken } from "@/lib/booking/publicAccess";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,10 +15,10 @@ export const runtime = "nodejs";
  * Không yêu cầu auth admin để khách lẻ gọi được.
  */
 export async function POST(request: Request) {
-  let body: { bookingId?: string };
+  let body: { bookingId?: string; token?: string };
 
   try {
-    body = (await request.json()) as { bookingId?: string };
+    body = (await request.json()) as { bookingId?: string; token?: string };
   } catch {
     return NextResponse.json({ error: "INVALID_BODY" }, { status: 400 });
   }
@@ -26,6 +27,10 @@ export async function POST(request: Request) {
 
   if (!bookingId) {
     return NextResponse.json({ error: "BOOKING_ID_REQUIRED" }, { status: 400 });
+  }
+
+  if (!verifyBookingPublicAccessToken(bookingId, body.token)) {
+    return NextResponse.json({ error: "BOOKING_ACCESS_DENIED" }, { status: 403 });
   }
 
   try {
@@ -38,7 +43,8 @@ export async function POST(request: Request) {
         intent: {
           id: result.intent.id,
           providerOrderCode: result.intent.providerOrderCode,
-          amount: result.intent.amount,
+          amount: result.payableAmount,
+          targetAmount: result.intent.amount,
           currency: result.intent.currency,
           status: result.intent.status,
           qrCode: result.intent.qrCode,

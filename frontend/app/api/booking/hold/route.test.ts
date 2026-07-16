@@ -50,9 +50,17 @@ loadEnvFile(path.join(process.cwd(), ".env.local"));
 
 const prisma = new PrismaClient();
 const nextLogs: string[] = [];
-const mockState: { quoteMode: MockQuoteMode; ancillaryMode: MockAncillaryMode; holdPnrOverride?: string } = {
+const mockState: {
+  quoteMode: MockQuoteMode;
+  ancillaryMode: MockAncillaryMode;
+  holdPnrOverride?: string;
+  holdCalls: number;
+  holdDelayMs: number;
+} = {
   quoteMode: "success",
   ancillaryMode: "success",
+  holdCalls: 0,
+  holdDelayMs: 0,
 };
 
 const mockFlight = {
@@ -230,6 +238,8 @@ async function createMockBackend(): Promise<void> {
     }
 
     if (request.method === "POST" && url.pathname === "/bookings/hold") {
+      mockState.holdCalls += 1;
+      if (mockState.holdDelayMs > 0) await delay(mockState.holdDelayMs);
       const idempotencyKey = String(request.headers["idempotency-key"] || `hold-${Date.now()}`);
       const pnr = mockState.holdPnrOverride || stableTestPnr(idempotencyKey);
 
@@ -441,7 +451,7 @@ async function postAncillaries(payload: Record<string, unknown>): Promise<Respon
 
 async function bookingCount(idempotencyKey: string): Promise<number> {
   return prisma.booking.count({
-    where: { idempotencyKey },
+    where: { idempotencyKey: idempotencyKey.toUpperCase() },
   });
 }
 
@@ -467,6 +477,13 @@ async function cleanupHoldArtifacts(idempotencyKey: string): Promise<void> {
   }
 
   await prisma.booking.deleteMany({
+    where: {
+      idempotencyKey: {
+        in: [idempotencyKey, idempotencyKey.toUpperCase()],
+      },
+    },
+  });
+  await prisma.bookingHoldAttempt.deleteMany({
     where: {
       idempotencyKey: {
         in: [idempotencyKey, idempotencyKey.toUpperCase()],
@@ -596,11 +613,20 @@ test("4. Public real hold không cần admin session và vẫn tạo Booking web
   assert.equal(await bookingCount(idempotencyKey), 0);
 
   const response = await postHold(createHoldPayload(idempotencyKey, false));
-  const body = (await response.json()) as { bookingId?: string; success?: boolean };
+  const body = (await response.json()) as { bookingId?: string; success?: boolean; paymentAccessToken?: string; paymentUrl?: string };
 
   assert.equal(response.status, 200);
   assert.equal(body.success, true);
   assert.ok(body.bookingId);
+  assert.ok(body.paymentAccessToken);
+  assert.match(body.paymentUrl || "", new RegExp(`/booking/payment/${body.bookingId}\\?token=`));
+
+  const deniedStatus = await fetch(`${nextBaseUrl}/api/payment/sepay/status/${body.bookingId}`);
+  assert.equal(deniedStatus.status, 403);
+  const allowedStatus = await fetch(
+    `${nextBaseUrl}/api/payment/sepay/status/${body.bookingId}?token=${encodeURIComponent(body.paymentAccessToken!)}`,
+  );
+  assert.equal(allowedStatus.status, 200);
 
     const booking = await prisma.booking.findUniqueOrThrow({
       where: { id: body.bookingId },
@@ -643,5 +669,76 @@ test("5. PNR da ton tai duoc recover thanh booking cu thay vi loi 502", async ()
     mockState.holdPnrOverride = undefined;
     await cleanupHoldArtifacts(firstKey);
     await cleanupHoldArtifacts(secondKey);
+  }
+});
+
+test("6. Hai request đồng thời cùng idempotency key chỉ gọi upstream hold một lần", async () => {
+  const idempotencyKey = `gate-c0-concurrent-${Date.now()}`;
+  mockState.quoteMode = "success";
+  mockState.holdCalls = 0;
+  mockState.holdDelayMs = 250;
+
+  try {
+    const payload = createHoldPayload(idempotencyKey, false);
+    const [first, second] = await Promise.all([postHold(payload), postHold(payload)]);
+    const statuses = [first.status, second.status].sort((left, right) => left - right);
+
+    assert.deepEqual(statuses, [200, 409]);
+    assert.equal(mockState.holdCalls, 1);
+    assert.equal(await bookingCount(idempotencyKey), 1);
+
+    const replay = await postHold(payload);
+    assert.equal(replay.status, 200);
+    assert.equal(mockState.holdCalls, 1);
+  } finally {
+    mockState.holdDelayMs = 0;
+    await cleanupHoldArtifacts(idempotencyKey);
+  }
+});
+
+test("7. Cùng email nhưng khác số điện thoại không ghi đè hồ sơ khách cũ", async () => {
+  const idempotencyKey = `gate-c0-customer-${Date.now()}`;
+  const email = `identity-${Date.now()}@example.com`;
+  const original = await prisma.customer.create({
+    data: { fullName: "CUSTOMER ORIGINAL", email, phone: "84911111111" },
+  });
+  const payload = createHoldPayload(idempotencyKey, false);
+  payload.contact = { fullName: "CUSTOMER NEW", email, phone: "+84 922 222 222" };
+
+  try {
+    const response = await postHold(payload);
+    const body = (await response.json()) as { bookingId?: string };
+    assert.equal(response.status, 200, JSON.stringify(body));
+
+    const unchanged = await prisma.customer.findUniqueOrThrow({ where: { id: original.id } });
+    const booking = await prisma.booking.findUniqueOrThrow({ where: { id: body.bookingId! } });
+    assert.equal(unchanged.fullName, "CUSTOMER ORIGINAL");
+    assert.equal(unchanged.phone, "84911111111");
+    assert.notEqual(booking.customerId, original.id);
+  } finally {
+    await cleanupHoldArtifacts(idempotencyKey);
+    await prisma.customer.deleteMany({ where: { email } });
+  }
+});
+
+test("8. Khách bị blacklist bị chặn trước khi gọi upstream hold", async () => {
+  const idempotencyKey = `gate-c0-blacklist-${Date.now()}`;
+  const email = `blacklist-${Date.now()}@example.com`;
+  await prisma.customer.create({
+    data: { fullName: "CUSTOMER BLOCKED", email, phone: "84933333333", blacklisted: true },
+  });
+  const payload = createHoldPayload(idempotencyKey, false);
+  payload.contact = { fullName: "CUSTOMER BLOCKED", email, phone: "+84 933 333 333" };
+  mockState.holdCalls = 0;
+
+  try {
+    const response = await postHold(payload);
+    const body = (await response.json()) as { error?: string };
+    assert.equal(response.status, 403);
+    assert.equal(body.error, "CUSTOMER_BLOCKED");
+    assert.equal(mockState.holdCalls, 0);
+  } finally {
+    await cleanupHoldArtifacts(idempotencyKey);
+    await prisma.customer.deleteMany({ where: { email } });
   }
 });

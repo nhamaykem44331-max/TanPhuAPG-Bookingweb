@@ -1,5 +1,6 @@
 import prismaClient from "@prisma/client";
 import type { Prisma as PrismaNamespace } from "@prisma/client";
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -15,7 +16,10 @@ import { holdInputSchema } from "@/lib/bookings/schemas";
 import { holdNamThanhBooking, NamThanhApiError } from "@/lib/namthanh";
 import { notify } from "@/lib/notifications";
 import { createSepayIntentForBooking } from "@/lib/payments/sepayService";
+import { bookingPaymentPath, createBookingPublicAccessToken } from "@/lib/booking/publicAccess";
+import { customerIdentityWhere, customerPhoneVariants } from "@/lib/booking/customerIdentity";
 import { QuoteExpiredError, QuoteUnavailableError } from "@/lib/pricing/errors";
+import { MarkupConfigurationError, requirePositiveWebMargin } from "@/lib/pricing/markupPolicy";
 import { quoteBooking, type QuoteServiceResult } from "@/lib/pricing/quoteService";
 import { realCostFromHold, reconcileHoldAmounts } from "@/lib/pricing/reconcile";
 import type { FlightResult, HoldBookingPassenger, HoldBookingResponse } from "@/lib/types";
@@ -608,6 +612,7 @@ type ExistingBookingRecord = PrismaNamespace.BookingGetPayload<{
 }>;
 
 function responseFromExistingBooking(booking: ExistingBookingRecord) {
+  const paymentAccessToken = createBookingPublicAccessToken(booking.id);
   const firstRule = booking.appliedMarkupRule
     ? {
         id: booking.appliedMarkupRule.id,
@@ -615,12 +620,14 @@ function responseFromExistingBooking(booking: ExistingBookingRecord) {
       }
     : undefined;
 
-    return {
-      success: true,
-      bookingId: booking.id,
-      orderCode: booking.orderCode,
-      pnr: booking.pnr ?? undefined,
-      netPrice: String(booking.netAmount),
+  return {
+    success: true,
+    bookingId: booking.id,
+    paymentAccessToken,
+    paymentUrl: bookingPaymentPath(booking.id, paymentAccessToken),
+    orderCode: booking.orderCode,
+    pnr: booking.pnr ?? undefined,
+    netPrice: String(booking.netAmount),
     markupAmount: String(booking.markupAmount),
     sellPrice: String(booking.saleAmount),
     currency: booking.currency,
@@ -644,6 +651,23 @@ function responseFromExistingBooking(booking: ExistingBookingRecord) {
       timelimit: pnr.timelimit?.toISOString(),
     })),
   };
+}
+
+function holdRequestHash(input: HoldInput, normalized: NormalizedHoldBody): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ input, outboundFlight: normalized.outboundFlight, inboundFlight: normalized.inboundFlight }))
+    .digest("hex");
+}
+
+function holdAttemptErrorResponse(attempt: { errorCode: string | null; errorMessage: string | null; safeToRetry: boolean }) {
+  return NextResponse.json(
+    {
+      error: attempt.errorCode || "HOLD_OUTCOME_UNKNOWN",
+      detail: attempt.errorMessage || "Yêu cầu giữ chỗ trước đó không thể xác nhận an toàn.",
+      safeToRetry: attempt.safeToRetry,
+    },
+    { status: 409 },
+  );
 }
 
 function normalizePnrCode(value: unknown): string {
@@ -899,6 +923,7 @@ function isBookingPnrUniqueError(error: unknown): boolean {
 
 export async function POST(request: NextRequest) {
   let holdResultForRecovery: HoldBookingResponse | null = null;
+  let holdAttemptId: string | null = null;
 
   try {
     const rawBody = await request.json().catch(() => null);
@@ -922,6 +947,13 @@ export async function POST(request: NextRequest) {
     // (Nếu sau này cần luồng đặt giá net cho nhân sự thì làm endpoint/nút riêng trong /admin.)
     const channel: QuoteChannel = "web";
 
+    if (!input.dryRun && !input.idempotencyKey) {
+      return NextResponse.json(
+        { error: "IDEMPOTENCY_KEY_REQUIRED", detail: "Thiếu mã chống tạo trùng yêu cầu giữ chỗ." },
+        { status: 400 },
+      );
+    }
+
     if (!input.dryRun && input.idempotencyKey) {
       const existingBooking = await prisma.booking.findUnique({
         where: { idempotencyKey: input.idempotencyKey },
@@ -944,6 +976,10 @@ export async function POST(request: NextRequest) {
     }
 
     const quote = await quoteBooking(input, channel);
+    requirePositiveWebMargin(
+      Number(quote.totalMarkupAmount.toFixed(0)),
+      Number(quote.totalServiceFeeAmount.toFixed(0)),
+    );
     // Compare the customer's displayed SELL total against the fresh SELL total (same basis,
     // baggage-free on both sides) so the >5% warning reflects a real airline fare move, not markup.
     const priceDelta = toPriceDeltaPayload(comparePrices(input.displayedNetPrice, quote.totalSellPrice));
@@ -979,6 +1015,28 @@ export async function POST(request: NextRequest) {
     }
 
     const actorId = existingAuth?.user?.id ?? null;
+    const customerIdentity = customerIdentityWhere(input.contact);
+    const matchedCustomer = customerIdentity
+      ? await prisma.customer.findFirst({
+          where: {
+            ...(customerIdentity.email
+              ? { email: { equals: customerIdentity.email, mode: "insensitive" as const } }
+              : {}),
+            ...(customerIdentity.phone
+              ? { phone: { in: customerPhoneVariants(customerIdentity.phone) } }
+              : {}),
+          },
+          orderBy: { createdAt: "asc" },
+        })
+      : null;
+
+    if (matchedCustomer?.blacklisted) {
+      return NextResponse.json(
+        { error: "CUSTOMER_BLOCKED", detail: "Không thể thực hiện yêu cầu giữ chỗ cho thông tin liên hệ này." },
+        { status: 403 },
+      );
+    }
+
     const passengerCounts = countPassengers(input.passengers);
     const legacyPassengers = toLegacyPassengers(input.passengers);
     const holdPayload = {
@@ -1003,7 +1061,76 @@ export async function POST(request: NextRequest) {
       skipPricingSync: true,
       idempotencyKey: input.idempotencyKey,
     } satisfies Parameters<typeof holdNamThanhBooking>[0];
-    const holdResult = await holdNamThanhBooking(holdPayload, input.idempotencyKey);
+    const requestHash = holdRequestHash(input, normalized);
+    const existingAttempt = await prisma.bookingHoldAttempt.findUnique({
+      where: { idempotencyKey: input.idempotencyKey! },
+    });
+    let holdResult: HoldBookingResponse;
+
+    if (existingAttempt) {
+      if (existingAttempt.requestHash !== requestHash) {
+        return NextResponse.json(
+          { error: "IDEMPOTENCY_KEY_REUSED", detail: "Mã chống trùng đã được dùng cho một yêu cầu khác." },
+          { status: 409 },
+        );
+      }
+
+      if (existingAttempt.bookingId) {
+        const existingBooking = await prisma.booking.findUnique({
+          where: { id: existingAttempt.bookingId },
+          include: {
+            appliedMarkupRule: { select: { id: true, scope: true } },
+            pnrs: { orderBy: { createdAt: "asc" } },
+          },
+        });
+        if (existingBooking) return NextResponse.json(responseFromExistingBooking(existingBooking));
+      }
+
+      if (existingAttempt.status === "UPSTREAM_COMPLETED" && existingAttempt.holdResult) {
+        holdAttemptId = existingAttempt.id;
+        holdResult = existingAttempt.holdResult as unknown as HoldBookingResponse;
+      } else if (existingAttempt.status === "FAILED" && existingAttempt.safeToRetry) {
+        const claimed = await prisma.bookingHoldAttempt.updateMany({
+          where: { id: existingAttempt.id, status: "FAILED", safeToRetry: true },
+          data: { status: "PROCESSING", safeToRetry: false, errorCode: null, errorMessage: null },
+        });
+        if (claimed.count !== 1) {
+          return NextResponse.json({ error: "HOLD_IN_PROGRESS", safeToRetry: true }, { status: 409 });
+        }
+        holdAttemptId = existingAttempt.id;
+        holdResult = await holdNamThanhBooking(holdPayload, input.idempotencyKey);
+      } else if (existingAttempt.status === "FAILED") {
+        return holdAttemptErrorResponse(existingAttempt);
+      } else {
+        return NextResponse.json(
+          { error: "HOLD_IN_PROGRESS", detail: "Yêu cầu giữ chỗ đang được xử lý.", safeToRetry: true },
+          { status: 409, headers: { "Retry-After": "5" } },
+        );
+      }
+    } else {
+      try {
+        const createdAttempt = await prisma.bookingHoldAttempt.create({
+          data: { idempotencyKey: input.idempotencyKey!, requestHash, status: "PROCESSING" },
+        });
+        holdAttemptId = createdAttempt.id;
+      } catch (error) {
+        if (recordOf(error).code === "P2002") {
+          return NextResponse.json(
+            { error: "HOLD_IN_PROGRESS", detail: "Yêu cầu giữ chỗ đang được xử lý.", safeToRetry: true },
+            { status: 409, headers: { "Retry-After": "5" } },
+          );
+        }
+        throw error;
+      }
+      holdResult = await holdNamThanhBooking(holdPayload, input.idempotencyKey);
+    }
+
+    if (holdAttemptId) {
+      await prisma.bookingHoldAttempt.update({
+        where: { id: holdAttemptId },
+        data: { status: "UPSTREAM_COMPLETED", holdResult: toJsonValue(holdResult) },
+      });
+    }
     holdResultForRecovery = holdResult;
     const existingBookingByPnr = await findExistingBookingByHoldPnrs(holdResult);
 
@@ -1013,6 +1140,12 @@ export async function POST(request: NextRequest) {
         orderCode: existingBookingByPnr.orderCode,
         pnrs: holdResult.pnrs,
       });
+      if (holdAttemptId) {
+        await prisma.bookingHoldAttempt.update({
+          where: { id: holdAttemptId },
+          data: { status: "COMPLETED", bookingId: existingBookingByPnr.id },
+        });
+      }
       return NextResponse.json(responseFromExistingBooking(existingBookingByPnr));
     }
 
@@ -1038,33 +1171,13 @@ export async function POST(request: NextRequest) {
     const finalPriceDelta = customerPriceIncrease(input.displayedNetPrice, finalSaleAmount - baggageTotal);
 
     const booking = await prisma.$transaction(async (tx) => {
-      const existingCustomer =
-        input.contact.email || input.contact.phone
-          ? await tx.customer.findFirst({
-              where: {
-                OR: [
-                  input.contact.email ? { email: input.contact.email } : undefined,
-                  input.contact.phone ? { phone: input.contact.phone } : undefined,
-                ].filter(Boolean) as { email?: string; phone?: string }[],
-              },
-              orderBy: { createdAt: "asc" },
-            })
-          : null;
-
-      const customer = existingCustomer
-        ? await tx.customer.update({
-            where: { id: existingCustomer.id },
-            data: {
-              fullName: input.contact.fullName,
-              phone: input.contact.phone,
-              email: input.contact.email,
-            },
-          })
+      const customer = matchedCustomer
+        ? matchedCustomer
         : await tx.customer.create({
             data: {
               fullName: input.contact.fullName,
-              phone: input.contact.phone,
-              email: input.contact.email,
+              phone: customerIdentity?.phone ?? null,
+              email: customerIdentity?.email ?? null,
               createdById: actorId,
             },
           });
@@ -1165,6 +1278,13 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      if (holdAttemptId) {
+        await tx.bookingHoldAttempt.update({
+          where: { id: holdAttemptId },
+          data: { status: "COMPLETED", bookingId: createdBooking.id },
+        });
+      }
+
       return createdBooking;
     });
 
@@ -1243,9 +1363,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const paymentAccessToken = createBookingPublicAccessToken(booking.id);
     return NextResponse.json({
       success: true,
       bookingId: booking.id,
+      paymentAccessToken,
+      paymentUrl: bookingPaymentPath(booking.id, paymentAccessToken),
       orderCode: booking.orderCode,
       pnr: firstActualPnr ?? undefined,
       netPrice: String(finalNetAmount),
@@ -1272,6 +1395,22 @@ export async function POST(request: NextRequest) {
       pnrs: holdResult.pnrs || [],
     });
   } catch (error) {
+    if (holdAttemptId) {
+      const details = recordOf(recordOf(error).details);
+      const safeToRetry = details.safeToRetry === true || recordOf(error).safeToRetry === true;
+      await prisma.bookingHoldAttempt.updateMany({
+        where: { id: holdAttemptId, status: "PROCESSING" },
+        data: {
+          status: "FAILED",
+          safeToRetry,
+          errorCode: String(details.error || recordOf(error).code || "UPSTREAM_UNAVAILABLE"),
+          errorMessage: error instanceof Error ? error.message : String(error),
+        },
+      }).catch((attemptError) => {
+        console.error("[booking/hold] failed to persist hold attempt failure", attemptError);
+      });
+    }
+
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         {
@@ -1279,6 +1418,13 @@ export async function POST(request: NextRequest) {
           fieldErrors: zodFieldErrors(error),
         },
         { status: 422 },
+      );
+    }
+
+    if (error instanceof MarkupConfigurationError) {
+      return NextResponse.json(
+        { error: "PRICING_CONFIGURATION_UNAVAILABLE", detail: "Hệ thống giá tạm thời chưa sẵn sàng." },
+        { status: 503 },
       );
     }
 

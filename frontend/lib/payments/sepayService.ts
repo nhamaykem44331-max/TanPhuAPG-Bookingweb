@@ -42,6 +42,7 @@ import {
   canCancelPaymentIntent,
   getEffectivePaymentIntentStatus,
   isActivePaymentIntent,
+  paymentIntentRemainingAmount,
   sortPaymentIntentsNewestFirst,
 } from "@/lib/payments/paymentIntentLifecycle";
 
@@ -60,6 +61,7 @@ export class SepayError extends Error {
 export interface CreateSepayIntentResult {
   intent: PaymentIntent;
   reused: boolean;
+  payableAmount: number;
 }
 
 export interface SepayWebhookResult {
@@ -77,6 +79,17 @@ export interface SepayWebhookResult {
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function jsonRecord(value: Prisma.JsonValue | null): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function isActiveIntentConflict(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("code" in error) || error.code !== "P2002") return false;
+  return JSON.stringify("meta" in error ? error.meta : {}).includes("activeKey");
 }
 
 function normalizePnrCode(value: string | null | undefined): string | null {
@@ -182,7 +195,7 @@ async function expireStalePaymentIntentsTx(
   for (const intent of stale) {
     const updated = await tx.paymentIntent.update({
       where: { id: intent.id },
-      data: { status: PaymentIntentStatus.EXPIRED },
+      data: { status: PaymentIntentStatus.EXPIRED, activeKey: null },
     });
 
     await tx.bookingTimelineEvent.create({
@@ -275,29 +288,32 @@ export async function createSepayIntentForBooking(
 
   if (live) {
     const expectedDescription = buildSepayDescription(live.providerOrderCode, pnrCodes);
-    const upToDate = Number(live.amount) === summary.balance
+    const upToDate = live.activeKey === booking.id
+      && live.status === PaymentIntentStatus.PENDING
+      && Number(jsonRecord(live.rawJson).qrAmount) === summary.balance
       && live.transferContent === expectedDescription
       && !!live.qrCode;
 
     if (upToDate) {
-      return { intent: live, reused: true };
+      return { intent: live, reused: true, payableAmount: summary.balance };
     }
 
     const qr = buildSepayQrUrl({ transferContent: expectedDescription, amount: summary.balance });
     const updated = await prisma.paymentIntent.update({
       where: { id: live.id },
       data: {
-        amount: summary.balance,
+        activeKey: booking.id,
         description: expectedDescription,
         transferContent: expectedDescription,
         qrCode: qr.qrUrl,
         accountNumber: qr.accountNumber,
         accountName: qr.accountName,
         bin: qr.bankCode,
+        rawJson: toJsonValue({ ...jsonRecord(live.rawJson), qrAmount: summary.balance }),
       },
     });
 
-    return { intent: updated, reused: true };
+    return { intent: updated, reused: true, payableAmount: summary.balance };
   }
 
   const providerOrderCode = await generateProviderOrderCode();
@@ -309,66 +325,76 @@ export async function createSepayIntentForBooking(
     amount: summary.balance,
   });
 
-  const intent = await prisma.$transaction(async (tx) => {
-    const created = await tx.paymentIntent.create({
-      data: {
-        bookingId: booking.id,
-        provider: PaymentIntentProvider.SEPAY,
-        providerOrderCode,
-        amount: summary.balance,
-        currency: booking.currency,
-        description,
-        transferContent: description,
-        qrCode: qr.qrUrl,
-        accountNumber: qr.accountNumber,
-        accountName: qr.accountName,
-        bin: qr.bankCode, // Lưu bank code vào field bin (giống PayOS) để không phải đổi schema
-        expiresAt,
-        createdById: actorId,
-        status: PaymentIntentStatus.PENDING,
-        rawJson: toJsonValue({
-          qrTemplate: process.env.SEPAY_QR_TEMPLATE || "compact",
-          orderCode: booking.orderCode,
-          pnrs: pnrCodes,
-          transferContentVersion: 2,
+  let intent: PaymentIntent;
+  try {
+    intent = await prisma.$transaction(async (tx) => {
+      const created = await tx.paymentIntent.create({
+        data: {
+          bookingId: booking.id,
+          provider: PaymentIntentProvider.SEPAY,
+          providerOrderCode,
+          activeKey: booking.id,
+          amount: summary.balance,
+          currency: booking.currency,
+          description,
+          transferContent: description,
+          qrCode: qr.qrUrl,
+          accountNumber: qr.accountNumber,
+          accountName: qr.accountName,
+          bin: qr.bankCode, // Lưu bank code vào field bin (giống PayOS) để không phải đổi schema
+          expiresAt,
+          createdById: actorId,
+          status: PaymentIntentStatus.PENDING,
+          rawJson: toJsonValue({
+            qrTemplate: process.env.SEPAY_QR_TEMPLATE || "compact",
+            orderCode: booking.orderCode,
+            pnrs: pnrCodes,
+            transferContentVersion: 2,
+            qrAmount: summary.balance,
+          }),
+        },
+      });
+
+      await audit(tx, {
+        actorId,
+        entity: "PaymentIntent",
+        entityId: created.id,
+        action: "payment_intent.create",
+        diff: buildAuditDiff(null, {
+          id: created.id,
+          bookingId: created.bookingId,
+          provider: created.provider,
+          providerOrderCode: created.providerOrderCode,
+          amount: created.amount,
+          status: created.status,
         }),
-      },
-    });
+      });
 
-    await audit(tx, {
-      actorId,
-      entity: "PaymentIntent",
-      entityId: created.id,
-      action: "payment_intent.create",
-      diff: buildAuditDiff(null, {
-        id: created.id,
-        bookingId: created.bookingId,
-        provider: created.provider,
-        providerOrderCode: created.providerOrderCode,
-        amount: created.amount,
-        status: created.status,
-      }),
-    });
-
-    await scheduleHoldPaymentReminderJobs(tx, {
-      bookingId: booking.id,
-      customerId: booking.customerId,
-      paymentIntentId: created.id,
-      ttlExpiresAt: booking.ttlExpiresAt,
-      payload: {
+      await scheduleHoldPaymentReminderJobs(tx, {
         bookingId: booking.id,
+        customerId: booking.customerId,
         paymentIntentId: created.id,
-        amount: created.amount,
-        currency: created.currency,
-        qrCode: created.qrCode,
-        provider: "sepay",
-      },
+        ttlExpiresAt: booking.ttlExpiresAt,
+        payload: {
+          bookingId: booking.id,
+          paymentIntentId: created.id,
+          amount: created.amount,
+          currency: created.currency,
+          qrCode: created.qrCode,
+          provider: "sepay",
+        },
+      });
+
+      return created;
     });
+  } catch (error) {
+    if (isActiveIntentConflict(error)) {
+      return createSepayIntentForBooking(bookingId, actorId);
+    }
+    throw error;
+  }
 
-    return created;
-  });
-
-  return { intent, reused: false };
+  return { intent, reused: false, payableAmount: summary.balance };
 }
 
 export async function cancelSepayIntent(
@@ -402,7 +428,7 @@ export async function cancelSepayIntent(
   const cancelled = await prisma.$transaction(async (tx) => {
     const updated = await tx.paymentIntent.update({
       where: { id: intent.id },
-      data: { status: PaymentIntentStatus.CANCELLED },
+      data: { status: PaymentIntentStatus.CANCELLED, activeKey: null },
     });
 
     await tx.bookingTimelineEvent.create({
@@ -489,6 +515,10 @@ export async function handleSepayWebhook(payload: SepayWebhookPayload): Promise<
   }
 
   return prisma.$transaction(async (tx) => {
+    if (orderCodeFromContent) {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${orderCodeFromContent}))`;
+    }
+
     // 1. Chống trùng
     const existing = await tx.bankTransaction.findUnique({
       where: { dedupeKey },
@@ -596,7 +626,7 @@ export async function handleSepayWebhook(payload: SepayWebhookPayload): Promise<
 
       await tx.paymentIntent.update({
         where: { id: intent.id },
-        data: { status: PaymentIntentStatus.EXPIRED },
+        data: { status: PaymentIntentStatus.EXPIRED, activeKey: null },
       });
 
       await cancelPendingPaymentReminderJobs(tx, {
@@ -617,13 +647,7 @@ export async function handleSepayWebhook(payload: SepayWebhookPayload): Promise<
     }
 
     // 6. Intent đã đủ tiền
-    const paidSoFar = intent.payments.reduce((sum, p) => {
-      if (p.status === PaymentStatus.PAID || p.status === PaymentStatus.PARTIAL) {
-        return sum + p.amount;
-      }
-      return sum;
-    }, 0);
-    const remaining = Math.max(intent.amount - paidSoFar, 0);
+    const remaining = paymentIntentRemainingAmount(intent.amount, intent.payments);
 
     if (remaining <= 0) {
       const bankTxn = await tx.bankTransaction.create({
@@ -638,7 +662,7 @@ export async function handleSepayWebhook(payload: SepayWebhookPayload): Promise<
 
       await tx.paymentIntent.update({
         where: { id: intent.id },
-        data: { status: PaymentIntentStatus.MANUAL_REVIEW },
+        data: { status: PaymentIntentStatus.MANUAL_REVIEW, activeKey: null },
       });
       await cancelPendingPaymentReminderJobs(tx, {
         bookingId: intent.bookingId,
@@ -666,7 +690,7 @@ export async function handleSepayWebhook(payload: SepayWebhookPayload): Promise<
     if (decision.decision === "MANUAL_REVIEW") {
       const updatedIntent = await tx.paymentIntent.update({
         where: { id: intent.id },
-        data: { status: PaymentIntentStatus.MANUAL_REVIEW },
+        data: { status: PaymentIntentStatus.MANUAL_REVIEW, activeKey: null },
       });
       const bankTxn = await tx.bankTransaction.create({
         data: {
@@ -707,6 +731,10 @@ export async function handleSepayWebhook(payload: SepayWebhookPayload): Promise<
     const paidAt = parseSepayTransactionDate(payload.transactionDate) ?? new Date();
     const paymentStatus = decision.decision === "PAID" ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
     const intentStatus = mapIntentStatus(decision.decision);
+    const remainingAfterPayment = Math.max(remaining - amount, 0);
+    const refreshedQr = intentStatus === PaymentIntentStatus.PARTIAL
+      ? buildSepayQrUrl({ transferContent: intent.transferContent, amount: remainingAfterPayment })
+      : null;
 
     const payment = await tx.payment.create({
       data: {
@@ -737,9 +765,36 @@ export async function handleSepayWebhook(payload: SepayWebhookPayload): Promise<
       where: { id: intent.id },
       data: {
         status: intentStatus,
+        activeKey: intentStatus === PaymentIntentStatus.PARTIAL ? intent.bookingId : null,
+        qrCode: refreshedQr?.qrUrl ?? intent.qrCode,
+        rawJson: toJsonValue({
+          ...jsonRecord(intent.rawJson),
+          ...(intentStatus === PaymentIntentStatus.PARTIAL ? { qrAmount: remainingAfterPayment } : {}),
+        }),
         paidAt: intentStatus === PaymentIntentStatus.PAID ? paidAt : intent.paidAt,
       },
     });
+
+    if (intentStatus === PaymentIntentStatus.PARTIAL) {
+      await tx.notificationJob.updateMany({
+        where: {
+          bookingId: intent.bookingId,
+          paymentIntentId: intent.id,
+          status: "PENDING",
+          type: { in: ["PAYMENT_REMINDER_T_MINUS_2H", "PAYMENT_REMINDER_T_MINUS_30M"] },
+        },
+        data: {
+          payload: toJsonValue({
+            bookingId: intent.bookingId,
+            paymentIntentId: intent.id,
+            amount: remainingAfterPayment,
+            currency: intent.currency,
+            qrCode: refreshedQr?.qrUrl ?? intent.qrCode,
+            provider: "sepay",
+          }),
+        },
+      });
+    }
 
     await tx.bookingTimelineEvent.create({
       data: {
@@ -789,7 +844,6 @@ export async function handleSepayWebhook(payload: SepayWebhookPayload): Promise<
 
     if (
       updatedIntent.status === PaymentIntentStatus.PAID ||
-      updatedIntent.status === PaymentIntentStatus.PARTIAL ||
       updatedIntent.status === PaymentIntentStatus.MANUAL_REVIEW
     ) {
       await cancelPendingPaymentReminderJobs(tx, {
@@ -818,7 +872,7 @@ export async function handleSepayWebhook(payload: SepayWebhookPayload): Promise<
       orderCode: intent.booking.orderCode,
       pnr: intent.booking.pnr,
       transferredAmount: amount,
-      remainingAmount: Math.max(remaining - amount, 0),
+      remainingAmount: remainingAfterPayment,
     };
   });
 }

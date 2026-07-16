@@ -886,8 +886,14 @@ async function postHoldForFlight(body: HoldBookingRequest, flight: FlightResult,
 }
 
 // Lỗi cần retry inbound: timeout/5xx upstream/cache miss/session timeout
-function isRetryableHoldError(error: unknown): boolean {
+export function isRetryableHoldError(error: unknown): boolean {
   if (!(error instanceof NamThanhApiError)) return false;
+  if (
+    error.details &&
+    typeof error.details === 'object' &&
+    'safeToRetry' in error.details &&
+    (error.details as { safeToRetry?: unknown }).safeToRetry === false
+  ) return false;
   if (error.status === 0 || error.status === 408 || error.status === 429) return true;
   if (error.status >= 500 && error.status < 600) return true;
   const text = `${error.message} ${JSON.stringify(error.details || {})}`.toLowerCase();

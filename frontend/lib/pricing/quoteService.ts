@@ -6,6 +6,7 @@ import { priceNamThanhFlight, NamThanhApiError } from "@/lib/namthanh";
 import type { FlightResult } from "@/lib/types";
 import { computeMarkup, type MarkupResult } from "@/lib/pricing/markupEngine";
 import { QuoteExpiredError, QuoteUnavailableError } from "@/lib/pricing/errors";
+import { requireActiveMarkupRules } from "@/lib/pricing/markupPolicy";
 import { prisma } from "@/lib/db";
 
 const { Prisma } = prismaClient;
@@ -414,10 +415,10 @@ async function priceLegWithCacheFallback(
 }
 
 async function loadActiveRules(): Promise<MarkupRule[]> {
-  return prisma.markupRule.findMany({
+  return requireActiveMarkupRules(await prisma.markupRule.findMany({
     where: { active: true },
     orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
-  });
+  }));
 }
 
 async function quoteLeg(input: {
@@ -493,18 +494,20 @@ async function quoteLeg(input: {
   };
 }
 
-function latestExpiry(legs: QuoteLegBreakdown[]): string | null {
+export function fallbackQuoteExpiry(
+  legs: Array<Pick<QuoteLegBreakdown, "departureAt">>,
+  now = new Date(),
+  ttlMinutes = Number(process.env.HOLD_FALLBACK_TTL_MINUTES) || 10,
+): string {
   const values = legs
     .map((leg) => leg.departureAt)
     .filter((value): value is string => typeof value === "string" && value.length > 0)
     .map((value) => Date.parse(value))
     .filter((value) => Number.isFinite(value));
 
-  if (values.length === 0) {
-    return null;
-  }
-
-  return new Date(Math.max(...values)).toISOString();
+  const fallback = now.getTime() + Math.max(1, ttlMinutes) * 60_000;
+  const futureDepartures = values.filter((value) => value > now.getTime());
+  return new Date(futureDepartures.length > 0 ? Math.min(fallback, ...futureDepartures) : fallback).toISOString();
 }
 
 export async function quoteBooking(
@@ -545,7 +548,7 @@ export async function quoteBooking(
 
   return {
     currency: "VND",
-    expiresAt: latestExpiry(legs),
+    expiresAt: fallbackQuoteExpiry(legs),
     legs,
     totalNetPrice,
     totalMarkupAmount,

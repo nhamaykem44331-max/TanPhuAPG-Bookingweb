@@ -1,6 +1,7 @@
 import { NotificationJobChannel, NotificationJobStatus, type NotificationJob, type PaymentIntent, type Prisma } from "@prisma/client";
 
 import { calculatePaymentSummary } from "@/lib/booking/paymentSummary";
+import { bookingPaymentPath, createBookingPublicAccessToken } from "@/lib/booking/publicAccess";
 import { prisma } from "@/lib/db";
 import { notify } from "@/lib/notifications";
 import { sendEmail } from "@/lib/notifications/channels/email";
@@ -208,6 +209,7 @@ function buildEmailContext(job: DueNotificationJob) {
 
   const paymentSummary = calculatePaymentSummary(booking.payments, booking.saleAmount);
   const pnr = booking.pnr ?? booking.pnrs[0]?.pnr ?? "PENDING";
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000").replace(/\/+$/, "");
 
   return {
     customerName: booking.customer.fullName || "Quý khách",
@@ -220,7 +222,8 @@ function buildEmailContext(job: DueNotificationJob) {
     paymentDue: paymentSummary.balance > 0 ? formatMoney(paymentSummary.balance) : "0",
     currency: booking.currency,
     ttlExpiresAt: formatDateTime(booking.ttlExpiresAt),
-    checkoutUrl: job.paymentIntent?.checkoutUrl ?? null,
+    checkoutUrl: job.paymentIntent?.checkoutUrl
+      ?? `${appUrl}${bookingPaymentPath(booking.id, createBookingPublicAccessToken(booking.id))}`,
     transferContent: job.paymentIntent?.transferContent ?? null,
     accountNumber: job.paymentIntent?.accountNumber ?? null,
     accountName: job.paymentIntent?.accountName ?? null,
@@ -387,7 +390,11 @@ async function deliverEmailJob(job: DueNotificationJob): Promise<"sent" | "skipp
       return cancelJob(job, "PAYMENT_INTENT_NOT_ACTIVE");
     }
 
-    if (job.paymentIntent && context.paymentSummary.balance !== job.paymentIntent.amount) {
+    if (
+      job.paymentIntent &&
+      job.paymentIntent.provider !== "SEPAY" &&
+      context.paymentSummary.balance !== job.paymentIntent.amount
+    ) {
       return cancelJob(job, "PAYMENT_INTENT_AMOUNT_OUTDATED");
     }
 

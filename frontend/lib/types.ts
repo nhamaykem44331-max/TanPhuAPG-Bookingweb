@@ -265,6 +265,8 @@ export interface HoldBookingPricing {
 export interface HoldBookingResponse {
   success: boolean;
   bookingId?: string;
+  paymentAccessToken?: string;
+  paymentUrl?: string;
   orderCode?: string | null;
   holdId?: string;
   dryRun?: boolean;

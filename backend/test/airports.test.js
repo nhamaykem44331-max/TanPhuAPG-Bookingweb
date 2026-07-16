@@ -49,24 +49,12 @@ describe('validateAirport', () => {
     expect(() => validateAirport('XXX')).toThrow(/unknown airport/i);
   });
 
-  it('includes suggestion for near-miss codes (Levenshtein ≤ 2)', () => {
-    // HNI is distance 1 from HUI (H+I match, N→U), so suggestion will be HUI
-    const err = (() => {
-      try { validateAirport('HNI'); return null; }
-      catch (e) { return e; }
-    })();
-    expect(err).not.toBeNull();
-    expect(err.message).toMatch(/Did you mean/i);
+  it('accepts a syntactically valid IATA code that is not in the local airport snapshot', () => {
+    expect(validateAirport('HNI')).toBe('HNI');
   });
 
-  it('suggests SGN for SGM', () => {
-    // SGM is distance 1 from SGN (S+G match, M→N)
-    const err = (() => {
-      try { validateAirport('SGM'); return null; }
-      catch (e) { return e; }
-    })();
-    expect(err).not.toBeNull();
-    expect(err.message).toMatch(/SGN/);
+  it('does not rewrite a valid partner-supported code to a local near-match', () => {
+    expect(validateAirport('SGM')).toBe('SGM');
   });
 
   it('includes fieldName in error message when provided', () => {

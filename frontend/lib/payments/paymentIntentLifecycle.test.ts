@@ -8,6 +8,7 @@ import {
   isActivePaymentIntent,
   isPaymentIntentExpired,
   isReusablePaymentIntent,
+  paymentIntentRemainingAmount,
   sortPaymentIntentsNewestFirst,
 } from "./paymentIntentLifecycle";
 
@@ -75,5 +76,14 @@ describe("paymentIntentLifecycle", () => {
     ]);
 
     assert.equal(items[0].createdAt.toISOString(), "2026-04-24T03:00:00.000Z");
+  });
+  it("keeps the original target while partial payments reduce the remaining amount", () => {
+    assert.equal(
+      paymentIntentRemainingAmount(1_000_000, [
+        { amount: 400_000, status: "PARTIAL" },
+        { amount: 600_000, status: "PAID" },
+      ]),
+      0,
+    );
   });
 });

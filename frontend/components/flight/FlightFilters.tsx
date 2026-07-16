@@ -41,8 +41,9 @@ export function FilterBar({
   const departureWindow = filter.departureWindow ?? 'all';
   const chipRowClass = "flex min-w-0 flex-nowrap gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] lg:flex-wrap lg:overflow-visible lg:pb-0 [&::-webkit-scrollbar]:hidden";
 
-  const chip = (active: boolean, onClick: () => void, label: ReactNode) => (
+  const chip = (key: string, active: boolean, onClick: () => void, label: ReactNode) => (
     <button
+      key={key}
       className={`apg-chip h-7 shrink-0 gap-1 px-2.5 text-[10px] ${active ? 'apg-chip-active' : ''}`}
       style={active ? { background: '#1f3a52', borderColor: '#1f3a52', color: '#fff' } : undefined}
       onClick={onClick}
@@ -95,10 +96,10 @@ export function FilterBar({
       <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-x-4">
         {filterGroup('Hãng bay', (
           <div className={chipRowClass}>
-            {chip(filter.airlines.length === 0, () => onChange({ ...filter, airlines: [] }), 'Tất cả HB')}
+            {chip('airline-all', filter.airlines.length === 0, () => onChange({ ...filter, airlines: [] }), 'Tất cả HB')}
             {airlines.map(({ code, name }) => {
               const active = filter.airlines.includes(code);
-              return chip(active, () => {
+              return chip(`airline-${code}`, active, () => {
                 const next = active ? filter.airlines.filter((item) => item !== code) : [...filter.airlines, code];
                 onChange({ ...filter, airlines: next });
               }, <><AirlineLogo code={code} airline={name} size={14} />{airlineChipLabel(code, name)}</>);
@@ -113,7 +114,7 @@ export function FilterBar({
             {filterGroup('Điểm dừng', (
               <div className={chipRowClass}>
                 {([['all', 'Tất cả'], ['0', 'Thẳng'], ['1', '1 dừng'], ['2+', '2+ dừng']] as [StopFilter, string][]).map(([value, label]) =>
-                  chip(filter.stops === value, () => onChange({ ...filter, stops: value }), label)
+                  chip(`stop-${value}`, filter.stops === value, () => onChange({ ...filter, stops: value }), label)
                 )}
               </div>
             ))}
@@ -130,7 +131,7 @@ export function FilterBar({
                 ['afternoon', 'Chiều'],
                 ['evening', 'Tối'],
               ] as [DepartureWindowFilter, string][]).map(([value, label]) =>
-                chip(departureWindow === value, () => onChange({ ...filter, departureWindow: value }), label)
+                chip(`departure-${value}`, departureWindow === value, () => onChange({ ...filter, departureWindow: value }), label)
               )}
             </div>
           ))}

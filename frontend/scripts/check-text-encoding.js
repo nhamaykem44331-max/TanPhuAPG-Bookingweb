@@ -4,17 +4,14 @@ const path = require('path');
 const ROOT = process.cwd();
 const TARGET_DIRS = ['app', 'components', 'lib', 'scripts'];
 const FILE_RE = /\.(ts|tsx|js|jsx|md)$/i;
-const BAD_FRAGMENTS = [
-  '\u00c3',
-  '\u00c2',
-  '\u00c4',
-  '\u00c5',
-  '\u00c6',
-  '\u00d0',
-  '\u00f0\u0178',
-  '\u00e2\u20ac',
-  '\u00ef\u00bf\u00bd',
-  '\u001b',
+const BAD_PATTERNS = [
+  /\u00c3[\u0080-\u00bf]/,
+  /\u00c2[\u0080-\u00bf]/,
+  /[\u00c4\u00c5\u00c6\u00d0][\u0080-\u00ff\u0100-\u017f]/,
+  /\u00f0\u0178/,
+  /\u00e2\u20ac/,
+  /\u00ef\u00bf\u00bd/,
+  /\u001b/,
 ];
 
 function walk(dir, out = []) {
@@ -38,7 +35,7 @@ for (const file of files) {
   const text = fs.readFileSync(file, 'utf8');
   const lines = text.split(/\r?\n/);
   lines.forEach((line, index) => {
-    if (BAD_FRAGMENTS.some((fragment) => line.includes(fragment))) {
+    if (BAD_PATTERNS.some((pattern) => pattern.test(line))) {
       findings.push(`${path.relative(ROOT, file)}:${index + 1}: ${line.trim()}`);
     }
   });
