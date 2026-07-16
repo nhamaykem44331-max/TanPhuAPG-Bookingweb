@@ -12,8 +12,10 @@
     "test:watch": "tsx --test --watch \"lib/**/*.test.ts\" \"app/**/*.test.ts\" \"components/**/*.test.tsx\"",
     "lint": "next lint",
     "check:text": "node scripts/check-text-encoding.js",
-    "db:migrate:dev": "dotenv -e .env.local -- prisma migrate dev",
+    "db:migrate:dev": "node scripts/db-guarded.js migrate dev",
     "db:migrate:deploy": "dotenv -e .env.local -- prisma migrate deploy",
+    "db:push": "node scripts/db-guarded.js db push",
+    "db:reset": "node scripts/db-guarded.js migrate reset",
     "db:seed": "dotenv -e .env.local -- prisma db seed",
     "db:studio": "dotenv -e .env.local -- prisma studio",
     "db:generate": "dotenv -e .env.local -- prisma generate"
