@@ -1,23 +1,49 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { PHONE_DISPLAY, PHONE_E164, ZALO_URL } from '@/lib/site';
 
-// Nút hỗ trợ nổi (Zalo + gọi hotline). Gộp thành 1 nút bấm-mở để không che nút "Chọn".
+// Nút hỗ trợ nổi (Zalo + gọi hotline + trợ lý AI). Gộp thành 1 nút bấm-mở để không che nút "Chọn".
 // Ẩn ở /dat-cho và /booking/payment: 2 màn này có footer CTA cao (dễ bị che) và đã có
 // hotline/Zalo ngay trong ngữ cảnh. Ẩn khi in (print:hidden). Thông tin từ lib/site.ts.
 const HIDE_ON = ['/dat-cho', '/booking/payment'];
 
+// Widget chat chỉ hiện khi bật NEXT_PUBLIC_CHATBOT_WIDGET=1 (inline lúc build) — cho phép
+// deploy code trước, bật sau. Nạp lười (ssr:false + chỉ render khi mở) để không thêm JS
+// vào initial load các trang đã tune PageSpeed.
+const CHAT_ENABLED = process.env.NEXT_PUBLIC_CHATBOT_WIDGET === '1';
+const ChatWidget = dynamic(() => import('@/components/chat/ChatWidget'), { ssr: false });
+
 export default function FloatingSupport() {
   const pathname = usePathname() || '';
   const [open, setOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
   if (HIDE_ON.some((p) => pathname.startsWith(p))) return null;
+
+  if (chatOpen) return <ChatWidget onClose={() => setChatOpen(false)} />;
 
   return (
     <div data-floating-support="" className="fixed right-4 bottom-6 z-40 flex flex-col items-end gap-2.5 print:hidden sm:right-6">
       {open && (
         <>
+          {CHAT_ENABLED && (
+            <button
+              type="button"
+              aria-label="Chat với trợ lý AI của Tân Phú APG"
+              title="Trợ lý AI"
+              onClick={() => { setChatOpen(true); setOpen(false); }}
+              className="flex items-center justify-center rounded-full text-white shadow-[0_8px_20px_rgba(191,144,0,0.4)] transition hover:scale-105 active:scale-95"
+              style={{ background: 'linear-gradient(135deg, #C9A227, #9C7A14)', height: 48, width: 48 }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 8V4H8" />
+                <rect width="16" height="12" x="4" y="8" rx="2" />
+                <path d="M2 14h2M20 14h2M15 13v2M9 13v2" />
+              </svg>
+            </button>
+          )}
           <a
             href={ZALO_URL}
             target="_blank"
