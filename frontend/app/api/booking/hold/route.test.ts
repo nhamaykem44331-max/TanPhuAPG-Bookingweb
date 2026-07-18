@@ -96,6 +96,8 @@ const mockFlight = {
     class: "E",
     cabinClass: "Eco",
     fareBasis: "B1_ECO",
+    carryOnText: "10kg xách tay",
+    checkedBaggageText: "1 kiện / 23kg",
   },
 };
 
@@ -608,12 +610,16 @@ test("4. Public real hold không cần admin session và vẫn tạo Booking web
       channel: true,
       createdById: true,
       pnr: true,
+      namthanhRawJson: true,
     },
   });
 
   assert.equal(booking.channel, "web");
   assert.equal(booking.createdById, null);
   assert.ok(booking.pnr);
+  const raw = booking.namthanhRawJson as { quote?: { legs?: Array<Record<string, unknown>> } } | null;
+  assert.equal(raw?.quote?.legs?.[0]?.baggageChecked, "1 kiện / 23kg");
+  assert.equal(raw?.quote?.legs?.[0]?.baggageCarryOn, "10kg xách tay");
 
   await cleanupHoldArtifacts(idempotencyKey);
 });

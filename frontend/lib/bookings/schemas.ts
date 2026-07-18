@@ -119,6 +119,8 @@ export const holdFlightSelectionSchema = z.object({
       class: z.string().trim().max(20).optional(),
       cabinClass: z.string().trim().max(40).optional(),
       fareBasis: z.string().trim().max(40).optional(),
+      carryOnText: z.string().trim().max(120).optional(),
+      checkedBaggageText: z.string().trim().max(120).optional(),
     })
     .optional(),
 });

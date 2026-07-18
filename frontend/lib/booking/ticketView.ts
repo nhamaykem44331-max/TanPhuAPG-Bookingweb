@@ -2,6 +2,7 @@
 // Dùng chung cho trang thanh toán và API tra cứu đơn để không lệch logic.
 
 import { derivePassengerTitle, type PassengerKind, type PassengerTitle } from "@/lib/bookings/passengerTitle";
+import type { TicketSourceLeg } from "@/lib/ticket/bookingToTicketProps";
 
 export interface QuoteLeg {
   legKey?: string;
@@ -9,6 +10,8 @@ export interface QuoteLeg {
   airline?: string;
   cabin?: string;
   fareClass?: string;
+  baggageChecked?: string;
+  baggageCarryOn?: string;
   departureAt?: string;
   arrivalAt?: string;
   domesticInternational?: string;
@@ -57,10 +60,26 @@ export interface PaymentItineraryLeg {
   departureAt: string | null;
   arrivalAt: string | null;
   cabin: string | null;
+  baggageChecked: string | null;
+  baggageCarryOn: string | null;
   pnr: string | null;
   pnrStatus: string | null;
   pnrTimelimit: string | null;
 }
+
+type TicketSourceLegInput = Pick<
+  PaymentItineraryLeg,
+  | "legKey"
+  | "airline"
+  | "flightNumber"
+  | "from"
+  | "to"
+  | "departureAt"
+  | "arrivalAt"
+  | "cabin"
+  | "baggageChecked"
+  | "baggageCarryOn"
+>;
 
 export interface TicketViewPassenger {
   type: string;
@@ -129,6 +148,8 @@ export function buildTicketView(booking: BookingViewInput): {
           departureAt: leg.departureAt ?? null,
           arrivalAt: leg.arrivalAt ?? null,
           cabin: leg.fareClass || leg.cabin || null,
+          baggageChecked: leg.baggageChecked ?? null,
+          baggageCarryOn: leg.baggageCarryOn ?? null,
           pnr: matchingPnr?.pnr ?? null,
           pnrStatus: matchingPnr?.status ?? null,
           pnrTimelimit: matchingPnr?.timelimit?.toISOString() ?? null,
@@ -147,6 +168,8 @@ export function buildTicketView(booking: BookingViewInput): {
           departureAt: p.departAt?.toISOString() ?? null,
           arrivalAt: null,
           cabin: null,
+          baggageChecked: null,
+          baggageCarryOn: null,
           pnr: p.pnr,
           pnrStatus: p.status,
           pnrTimelimit: p.timelimit?.toISOString() ?? null,
@@ -166,4 +189,19 @@ export function buildTicketView(booking: BookingViewInput): {
   });
 
   return { itinerary, passengers };
+}
+
+export function toTicketSourceLegs(itinerary: TicketSourceLegInput[]): TicketSourceLeg[] {
+  return itinerary.map((leg, index) => ({
+    direction: leg.legKey === "inbound" || index > 0 ? "return" : "outbound",
+    airline: leg.airline,
+    flightNumber: leg.flightNumber,
+    from: leg.from,
+    to: leg.to,
+    departureAt: leg.departureAt,
+    arrivalAt: leg.arrivalAt,
+    cabin: leg.cabin,
+    baggageChecked: leg.baggageChecked,
+    baggageCarryOn: leg.baggageCarryOn,
+  }));
 }

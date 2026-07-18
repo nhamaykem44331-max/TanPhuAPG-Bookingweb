@@ -444,6 +444,8 @@ function serializeQuote(quote: QuoteServiceResult) {
       route: leg.route,
       fareClass: leg.fareClass,
       cabin: leg.cabin,
+      baggageChecked: leg.baggageChecked,
+      baggageCarryOn: leg.baggageCarryOn,
       paxType: leg.paxType,
       domesticInternational: leg.domesticInternational,
       netPrice: leg.netPrice.toFixed(0),
