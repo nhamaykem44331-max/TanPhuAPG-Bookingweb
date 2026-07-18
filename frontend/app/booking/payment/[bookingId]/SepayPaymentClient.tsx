@@ -5,7 +5,8 @@ import Link from "next/link";
 import SiteGlobeHeader from "@/components/SiteGlobeHeader";
 import BookingStepper from "@/components/BookingStepper";
 import DownloadableTicket from "@/components/ticket/DownloadableTicket";
-import { bookingToTicketProps, type AirportName, type TicketSourceLeg } from "@/lib/ticket/bookingToTicketProps";
+import { bookingToTicketProps, type AirportName } from "@/lib/ticket/bookingToTicketProps";
+import { toTicketSourceLegs } from "@/lib/booking/ticketView";
 import { isRealPnr, friendlyPnrIssue } from "@/lib/booking/pnrDisplay";
 import { TAX_ID } from "@/lib/site";
 import { useAirports } from "@/lib/useAirports";
@@ -19,9 +20,11 @@ interface ItineraryLeg {
   from: string | null;
   to: string | null;
   departureAt: string | null;
-  arrivalAt: string | null;
-  cabin: string | null;
-  pnr: string | null;
+    arrivalAt: string | null;
+    cabin: string | null;
+    baggageChecked: string | null;
+    baggageCarryOn: string | null;
+    pnr: string | null;
   pnrStatus: string | null;
   pnrTimelimit: string | null;
 }
@@ -280,20 +283,7 @@ export function SepayPaymentClient({ booking, initialIntent, payLater = false }:
     return m;
   }, [airports]);
 
-  const ticketLegs = useMemo<TicketSourceLeg[]>(
-    () =>
-      booking.itinerary.map((l) => ({
-        direction: l.legKey === "inbound" || l.legLabel.includes("về") ? "return" : "outbound",
-        airline: l.airline,
-        flightNumber: l.flightNumber,
-        from: l.from,
-        to: l.to,
-        departureAt: l.departureAt,
-        arrivalAt: l.arrivalAt,
-        cabin: l.cabin,
-      })),
-    [booking.itinerary],
-  );
+    const ticketLegs = useMemo(() => toTicketSourceLegs(booking.itinerary), [booking.itinerary]);
 
   const paidTicket = useMemo(
     () =>

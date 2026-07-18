@@ -9,8 +9,8 @@ import {
   bookingToTicketProps,
   type AirportName,
   type TicketSource,
-  type TicketSourceLeg,
 } from "@/lib/ticket/bookingToTicketProps";
+import { toTicketSourceLegs } from "@/lib/booking/ticketView";
 import { useAirports } from "@/lib/useAirports";
 
 interface LookupItineraryLeg {
@@ -24,6 +24,8 @@ interface LookupItineraryLeg {
   departureAt: string | null;
   arrivalAt: string | null;
   cabin: string | null;
+  baggageChecked: string | null;
+  baggageCarryOn: string | null;
   pnr: string | null;
 }
 
@@ -70,19 +72,6 @@ function formatDeadline(iso: string | null): string {
     minute: "2-digit",
     timeZone: "Asia/Ho_Chi_Minh",
   }).format(new Date(iso));
-}
-
-function toTicketLegs(itinerary: LookupItineraryLeg[]): TicketSourceLeg[] {
-  return itinerary.map((l) => ({
-    direction: l.legKey === "inbound" || l.legLabel.includes("về") ? "return" : "outbound",
-    airline: l.airline,
-    flightNumber: l.flightNumber,
-    from: l.from,
-    to: l.to,
-    departureAt: l.departureAt,
-    arrivalAt: l.arrivalAt,
-    cabin: l.cabin,
-  }));
 }
 
 export default function LookupClient() {
@@ -201,7 +190,7 @@ function ResultView({ result, airportNames }: { result: LookupResult; airportNam
     );
   }
 
-  const legs = toTicketLegs(result.itinerary);
+  const legs = toTicketSourceLegs(result.itinerary);
 
   let source: TicketSource;
   let canDownload = true;

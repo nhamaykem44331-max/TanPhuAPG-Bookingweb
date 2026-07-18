@@ -47,6 +47,8 @@ export interface QuoteLegBreakdown {
   route: string;
   fareClass: string | null;
   cabin: string | null;
+  baggageChecked?: string | null;
+  baggageCarryOn?: string | null;
   paxType: string | null;
   domesticInternational: string | null;
   netPrice: prismaClient.Prisma.Decimal;
@@ -470,6 +472,8 @@ async function quoteLeg(input: {
     route,
     fareClass,
     cabin,
+    baggageChecked: quotedFlight.namthanh?.checkedBaggageText || input.flight.namthanh?.checkedBaggageText || null,
+    baggageCarryOn: quotedFlight.namthanh?.carryOnText || input.flight.namthanh?.carryOnText || null,
     paxType,
     domesticInternational,
     netPrice,
