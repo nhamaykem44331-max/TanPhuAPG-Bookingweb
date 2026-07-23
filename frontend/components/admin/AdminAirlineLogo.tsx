@@ -12,6 +12,8 @@ interface AdminAirlineLogoProps {
   size?: number;
 }
 
+// Màu thương hiệu hãng bay — đây là DỮ LIỆU nhận diện hãng, không phải token giao diện,
+// nên vẫn là hex (giống bảng AIRLINES của Manager). Mọi màu nền/viền/chữ khác đều qua token.
 const AIRLINE_COLORS: Record<string, string> = {
   VN: "#004b8d",
   VJ: "#e3001b",
@@ -30,12 +32,13 @@ export function AdminAirlineLogo({ code, airline, logo, size = 22 }: AdminAirlin
   const [imgFailed, setImgFailed] = useState(false);
   const meta = getAirlineMeta(code ?? undefined, airline ?? undefined, logo ?? undefined);
   const displayCode = (meta.code || code || airline || "BK").slice(0, 2).toUpperCase();
-  const color = AIRLINE_COLORS[displayCode] || "#5e7288";
+  const color = AIRLINE_COLORS[displayCode] || "var(--ink2)";
 
   useEffect(() => {
     setImgFailed(false);
   }, [code, airline, logo, meta.logo]);
 
+  // Khung logo theo Manager (`ui.tsx` → AirlineLogo): bo 8px, viền --line, nền --paper, đệm 3px.
   if (meta.logo && !imgFailed) {
     return (
       <Image
@@ -43,7 +46,7 @@ export function AdminAirlineLogo({ code, airline, logo, size = 22 }: AdminAirlin
         alt={meta.name || displayCode}
         width={size}
         height={size}
-        className="admin-airline-logo shrink-0 rounded-md border border-[var(--apg-border-default)] bg-white object-contain p-0.5"
+        className="admin-airline-logo shrink-0 rounded-[8px] border border-[var(--line)] bg-[var(--paper)] object-contain p-[3px]"
         unoptimized
         referrerPolicy="no-referrer"
         style={{ width: size, height: size }}
@@ -52,10 +55,18 @@ export function AdminAirlineLogo({ code, airline, logo, size = 22 }: AdminAirlin
     );
   }
 
+  // Rơi về chip chữ: nền/viền pha loãng từ màu hãng nên tự hợp cả theme Ngày lẫn Đêm.
   return (
     <span
-      className="admin-airline-logo-fallback inline-flex shrink-0 items-center justify-center rounded-md text-[9px] font-black text-white"
-      style={{ width: size, height: size, backgroundColor: color }}
+      className="admin-airline-logo-fallback inline-flex shrink-0 items-center justify-center rounded-[8px] border font-bold tracking-[0.3px]"
+      style={{
+        width: size,
+        height: size,
+        fontSize: Math.max(9, Math.round(size * 0.32)),
+        color,
+        background: `color-mix(in srgb, ${color} 12%, var(--paper))`,
+        borderColor: `color-mix(in srgb, ${color} 35%, transparent)`,
+      }}
     >
       {displayCode}
     </span>

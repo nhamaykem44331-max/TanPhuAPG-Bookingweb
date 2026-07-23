@@ -1,5 +1,9 @@
-import { MiniChip } from "@/components/admin/ui/Chip";
+import { RefreshCw, Send } from "lucide-react";
+
+import { Btn } from "@/components/admin/ui/Btn";
+import { Chip } from "@/components/admin/ui/Chip";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
+import { Panel } from "@/components/admin/ui/Panel";
 import { formatRoute, formatVnd } from "@/lib/admin/ui/format";
 import type { Tone } from "@/lib/admin/ui/tones";
 import { RMS_HANDOFF_ROLES } from "@/lib/auth/constants";
@@ -59,67 +63,88 @@ export default async function AdminHandoffPage() {
     {
       key: "pnr",
       header: "PNR",
-      width: "100px",
+      width: "104px",
+      // PNR là mã → mono theo quy ước Manager.
       render: (row) => (
-        <span className="ofly-sans text-[13px] font-semibold tracking-[1px] text-[var(--rust)]">{row.pnr ?? "—"}</span>
+        <span className="ofly-num text-[13px] font-semibold text-[var(--rust)]">{row.pnr ?? "—"}</span>
       ),
     },
     {
       key: "route",
       header: "CHẶNG",
       width: "minmax(0,1.2fr)",
-      render: (row) => <span className="ofly-serif text-[15px] font-medium">{formatRoute(row.route)}</span>,
+      // Chặng là mã sân bay → mono giãn chữ như Route của Manager; serif chỉ dành cho tiêu đề.
+      render: (row) => (
+        <span className="ofly-num text-[13.5px] font-medium tracking-[0.5px] text-[var(--ink)]">
+          {formatRoute(row.route)}
+        </span>
+      ),
     },
     {
       key: "net",
       header: "NET",
-      width: "130px",
-      render: (row) => <span className="text-[13px]">{formatVnd(row.net)}</span>,
+      width: "132px",
+      align: "right",
+      render: (row) => <span className="ofly-num text-[13px] text-[var(--ink2)]">{formatVnd(row.net)}</span>,
     },
     {
       key: "markup",
       header: "MARKUP",
-      width: "120px",
-      render: (row) => <span className="text-[13px] text-[var(--rust)]">+{formatVnd(row.markup)}</span>,
+      width: "124px",
+      align: "right",
+      render: (row) => (
+        <span className="ofly-num text-[13px] font-semibold text-[var(--rust)]">+{formatVnd(row.markup)}</span>
+      ),
     },
     {
       key: "sale",
       header: "KHÁCH TRẢ",
-      width: "130px",
-      render: (row) => <span className="ofly-serif text-[15px] font-medium">{formatVnd(row.sale)}</span>,
+      width: "142px",
+      align: "right",
+      // Số tiền khách trả là cột chốt của bảng → mono đậm màu --ink.
+      render: (row) => (
+        <span className="ofly-num text-[14px] font-bold text-[var(--ink)]">{formatVnd(row.sale)}</span>
+      ),
     },
     {
       key: "rms",
       header: "RMS",
-      width: "130px",
+      width: "152px",
       render: (row) => {
         const chip = rmsChip(row);
-        return <MiniChip tone={chip.tone}>{chip.label}</MiniChip>;
+        return <Chip tone={chip.tone}>{chip.label}</Chip>;
       },
     },
   ];
 
   return (
-    <div>
-      <div className="mb-[22px] flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-        <p className="max-w-[520px] text-[14px] leading-[1.6] text-[var(--ink-soft)]">
-          Đơn đã xuất vé được bàn giao sang <strong className="font-semibold text-[var(--ink)]">RMS</strong> để hạch
-          toán net/giá bán/markup. Trang web chỉ giữ vai trò vận hành kênh bán.
-        </p>
-        <button
-          type="button"
-          className="w-full shrink-0 rounded-[8px] border border-[var(--rust)] bg-[var(--rust)] px-[18px] py-[11px] text-[13px] font-semibold text-[#F5F1EA] sm:w-auto"
-        >
-          Đồng bộ sang RMS
-        </button>
-      </div>
+    <div className="flex flex-col gap-3">
+      <Panel className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span
+            className="mt-[1px] flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[8px] bg-[var(--rustTint)] text-[var(--rust)]"
+            aria-hidden="true"
+          >
+            <Send size={17} strokeWidth={1.5} />
+          </span>
+          <p className="max-w-[520px] text-[13.5px] leading-[1.6] text-[var(--ink2)]">
+            Đơn đã xuất vé được bàn giao sang <strong className="font-semibold text-[var(--ink)]">RMS</strong> để hạch
+            toán net/giá bán/markup. Trang web chỉ giữ vai trò vận hành kênh bán.
+          </p>
+        </div>
+        {/* Bọc div để nút full-width trên mobile (44px vùng bấm) nhưng co lại theo chữ từ sm trở lên */}
+        <div className="w-full shrink-0 sm:w-auto">
+          <Btn variant="rust" full icon={<RefreshCw size={16} strokeWidth={1.5} aria-hidden="true" />}>
+            Đồng bộ sang RMS
+          </Btn>
+        </div>
+      </Panel>
 
       <DataTable
         columns={columns}
         rows={rows}
         getRowKey={(row) => row.id}
         empty="Chưa có đơn nào cần bàn giao sang RMS."
-        className="overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface)]"
       />
     </div>
   );

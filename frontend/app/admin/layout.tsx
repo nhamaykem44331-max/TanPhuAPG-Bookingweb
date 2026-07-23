@@ -1,13 +1,13 @@
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Fraunces, Inter } from "next/font/google";
+import { Be_Vietnam_Pro, Fraunces, JetBrains_Mono } from "next/font/google";
 import { BookingStatus, PaymentIntentStatus } from "@prisma/client";
 
 import { auth, signOut } from "@/auth";
 import { AdminShell } from "@/components/admin/shell/AdminShell";
 import type { OflyTheme } from "@/components/admin/shell/theme-context";
-import { navGroupsForRole, type AdminNavKey } from "@/lib/admin/nav";
+import { adminNavForRole, type AdminNavKey } from "@/lib/admin/nav";
 import { bookingListWhereForRole, type OwnershipContext } from "@/lib/auth/ownership";
 import { getRoleLabel } from "@/lib/auth/constants";
 import { getCurrentUserById } from "@/lib/auth/sessionUser";
@@ -19,11 +19,12 @@ interface AdminLayoutProps {
   children: ReactNode;
 }
 
-// OpenFly typography (HANDOFF I.3): Fraunces (serif: display/headline/số/giá/PNR/route)
-// + Inter (sans: UI/body/bảng). Biến CSS được inject toàn document; className chỉ scope.
-const oflySans = Inter({
+// Typography skin Tân Phú APG — ĐÚNG 3 font của Manager:
+// Be Vietnam Pro (sans: UI/body/bảng) · Fraunces (serif: headline/số lớn)
+// · JetBrains Mono (mono: PNR/mã/tiền trong ô KPI).
+const oflySans = Be_Vietnam_Pro({
   subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600"],
+  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-ofly-sans",
   display: "swap",
 });
@@ -33,6 +34,13 @@ const oflySerif = Fraunces({
   weight: ["400", "500", "600"],
   style: ["normal", "italic"],
   variable: "--font-ofly-serif",
+  display: "swap",
+});
+
+const oflyMono = JetBrains_Mono({
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "700"],
+  variable: "--font-ofly-mono",
   display: "swap",
 });
 
@@ -79,7 +87,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   const ownership: OwnershipContext = { userId: user.id, role: user.role };
-  const groups = navGroupsForRole(user.role);
+  const nav = adminNavForRole(user.role);
   const badges = await computeBadges(ownership);
 
   const themeCookie = cookies().get("ofly-theme")?.value;
@@ -87,6 +95,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
 
   const shellUser = {
     fullName: user.fullName,
+    email: user.email,
     roleLabel: getRoleLabel(user.role),
     initial: user.fullName?.trim()?.[0]?.toUpperCase() ?? "A",
   };
@@ -94,10 +103,10 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <AdminShell
       user={shellUser}
-      groups={groups}
+      nav={nav}
       badges={badges}
       initialTheme={initialTheme}
-      fontClassName={`${oflySans.variable} ${oflySerif.variable}`}
+      fontClassName={`${oflySans.variable} ${oflySerif.variable} ${oflyMono.variable}`}
       logoutAction={logoutAction}
     >
       {children}

@@ -1,7 +1,12 @@
 "use client";
 
-import Link from "next/link";
+import { ArrowLeft, RotateCcw } from "lucide-react";
 import { useEffect } from "react";
+
+import { Btn, ButtonLink } from "@/components/admin/ui/Btn";
+import { SectionTitle } from "@/components/admin/ui/PageHead";
+import { Panel } from "@/components/admin/ui/Panel";
+import { toneVars } from "@/lib/admin/ui/tones";
 
 interface MarkupRulesErrorProps {
   error: Error & { digest?: string };
@@ -14,39 +19,49 @@ export default function MarkupRulesError({ error, reset }: MarkupRulesErrorProps
   }, [error]);
 
   const message = error.message || "Đã có lỗi không xác định khi xử lý markup rule.";
+  // Khối chi tiết lỗi lấy màu từ tone red → đọc được ở cả giao diện Ngày và Đêm.
+  const danger = toneVars("red");
 
   return (
-    <section className="apg-admin-sheet space-y-4 p-6">
-      <div className="space-y-1">
-        <h2 className="text-base font-semibold text-[var(--apg-text-primary)]">
-          Có lỗi khi xử lý markup rule
-        </h2>
-        <p className="text-sm text-[var(--apg-text-secondary)]">
+    <Panel className="space-y-[16px]">
+      <div>
+        <SectionTitle>Có lỗi khi xử lý markup rule</SectionTitle>
+        <p className="mt-[10px] max-w-[620px] text-[13.5px] leading-[1.6] text-[var(--ink3)]">
           Hệ thống đã bắt được lỗi và không làm crash trang. Bạn có thể thử lại,
           quay về danh sách, hoặc xem chi tiết kỹ thuật bên dưới.
         </p>
       </div>
 
-      <div className="rounded-lg border border-[color:rgba(200,76,58,0.25)] bg-[color:rgba(200,76,58,0.06)] px-4 py-3">
-        <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-danger)]">
+      <div
+        className="rounded-[10px] border px-[16px] py-[13px]"
+        style={{ background: danger.bg, borderColor: danger.bd }}
+      >
+        <div
+          className="text-[10.5px] font-semibold uppercase leading-none tracking-[1.2px]"
+          style={{ color: danger.fg }}
+        >
           Chi tiết lỗi
         </div>
-        <p className="mt-2 break-words text-sm text-[var(--apg-text-primary)]">{message}</p>
+        <p className="mt-[9px] break-words text-[13.5px] leading-[1.55] text-[var(--ink2)]">{message}</p>
         {error.digest ? (
-          <p className="mt-1 text-xs text-[var(--apg-text-muted)]">
-            Mã lỗi: <span className="apg-mono font-semibold">{error.digest}</span>
+          <p className="mt-[6px] text-[12px] text-[var(--ink3)]">
+            Mã lỗi: <span className="ofly-num font-semibold text-[var(--ink2)]">{error.digest}</span>
           </p>
         ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <button className="apg-btn-primary px-4" onClick={reset} type="button">
-          ↺ Thử lại
-        </button>
-        <Link className="apg-btn-secondary inline-flex items-center justify-center px-4" href="/admin/markup-rules">
-          ← Về danh sách rule
-        </Link>
+      <div className="flex flex-wrap gap-[10px]">
+        <Btn variant="rust" onClick={reset} type="button" icon={<RotateCcw size={15} strokeWidth={1.5} />}>
+          Thử lại
+        </Btn>
+        <ButtonLink
+          href="/admin/markup-rules"
+          variant="ghost"
+          icon={<ArrowLeft size={15} strokeWidth={1.5} />}
+        >
+          Về danh sách rule
+        </ButtonLink>
       </div>
-    </section>
+    </Panel>
   );
 }

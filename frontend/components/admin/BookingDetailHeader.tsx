@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
 
+import { Btn, ButtonLink } from "@/components/admin/ui/Btn";
+import { MiniChip, StatusChip } from "@/components/admin/ui/Chip";
+import { Panel, Eyebrow } from "@/components/admin/ui/Panel";
+import { StatTile } from "@/components/admin/ui/Stat";
 import type { PaymentSummary } from "@/lib/booking/paymentSummary";
 import type { AdminBookingCore } from "@/lib/bookings/admin";
 
@@ -32,20 +36,14 @@ function formatDateTime(value: Date | null): string {
   }).format(value);
 }
 
-function statusClassName(status: string): string {
-  if (status === "TICKETED") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  if (status === "HELD") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (status === "CANCELLED" || status === "PAYMENT_FAILED" || status === "EXPIRED") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
-  }
-
-  return "border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] text-[var(--apg-text-secondary)]";
+// Dòng "nhãn · giá trị" trong khối tóm tắt nghiệp vụ.
+function MetaRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 border-b border-[var(--line)] py-[8px] last:border-b-0">
+      <span className="text-[12.5px] text-[var(--ink3)]">{label}</span>
+      <span className="text-[13px] font-semibold text-[var(--ink)]">{value}</span>
+    </div>
+  );
 }
 
 export function BookingDetailHeader({
@@ -60,96 +58,88 @@ export function BookingDetailHeader({
     paymentSummary.balance <= 0 ? "Đã đủ tiền" : `Còn thiếu ${formatCurrency(paymentSummary.balance, booking.currency)}`;
 
   return (
-    <section className="apg-admin-sheet overflow-hidden">
-      <div className="grid gap-0 xl:grid-cols-[minmax(0,1.55fr)_380px]">
-        <div className="px-5 py-6 lg:px-6">
-          <p className="apg-eyebrow">Booking Detail</p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--apg-aviation-navy-deep)] text-sm font-semibold tracking-[0.08em] text-white shadow-sm">
+    <Panel padded={false} className="overflow-hidden">
+      <div className="grid gap-0 xl:grid-cols-[minmax(0,1.55fr)_360px]">
+        <div className="px-[24px] py-[22px]">
+          <Eyebrow>Chi tiết đơn</Eyebrow>
+
+          <div className="mt-[14px] flex flex-wrap items-center gap-3">
+            {/* Ô mã hãng: khối navy đặc — chữ trắng là ngoại lệ hex duy nhất được phép (§1). */}
+            <div
+              className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-[10px] text-[14px] font-bold tracking-[0.5px]"
+              style={{ background: "var(--gradNavy)", color: "#FFFFFF" }}
+            >
               {(booking.airline || "PN").slice(0, 2)}
             </div>
-            <div>
-              <h2 className="text-3xl font-semibold tracking-tight text-[var(--apg-aviation-navy-deep)]">{booking.orderCode}</h2>
-              <p className="mt-1 text-sm text-[var(--apg-text-secondary)]">Booking ID: {booking.id} · PNR chính: {booking.pnr || "PENDING"}</p>
+            <div className="min-w-0">
+              <h2 className="ofly-serif m-0 text-[30px] font-medium leading-none tracking-[-1.2px] text-[var(--ink)]">
+                <span className="ofly-num">{booking.orderCode}</span>
+              </h2>
+              <p className="m-0 mt-[8px] text-[12.5px] text-[var(--ink3)]">
+                Booking ID: <span className="ofly-num">{booking.id}</span> · PNR chính:{" "}
+                <span className="ofly-num text-[var(--rust)]">{booking.pnr || "PENDING"}</span>
+              </p>
             </div>
-            <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold ${statusClassName(booking.status)}`}>
-              {booking.status}
-            </span>
-            {accessBadge ? (
-              <span className="inline-flex items-center rounded-full border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-1 text-sm font-semibold text-[var(--apg-text-secondary)]">
-                {accessBadge}
-              </span>
-            ) : null}
+            <StatusChip status={booking.status} />
+            {accessBadge ? <MiniChip tone="muted">{accessBadge}</MiniChip> : null}
           </div>
 
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--apg-text-secondary)]">
+          <p className="m-0 mt-[14px] max-w-[620px] text-[13px] leading-[1.6] text-[var(--ink3)]">
             Từ màn này anh có thể kiểm tra trạng thái booking, tình hình thu tiền, timeline tác nghiệp và các dữ liệu snapshot đã lưu khi
             hold hoặc issue.
           </p>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="apg-admin-stat px-4 py-4">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Hành trình</div>
-              <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{booking.routeSummary}</div>
-            </div>
-
-            <div className="apg-admin-stat px-4 py-4">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Ngày tạo</div>
-              <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{formatDateTime(booking.createdAt)}</div>
-            </div>
-
-            <div className="apg-admin-stat px-4 py-4">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Đã thu</div>
-              <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">
-                {formatCurrency(paymentSummary.totalPaid, booking.currency)}
-              </div>
-            </div>
-
-            <div className="apg-admin-stat px-4 py-4">
-              <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Công nợ</div>
-              <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{balanceText}</div>
-            </div>
+          <div className="mt-[18px] grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <StatTile label="Hành trình" value={booking.routeSummary} minWidth={0} />
+            <StatTile label="Ngày tạo" value={formatDateTime(booking.createdAt)} minWidth={0} />
+            <StatTile label="Đã thu" value={formatCurrency(paymentSummary.totalPaid, booking.currency)} tone="green" minWidth={0} />
+            <StatTile
+              label="Công nợ"
+              value={balanceText}
+              tone={paymentSummary.balance <= 0 ? "plain" : "amber"}
+              minWidth={0}
+            />
           </div>
         </div>
 
-        <div className="border-t border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(233,238,242,0.95),rgba(255,255,255,0.98))] px-5 py-5 xl:border-l xl:border-t-0">
-          <div className="space-y-3">
-            <div className="apg-admin-stat px-4 py-4">
-              <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Tác vụ chính</div>
+        <div className="border-t border-[var(--line)] bg-[var(--paper2)] px-[20px] py-[20px] xl:border-l xl:border-t-0">
+          <div className="flex flex-col gap-3">
+            <div className="rounded-[12px] border border-[var(--line)] bg-[var(--paper)] px-[16px] py-[14px]">
+              <Eyebrow>Tác vụ chính</Eyebrow>
               <div className="mt-3 flex flex-col gap-3">
                 {paymentFormEnabled ? (
-                  <a className="apg-btn-secondary block w-full text-center" href="#payment-qr">
-                    Mở QR & payment
-                  </a>
+                  <ButtonLink href="#payment-qr" variant="ghost" full>
+                    Mở QR &amp; payment
+                  </ButtonLink>
                 ) : (
-                  <button className="apg-btn-secondary w-full opacity-60" disabled type="button">
+                  <Btn variant="ghost" full disabled>
                     Ghi nhận thanh toán
-                  </button>
+                  </Btn>
                 )}
                 {issueAction ?? (
-                  <button className="apg-btn-secondary w-full opacity-60" disabled type="button">
+                  <Btn variant="ghost" full disabled>
                     Xuất vé
-                  </button>
+                  </Btn>
                 )}
                 {cancelAction ?? (
-                  <button className="apg-btn-secondary w-full opacity-60" disabled type="button">
+                  <Btn variant="ghost" full disabled>
                     Hủy booking
-                  </button>
+                  </Btn>
                 )}
               </div>
             </div>
 
-            <div className="apg-admin-stat px-4 py-4">
-              <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Tóm tắt nghiệp vụ</div>
-              <div className="mt-3 space-y-2 text-sm text-[var(--apg-text-secondary)]">
-                <div>Kênh: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{booking.channel}</span></div>
-                <div>Nguồn: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{booking.source}</span></div>
-                <div>Trạng thái hiện tại: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{booking.status}</span></div>
+            <div className="rounded-[12px] border border-[var(--line)] bg-[var(--paper)] px-[16px] py-[14px]">
+              <Eyebrow>Tóm tắt nghiệp vụ</Eyebrow>
+              <div className="mt-2">
+                <MetaRow label="Kênh" value={booking.channel} />
+                <MetaRow label="Nguồn" value={booking.source} />
+                <MetaRow label="Trạng thái hiện tại" value={<StatusChip status={booking.status} dot={false} />} />
               </div>
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </Panel>
   );
 }

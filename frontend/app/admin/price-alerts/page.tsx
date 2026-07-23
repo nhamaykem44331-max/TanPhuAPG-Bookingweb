@@ -1,7 +1,13 @@
 import { PriceAlertStatus } from "@prisma/client";
-import Link from "next/link";
+import { Plus } from "lucide-react";
 
 import { PriceAlertTable } from "@/components/admin/PriceAlertTable";
+import { Btn, ButtonLink } from "@/components/admin/ui/Btn";
+import { Field, Input, Select } from "@/components/admin/ui/Field";
+import { Panel } from "@/components/admin/ui/Panel";
+import { StatCard, StatTile } from "@/components/admin/ui/Stat";
+import { formatNumber } from "@/lib/admin/ui/format";
+import { toneVars } from "@/lib/admin/ui/tones";
 import { ADMIN_ROLES, PRICE_ALERT_MANAGER_ROLES } from "@/lib/auth/constants";
 import { requireRole } from "@/lib/auth/requireRole";
 import { listPriceAlerts } from "@/lib/price-alerts/admin";
@@ -55,109 +61,131 @@ export default async function PriceAlertsPage({ searchParams }: PriceAlertsPageP
     }).filter((entry) => entry[1]),
   );
 
+  // ButtonLink chỉ nhận href dạng chuỗi → dựng sẵn query string cho 2 nút phân trang.
+  function pageHref(offset: number): string {
+    const params = new URLSearchParams(baseQuery as Record<string, string>);
+    params.set("offset", String(offset));
+    return `/admin/price-alerts?${params.toString()}`;
+  }
+
   return (
-    <section className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-base font-semibold text-[var(--apg-text-primary)]">Price Alerts</h1>
-          <p className="mt-1 text-sm text-[var(--apg-text-secondary)]">
-            Theo dõi ngưỡng giá theo chặng bay, trigger AuditLog và gửi cảnh báo nội bộ.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-md border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-3 py-2 text-sm text-[var(--apg-text-secondary)]">
-            Tổng: {result.total} alert
-          </span>
+    <div>
+      {/* Topbar của AdminShell đã đóng vai PageHead (eyebrow + h1) → đây chỉ là dòng mô tả + hành động. */}
+      <div className="mb-[22px] flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+        <p className="max-w-[520px] text-[14px] leading-[1.6] text-[var(--ink3)]">
+          Theo dõi ngưỡng giá theo chặng bay, trigger AuditLog và gửi cảnh báo nội bộ.
+        </p>
+        <div className="flex flex-wrap items-center gap-[10px]">
+          <StatTile label="Tổng" value={formatNumber(result.total)} sub="alert" />
           {canManage ? (
-            <Link className="apg-btn-primary inline-flex items-center justify-center px-4" href="/admin/price-alerts/new">
-              + Tạo alert
-            </Link>
+            <ButtonLink
+              href="/admin/price-alerts/new"
+              variant="rust"
+              icon={<Plus size={16} strokeWidth={1.9} />}
+            >
+              Tạo alert
+            </ButtonLink>
           ) : null}
         </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <div className="apg-admin-stat px-4 py-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--apg-text-muted)]">Active</div>
-          <div className="apg-tabular mt-3 text-3xl font-semibold text-lime-300">{activeCount}</div>
-        </div>
-        <div className="apg-admin-stat px-4 py-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--apg-text-muted)]">Triggered</div>
-          <div className="apg-tabular mt-3 text-3xl font-semibold text-amber-300">{triggeredCount}</div>
-        </div>
-        <div className="apg-admin-stat px-4 py-4">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--apg-text-muted)]">Disabled</div>
-          <div className="apg-tabular mt-3 text-3xl font-semibold text-rose-300">{disabledCount}</div>
-        </div>
+        <StatCard
+          label="Active"
+          value={<span style={{ color: "var(--green)" }}>{activeCount}</span>}
+          sub={statusLabel(PriceAlertStatus.ACTIVE)}
+        />
+        <StatCard
+          label="Triggered"
+          value={<span style={{ color: "var(--amber)" }}>{triggeredCount}</span>}
+          sub={statusLabel(PriceAlertStatus.TRIGGERED)}
+        />
+        <StatCard
+          label="Disabled"
+          value={<span style={{ color: "var(--ink3)" }}>{disabledCount}</span>}
+          sub={statusLabel(PriceAlertStatus.DISABLED)}
+        />
       </div>
 
+      {/* Banner kết quả lấy màu từ biến tone (giống /admin/markup) → tự đúng ở cả giao diện Ngày và Đêm. */}
       {statusMessage ? (
-        <div className="rounded-lg border border-[color:rgba(0,208,132,0.24)] bg-[color:rgba(0,208,132,0.1)] px-4 py-3 text-sm font-medium text-[#27e79b]">
+        <div
+          className="mt-3 rounded-[10px] border px-[16px] py-[11px] text-[13px] font-medium"
+          style={{
+            color: toneVars("ok").fg,
+            background: toneVars("ok").bg,
+            borderColor: toneVars("ok").bd,
+          }}
+        >
           {statusMessage}
         </div>
       ) : null}
 
-      <div className="apg-admin-toolbar px-4 py-4">
+      <Panel className="mt-3">
         <form className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_180px_180px_120px_auto_auto] xl:items-end">
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Route
-            <input className="apg-field mt-2" defaultValue={query.q ?? ""} name="q" placeholder="SGN-HAN" />
-          </label>
+          <Field label="Route">
+            <Input mono defaultValue={query.q ?? ""} name="q" placeholder="SGN-HAN" />
+          </Field>
 
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Airline
-            <input className="apg-field mt-2" defaultValue={query.airline ?? ""} name="airline" placeholder="VJ" />
-          </label>
+          <Field label="Airline">
+            <Input mono defaultValue={query.airline ?? ""} name="airline" placeholder="VJ" />
+          </Field>
 
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Status
-            <select className="apg-field mt-2" defaultValue={query.status ?? ""} name="status">
-              <option value="">Tất cả</option>
-              <option value={PriceAlertStatus.ACTIVE}>{statusLabel(PriceAlertStatus.ACTIVE)}</option>
-              <option value={PriceAlertStatus.TRIGGERED}>{statusLabel(PriceAlertStatus.TRIGGERED)}</option>
-              <option value={PriceAlertStatus.DISABLED}>{statusLabel(PriceAlertStatus.DISABLED)}</option>
-            </select>
-          </label>
+          <Field label="Status">
+            <Select
+              defaultValue={query.status ?? ""}
+              name="status"
+              options={[
+                { value: "", label: "Tất cả" },
+                { value: PriceAlertStatus.ACTIVE, label: statusLabel(PriceAlertStatus.ACTIVE) },
+                { value: PriceAlertStatus.TRIGGERED, label: statusLabel(PriceAlertStatus.TRIGGERED) },
+                { value: PriceAlertStatus.DISABLED, label: statusLabel(PriceAlertStatus.DISABLED) },
+              ]}
+            />
+          </Field>
 
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Limit
-            <input className="apg-field mt-2" defaultValue={String(query.limit)} min={1} max={100} name="limit" type="number" />
-          </label>
+          <Field label="Limit">
+            <Input mono defaultValue={String(query.limit)} min={1} max={100} name="limit" type="number" />
+          </Field>
 
-          <div className="flex items-end">
-            <input name="offset" type="hidden" value="0" />
-            <button className="apg-btn-primary w-full" type="submit">
-              Lọc alert
-            </button>
-          </div>
+          <input name="offset" type="hidden" value="0" />
+          <Btn type="submit" variant="primary" full>
+            Lọc alert
+          </Btn>
 
-          <div className="flex items-end">
-            <Link className="apg-btn-secondary inline-flex w-full items-center justify-center" href="/admin/price-alerts">
-              Xóa lọc
-            </Link>
-          </div>
+          <ButtonLink href="/admin/price-alerts" variant="ghost" full>
+            Xóa lọc
+          </ButtonLink>
         </form>
+      </Panel>
+
+      <div className="mt-3">
+        <PriceAlertTable alerts={result.items} canManage={canManage} />
       </div>
 
-      <PriceAlertTable alerts={result.items} canManage={canManage} />
-
-      <div className="flex items-center justify-between rounded-lg border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-4 py-3">
-        <Link
-          className={`apg-btn-secondary ${query.offset === 0 ? "pointer-events-none opacity-50" : ""}`}
-          href={{ pathname: "/admin/price-alerts", query: { ...baseQuery, offset: String(previousOffset) } }}
+      {/* Pager để trần như các màn khác (audit/bookings/payments) — không bọc Panel. */}
+      <div className="mt-[14px] flex flex-wrap items-center justify-between gap-3">
+        <ButtonLink
+          href={pageHref(previousOffset)}
+          variant="ghost"
+          size="sm"
+          className={query.offset === 0 ? "pointer-events-none opacity-40" : ""}
         >
           Trang trước
-        </Link>
-        <div className="text-sm text-[var(--apg-text-secondary)]">
-          Hiển thị {result.items.length} / {result.total} alert
+        </ButtonLink>
+        <div className="text-[12.5px] text-[var(--ink3)]">
+          Hiển thị <span className="ofly-num text-[var(--ink)]">{formatNumber(result.items.length)}</span> /{" "}
+          <span className="ofly-num text-[var(--ink)]">{formatNumber(result.total)}</span> alert
         </div>
-        <Link
-          className={`apg-btn-secondary ${!hasNextPage ? "pointer-events-none opacity-50" : ""}`}
-          href={{ pathname: "/admin/price-alerts", query: { ...baseQuery, offset: String(nextOffset) } }}
+        <ButtonLink
+          href={pageHref(nextOffset)}
+          variant="ghost"
+          size="sm"
+          className={!hasNextPage ? "pointer-events-none opacity-40" : ""}
         >
           Trang sau
-        </Link>
+        </ButtonLink>
       </div>
-    </section>
+    </div>
   );
 }

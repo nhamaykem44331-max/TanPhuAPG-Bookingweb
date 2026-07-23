@@ -1,11 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Be_Vietnam_Pro, Fraunces, JetBrains_Mono } from "next/font/google";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 import { auth } from "@/auth";
 import { LoginForm } from "@/components/admin/LoginForm";
+import { MiniChip } from "@/components/admin/ui/Chip";
 import { normalizeReturnTo } from "@/lib/auth/request";
 
 interface AdminLoginPageProps {
@@ -15,18 +17,36 @@ interface AdminLoginPageProps {
   };
 }
 
-const adminSans = Inter({
-  subsets: ["latin"],
-  variable: "--font-admin-sans",
+// Trang này render NGOÀI shell admin (layout trả children trần khi chưa đăng nhập),
+// nên phải tự nạp đúng 3 font của skin Tân Phú APG và tự bọc `.ofly` để có token màu.
+const oflySans = Be_Vietnam_Pro({
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-ofly-sans",
   display: "swap",
 });
 
-const adminMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-admin-mono",
+const oflySerif = Fraunces({
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600"],
+  style: ["normal", "italic"],
+  variable: "--font-ofly-serif",
   display: "swap",
 });
+
+const oflyMono = JetBrains_Mono({
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "700"],
+  variable: "--font-ofly-mono",
+  display: "swap",
+});
+
+// Ba ô thông tin phiên/bảo mật — nội dung giữ nguyên như bản cũ.
+const SECURITY_NOTES: Array<[string, string, string]> = [
+  ["Session", "8 giờ", "Cookie quản trị riêng"],
+  ["Rate limit", "5 / 15 phút", "Giảm rủi ro brute-force"],
+  ["Audit", "Diff log", "Ghi lại mutation quan trọng"],
+];
 
 function getInitialErrorMessage(error: string | string[] | undefined): string | undefined {
   const errorCode = Array.isArray(error) ? error[0] : error;
@@ -48,102 +68,89 @@ export default async function AdminLoginPage({ searchParams }: AdminLoginPagePro
   const returnTo = normalizeReturnTo(searchParams?.returnTo);
   const initialMessage = getInitialErrorMessage(searchParams?.error);
 
+  // Theo đúng cookie theme mà AdminShell ghi, để màn đăng nhập không "chớp sáng"
+  // trước khi vào shell tối.
+  const isDark = cookies().get("ofly-theme")?.value === "dark";
+
   return (
-    <main className={`${adminSans.variable} ${adminMono.variable} apg-admin-shell min-h-screen overflow-hidden`}>
-      <div className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_460px]">
-        <section className="relative hidden border-r border-[var(--apg-border-default)] bg-[var(--apg-bg-page)] px-10 py-8 lg:flex lg:flex-col">
-          <div className="flex items-center justify-between">
-            <Link className="inline-flex items-center gap-2 text-sm text-[var(--apg-text-secondary)] transition hover:text-[var(--apg-text-primary)]" href="/">
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+    <div
+      className={`ofly ${isDark ? "theme-dark" : "theme-light"} ${oflySans.variable} ${oflySerif.variable} ${oflyMono.variable}`}
+      lang="vi-VN"
+    >
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-10 sm:px-6">
+        <div className="ofly-in mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center gap-[14px]">
+          <div className="flex items-center justify-between gap-3">
+            <Link
+              className="inline-flex items-center gap-[7px] text-[13px] text-[var(--ink3)] transition-colors duration-150 hover:text-[var(--ink)]"
+              href="/"
+            >
+              <ArrowLeft size={15} strokeWidth={1.5} aria-hidden="true" />
               Về khu đặt vé
             </Link>
-            <span className="rounded-full border border-[var(--apg-border-default)] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--apg-text-muted)]">
-              Admin Access
-            </span>
+            <MiniChip tone="muted">Admin Access</MiniChip>
           </div>
 
-          <div className="flex flex-1 items-center">
-            <div className="max-w-3xl">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)]">
-                  <Image
-                    src="/assets/tanphu-apg-logo.jpg"
-                    alt="Tan Phu APG"
-                    width={44}
-                    height={44}
-                    className="h-full w-full object-cover"
-                    priority
-                  />
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-[var(--apg-text-primary)]">APG BOOKING MANAGER</div>
-                  <div className="text-sm text-[var(--apg-text-muted)]">Super Admin Console</div>
-                </div>
-              </div>
-
-              <div className="mt-14">
-                <p className="apg-eyebrow">Observability / Sign In</p>
-                <h1 className="mt-4 max-w-2xl text-5xl font-semibold leading-[1.05] tracking-[-0.04em] text-[var(--apg-text-primary)]">
-                  Bảng điều hành tối giản cho booking, QR và doanh thu.
-                </h1>
-                <p className="mt-5 max-w-xl text-base leading-7 text-[var(--apg-text-secondary)]">
-                  Đăng nhập để vận hành booking lifecycle, thanh toán payOS, khách hàng, markup, audit và báo cáo trong một console thống nhất.
-                </p>
-              </div>
-
-              <div className="mt-12 grid max-w-3xl gap-3 md:grid-cols-3">
-                {[
-                  ["Session", "8 giờ", "Cookie quản trị riêng"],
-                  ["Rate limit", "5 / 15 phút", "Giảm rủi ro brute-force"],
-                  ["Audit", "Diff log", "Ghi lại mutation quan trọng"],
-                ].map(([label, value, helper]) => (
-                  <div key={label} className="rounded-xl border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] p-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--apg-text-muted)]">{label}</div>
-                    <div className="mt-3 text-2xl font-semibold text-[var(--apg-text-primary)]">{value}</div>
-                    <div className="mt-2 text-xs leading-5 text-[var(--apg-text-secondary)]">{helper}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 text-xs text-[var(--apg-text-muted)]">
-            <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-            Chỉ tài khoản nội bộ được cấp quyền mới truy cập được khu vực này.
-          </div>
-        </section>
-
-        <section className="flex min-h-screen items-center justify-center bg-[var(--apg-bg-page)] px-5 py-8">
-          <div className="w-full max-w-[380px]">
-            <div className="mb-8 flex items-center gap-3 lg:hidden">
-              <Image
-                src="/assets/tanphu-apg-logo.jpg"
-                alt="Tan Phu APG"
-                width={36}
-                height={36}
-                className="rounded-full object-cover"
-                priority
-              />
-              <div>
-                <div className="text-base font-semibold">APG BOOKING MANAGER</div>
-                <div className="text-xs text-[var(--apg-text-muted)]">Admin Access</div>
-              </div>
+          {/* Thẻ đăng nhập — §3: bo 14px như Modal của Manager (khối nổi bật nhất trang) */}
+          <div className="rounded-[14px] border border-[var(--line)] bg-[var(--paper)] px-[26px] py-[24px]">
+            <div className="flex items-center gap-[11px]">
+              <span className="flex h-[40px] w-[40px] shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--paper2)]">
+                <Image
+                  src="/assets/tanphu-apg-logo.jpg"
+                  alt="Tan Phu APG"
+                  width={40}
+                  height={40}
+                  className="h-full w-full object-cover"
+                  priority
+                />
+              </span>
+              <span className="flex min-w-0 flex-col leading-none">
+                <span className="text-[15px] font-extrabold tracking-[0.3px] text-[var(--ink)]">
+                  Tân Phú <span className="text-[var(--rust)]">APG</span>
+                </span>
+                {/* 10px + --ink3 theo quy ước eyebrow §2: 8.5px/--ink4 tương phản quá thấp để đọc */}
+                <span className="mt-[5px] text-[10px] font-semibold uppercase tracking-[0.6px] text-[var(--ink3)]">
+                  APG Booking Manager · Super Admin Console
+                </span>
+              </span>
             </div>
 
-            <div className="rounded-xl border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] p-6">
-              <div className="mb-6">
-                <p className="apg-eyebrow">Sign In</p>
-                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-[var(--apg-text-primary)]">Đăng nhập</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--apg-text-secondary)]">
-                  Dùng email nội bộ và mật khẩu đã được cấp. Hệ thống sẽ chuyển về trang đang yêu cầu sau khi xác thực.
-                </p>
-              </div>
+            <div className="my-[20px] h-px bg-[var(--line)]" />
 
+            <p className="ofly-eyebrow">Sign In</p>
+            <h1 className="ofly-serif mt-[10px] text-[30px] font-medium leading-[1.05] tracking-[-1.1px] text-[var(--ink)]">
+              Đăng nhập
+            </h1>
+            <p className="mt-[9px] text-[13px] leading-[1.6] text-[var(--ink3)]">
+              Dùng email nội bộ và mật khẩu đã được cấp. Hệ thống sẽ chuyển về trang đang yêu cầu sau khi xác thực.
+            </p>
+
+            <div className="mt-[20px]">
               <LoginForm returnTo={returnTo} initialMessage={initialMessage} />
             </div>
           </div>
-        </section>
-      </div>
-    </main>
+
+          <div className="grid grid-cols-3 gap-[10px]">
+            {SECURITY_NOTES.map(([label, value, helper]) => (
+              <div
+                key={label}
+                className="min-w-0 rounded-[12px] border border-[var(--line)] bg-[var(--paper)] px-[14px] py-[12px]"
+              >
+                <div className="text-[10px] font-semibold uppercase leading-none tracking-[1px] text-[var(--ink3)]">
+                  {label}
+                </div>
+                <div className="ofly-num mt-[7px] text-[14px] font-bold leading-[1.2] text-[var(--ink)]">{value}</div>
+                <div className="mt-[6px] text-[11px] leading-[1.45] text-[var(--ink3)]">{helper}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* --ink3 thay --ink4: dòng ghi chú này nằm trên nền --canvas, --ink4 chỉ đạt ~2.4:1 */}
+          <div className="flex items-start gap-[7px] px-[2px] text-[11.5px] leading-[1.5] text-[var(--ink3)]">
+            <ShieldCheck size={14} strokeWidth={1.5} className="mt-[1px] shrink-0" aria-hidden="true" />
+            Chỉ tài khoản nội bộ được cấp quyền mới truy cập được khu vực này.
+          </div>
+        </div>
+      </main>
+    </div>
   );
 }

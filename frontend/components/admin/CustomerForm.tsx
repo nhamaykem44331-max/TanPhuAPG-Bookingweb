@@ -3,6 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { Btn } from "@/components/admin/ui/Btn";
+import { Field, Input, Textarea } from "@/components/admin/ui/Field";
+import { Eyebrow } from "@/components/admin/ui/Panel";
 import type { AdminCustomerDetailRecord } from "@/lib/customers/admin";
 
 interface CustomerFormProps {
@@ -86,83 +89,115 @@ export function CustomerForm({ mode, customer }: CustomerFormProps) {
     });
   }
 
+  // Khối gom nhóm field: viền --line, nền --paper2 — khớp nhịp panel con của Manager.
+  const groupClass = "rounded-[10px] border border-[var(--line)] bg-[var(--paper2)] px-[16px] py-[14px]";
+
   return (
-    <form action={onSubmit} className="space-y-5">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <div className="space-y-5">
-          <div className="apg-admin-stat px-4 py-4">
-            <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Thông tin cơ bản</div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="apg-field-label">Họ tên</span>
-                <input className="apg-field mt-2" defaultValue={valueOrEmpty(customer?.fullName)} name="fullName" />
-                {fieldErrors.fullName ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.fullName[0]}</span> : null}
-              </label>
+    <form action={onSubmit} className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div className="space-y-4">
+          <div className={groupClass}>
+            <Eyebrow>Thông tin cơ bản</Eyebrow>
+            <div className="mt-[14px] grid gap-4 md:grid-cols-2">
+              <Field label="Họ tên" error={fieldErrors.fullName?.[0]}>
+                <Input
+                  defaultValue={valueOrEmpty(customer?.fullName)}
+                  name="fullName"
+                  error={Boolean(fieldErrors.fullName)}
+                />
+              </Field>
 
-              <label className="block">
-                <span className="apg-field-label">Điện thoại</span>
-                <input className="apg-field mt-2" defaultValue={valueOrEmpty(customer?.phone)} name="phone" />
-                {fieldErrors.phone ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.phone[0]}</span> : null}
-              </label>
+              <Field label="Điện thoại" error={fieldErrors.phone?.[0]}>
+                <Input
+                  defaultValue={valueOrEmpty(customer?.phone)}
+                  name="phone"
+                  mono
+                  error={Boolean(fieldErrors.phone)}
+                />
+              </Field>
 
-              <label className="block">
-                <span className="apg-field-label">Email</span>
-                <input className="apg-field mt-2" defaultValue={valueOrEmpty(customer?.email)} name="email" type="email" />
-                {fieldErrors.email ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.email[0]}</span> : null}
-              </label>
+              <Field label="Email" error={fieldErrors.email?.[0]}>
+                <Input
+                  defaultValue={valueOrEmpty(customer?.email)}
+                  name="email"
+                  type="email"
+                  error={Boolean(fieldErrors.email)}
+                />
+              </Field>
 
-              <label className="block">
-                <span className="apg-field-label">Ngày sinh</span>
-                <input className="apg-field mt-2" defaultValue={valueOrEmpty(customer?.dob)} name="dob" type="date" />
-                {fieldErrors.dob ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.dob[0]}</span> : null}
-              </label>
+              <Field label="Ngày sinh" error={fieldErrors.dob?.[0]}>
+                <Input
+                  defaultValue={valueOrEmpty(customer?.dob)}
+                  name="dob"
+                  type="date"
+                  error={Boolean(fieldErrors.dob)}
+                />
+              </Field>
             </div>
           </div>
 
-          <div className="apg-admin-stat px-4 py-4">
-            <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Giấy tờ định danh</div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="apg-field-label">CMND / CCCD</span>
-                <input className="apg-field mt-2" defaultValue={valueOrEmpty(customer?.idNumber)} name="idNumber" />
-                {fieldErrors.idNumber ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.idNumber[0]}</span> : null}
-              </label>
+          <div className={groupClass}>
+            <Eyebrow>Giấy tờ định danh</Eyebrow>
+            <div className="mt-[14px] grid gap-4 md:grid-cols-2">
+              <Field label="CMND / CCCD" error={fieldErrors.idNumber?.[0]}>
+                <Input
+                  defaultValue={valueOrEmpty(customer?.idNumber)}
+                  name="idNumber"
+                  mono
+                  error={Boolean(fieldErrors.idNumber)}
+                />
+              </Field>
 
-              <label className="block">
-                <span className="apg-field-label">Passport</span>
-                <input className="apg-field mt-2" defaultValue={valueOrEmpty(customer?.passport)} name="passport" />
-                {fieldErrors.passport ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.passport[0]}</span> : null}
-              </label>
+              <Field label="Passport" error={fieldErrors.passport?.[0]}>
+                <Input
+                  defaultValue={valueOrEmpty(customer?.passport)}
+                  name="passport"
+                  mono
+                  error={Boolean(fieldErrors.passport)}
+                />
+              </Field>
             </div>
           </div>
         </div>
 
-        <aside className="apg-admin-stat px-4 py-4">
-          <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Tags JSON</div>
-          <p className="mt-3 text-sm leading-6 text-[var(--apg-text-secondary)]">
+        <aside className={groupClass}>
+          <Eyebrow>Tags JSON</Eyebrow>
+          <p className="mt-[10px] text-[13px] leading-[1.55] text-[var(--ink3)]">
             Dùng để lưu metadata nội bộ như blacklist reason, merge marker hoặc các nhãn mở rộng. Chỉ nhập JSON hợp lệ.
           </p>
-          <label className="mt-4 block">
-            <textarea
-              className="apg-field h-auto min-h-[260px] py-3 font-mono text-xs"
+          <label className="mt-[14px] block">
+            <Textarea
+              className="ofly-mono min-h-[260px] text-[12px] leading-[1.7]"
               defaultValue={stringifyTags(customer?.tags)}
               name="tags"
               spellCheck={false}
+              error={Boolean(fieldErrors.tags)}
             />
           </label>
-          {fieldErrors.tags ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.tags[0]}</span> : null}
+          {fieldErrors.tags ? (
+            <span className="mt-[6px] block text-[12px] text-[var(--red)]">{fieldErrors.tags[0]}</span>
+          ) : null}
         </aside>
       </div>
 
       {formError ? (
-        <div className="rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{formError}</div>
+        <div
+          className="rounded-[10px] border px-[16px] py-[12px] text-[13px]"
+          style={{
+            color: "var(--red)",
+            background: "color-mix(in srgb, var(--red) 8%, transparent)",
+            borderColor: "color-mix(in srgb, var(--red) 30%, transparent)",
+          }}
+        >
+          {formError}
+        </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <button className="apg-btn-primary" disabled={isPending} type="submit">
+      <div className="flex flex-wrap items-center gap-[14px]">
+        <Btn variant="rust" disabled={isPending} type="submit">
           {isPending ? "Đang lưu..." : mode === "create" ? "Tạo khách hàng" : "Lưu thay đổi"}
-        </button>
-        <p className="text-sm text-[var(--apg-text-secondary)]">
+        </Btn>
+        <p className="m-0 max-w-[430px] text-[12.5px] leading-[1.5] text-[var(--ink3)]">
           {mode === "create"
             ? "Sau khi tạo xong hệ thống sẽ chuyển anh sang trang chi tiết của khách hàng mới."
             : "Sau khi lưu xong, trang sẽ tự làm mới để cập nhật hồ sơ và lịch sử thay đổi."}

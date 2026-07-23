@@ -1,6 +1,12 @@
 import { RejectPaymentButton } from "@/components/admin/RejectPaymentButton";
+import { Chip, MiniChip } from "@/components/admin/ui/Chip";
+import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
+import { SectionTitle } from "@/components/admin/ui/PageHead";
+import { Eyebrow, Panel } from "@/components/admin/ui/Panel";
+import { StatTile } from "@/components/admin/ui/Stat";
 import type { PaymentSummary } from "@/lib/booking/paymentSummary";
 import type { AdminBookingPayment } from "@/lib/bookings/admin";
+import type { Tone } from "@/lib/admin/ui/tones";
 
 interface BookingPaymentsTableProps {
   bookingId: string;
@@ -38,25 +44,14 @@ function paymentSummaryLabel(balance: number): string {
   return `Còn thiếu ${formatMoney(balance)}`;
 }
 
-function paymentStatusClass(status: AdminBookingPayment["status"]): string {
-  if (status === "PAID") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-
-  if (status === "PARTIAL") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-
-  if (status === "REJECTED") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
-  }
-
-  if (status === "REFUNDED") {
-    return "border-sky-200 bg-sky-50 text-sky-700";
-  }
-
-  return "border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] text-[var(--apg-text-secondary)]";
-}
+// Tone theo bảng `--tone-*` để chip đọc được ở cả Ngày/Đêm (thay bộ class emerald/amber/rose cũ).
+const PAYMENT_TONE: Record<AdminBookingPayment["status"], Tone> = {
+  PENDING: "muted",
+  PARTIAL: "warn",
+  PAID: "ok",
+  REJECTED: "red",
+  REFUNDED: "info",
+};
 
 function paymentStatusLabel(status: AdminBookingPayment["status"]): string {
   const labels: Record<AdminBookingPayment["status"], string> = {
@@ -77,157 +72,105 @@ export function BookingPaymentsTable({
   currency,
   canRejectPayments,
 }: BookingPaymentsTableProps) {
+  const columns: DataTableColumn<AdminBookingPayment>[] = [
+    {
+      key: "method",
+      header: "Method",
+      width: "110px",
+      render: (payment) => <span className="font-semibold text-[var(--ink)]">{payment.method}</span>,
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      width: "minmax(0,1.1fr)",
+      align: "right",
+      render: (payment) => (
+        <span className="ofly-num font-semibold text-[var(--ink)]">{formatCurrency(payment.amount, payment.currency)}</span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      width: "148px",
+      render: (payment) => <Chip tone={PAYMENT_TONE[payment.status]}>{paymentStatusLabel(payment.status)}</Chip>,
+    },
+    {
+      key: "paidAt",
+      header: "Paid at",
+      width: "minmax(0,1.1fr)",
+      render: (payment) => <span className="ofly-num text-[12.5px]">{formatDateTime(payment.paidAt)}</span>,
+    },
+    {
+      key: "transactionRef",
+      header: "Transaction ref",
+      width: "minmax(0,1fr)",
+      render: (payment) => <span className="ofly-num text-[12.5px] text-[var(--ink3)]">{payment.transactionRef || "-"}</span>,
+    },
+    {
+      key: "receivedBy",
+      header: "Received by",
+      width: "minmax(0,1.1fr)",
+      render: (payment) => (
+        <div className="min-w-0">
+          <div className="truncate font-medium text-[var(--ink)]">{payment.receivedBy?.fullName || "-"}</div>
+          <div className="truncate text-[11.5px] text-[var(--ink3)]">{payment.receivedBy?.email || "-"}</div>
+        </div>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      width: "136px",
+      align: "right",
+      render: (payment) => (
+        <div className="flex justify-end">
+          {canRejectPayments ? (
+            <RejectPaymentButton
+              bookingId={bookingId}
+              disabled={payment.status === "REJECTED" || payment.status === "REFUNDED"}
+              paymentId={payment.id}
+            />
+          ) : (
+            <MiniChip tone="muted">Read-only</MiniChip>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <section className="apg-admin-sheet overflow-hidden">
-      <div className="border-b border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(238,242,245,0.98))] px-5 py-4 lg:px-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="apg-eyebrow">Payment Ledger</p>
-            <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">Thanh toán và đối soát</h3>
-          </div>
-
-          <div
-            className={`inline-flex rounded-full border px-4 py-2 text-sm font-semibold ${
-              paymentSummary.balance <= 0
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-amber-200 bg-amber-50 text-amber-700"
-            }`}
-          >
-            {paymentSummaryLabel(paymentSummary.balance)}
-          </div>
+    <Panel padded={false} className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-[var(--line)] bg-[var(--paper2)] px-[20px] py-[16px] lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <Eyebrow>Sổ thanh toán</Eyebrow>
+          <SectionTitle className="mt-[8px]">Thanh toán và đối soát</SectionTitle>
         </div>
+
+        <Chip tone={paymentSummary.balance <= 0 ? "ok" : "warn"}>{paymentSummaryLabel(paymentSummary.balance)}</Chip>
       </div>
 
-      <div className="p-5 lg:p-6">
+      <div className="px-[20px] py-[18px]">
         <div className="grid gap-3 md:grid-cols-3">
-          <article className="apg-admin-stat px-4 py-4">
-            <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Tổng đã thu</div>
-            <div className="mt-2 apg-tabular text-lg font-semibold text-[var(--apg-aviation-navy-deep)]">
-              {formatCurrency(paymentSummary.totalPaid, currency)}
-            </div>
-          </article>
-          <article className="apg-admin-stat px-4 py-4">
-            <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Tổng phải thu</div>
-            <div className="mt-2 apg-tabular text-lg font-semibold text-[var(--apg-aviation-navy-deep)]">
-              {formatCurrency(paymentSummary.totalDue, currency)}
-            </div>
-          </article>
-          <article className="apg-admin-stat px-4 py-4">
-            <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Công nợ</div>
-            <div className="mt-2 apg-tabular text-lg font-semibold text-[var(--apg-aviation-navy-deep)]">
-              {formatCurrency(paymentSummary.balance, currency)}
-            </div>
-          </article>
+          <StatTile label="Tổng đã thu" value={formatCurrency(paymentSummary.totalPaid, currency)} tone="green" minWidth={0} />
+          <StatTile label="Tổng phải thu" value={formatCurrency(paymentSummary.totalDue, currency)} minWidth={0} />
+          <StatTile
+            label="Công nợ"
+            value={formatCurrency(paymentSummary.balance, currency)}
+            tone={paymentSummary.balance <= 0 ? "plain" : "amber"}
+            minWidth={0}
+          />
         </div>
 
-        {payments.length === 0 ? (
-          <div className="mt-5 rounded-[20px] border border-dashed border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-4 py-10 text-center text-sm text-[var(--apg-text-secondary)]">
-            Booking này chưa có payment record nào.
-          </div>
-        ) : (
-          <>
-            <div className="mt-5 grid gap-4 md:hidden">
-              {payments.map((payment) => (
-                <article key={payment.id} className="rounded-[22px] border border-[var(--apg-border-default)] bg-white p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-xs uppercase tracking-[0.16em] text-[var(--apg-text-secondary)]">{payment.method}</div>
-                      <div className="mt-2 apg-tabular text-lg font-semibold text-[var(--apg-aviation-navy-deep)]">
-                        {formatCurrency(payment.amount, payment.currency)}
-                      </div>
-                    </div>
-
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${paymentStatusClass(payment.status)}`}>
-                      {paymentStatusLabel(payment.status)}
-                    </span>
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-[var(--apg-text-secondary)]">
-                    <div>
-                      <div className="text-xs uppercase tracking-[0.16em]">Paid at</div>
-                      <div className="mt-1 text-[var(--apg-aviation-navy-deep)]">{formatDateTime(payment.paidAt)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-[0.16em]">Transaction ref</div>
-                      <div className="mt-1 text-[var(--apg-aviation-navy-deep)]">{payment.transactionRef || "-"}</div>
-                    </div>
-                    <div className="col-span-2">
-                      <div className="text-xs uppercase tracking-[0.16em]">Received by</div>
-                      <div className="mt-1 text-[var(--apg-aviation-navy-deep)]">{payment.receivedBy?.fullName || payment.receivedBy?.email || "-"}</div>
-                    </div>
-                  </div>
-
-                  {canRejectPayments ? (
-                    <div className="mt-4">
-                      <RejectPaymentButton
-                        bookingId={bookingId}
-                        disabled={payment.status === "REJECTED" || payment.status === "REFUNDED"}
-                        paymentId={payment.id}
-                      />
-                    </div>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-
-            <div className="mt-5 hidden overflow-x-auto md:block">
-              <table className="apg-admin-table min-w-full border-collapse text-sm">
-                <thead>
-                  <tr>
-                    <th className="px-5 py-4 font-semibold">Method</th>
-                    <th className="px-4 py-4 font-semibold">Amount</th>
-                    <th className="px-4 py-4 font-semibold">Status</th>
-                    <th className="px-4 py-4 font-semibold">Paid at</th>
-                    <th className="px-4 py-4 font-semibold">Transaction ref</th>
-                    <th className="px-4 py-4 font-semibold">Received by</th>
-                    <th className="px-5 py-4 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((payment) => (
-                    <tr key={payment.id} className="border-t border-[var(--apg-border-default)] align-top">
-                      <td className="px-5 py-4">
-                        <div className="font-semibold text-[var(--apg-aviation-navy-deep)]">{payment.method}</div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="apg-tabular text-base font-semibold text-[var(--apg-aviation-navy-deep)]">
-                          {formatCurrency(payment.amount, payment.currency)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${paymentStatusClass(payment.status)}`}>
-                          {paymentStatusLabel(payment.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-[var(--apg-aviation-navy-deep)]">{formatDateTime(payment.paidAt)}</td>
-                      <td className="px-4 py-4 text-[var(--apg-text-secondary)]">{payment.transactionRef || "-"}</td>
-                      <td className="px-4 py-4">
-                        <div className="font-medium text-[var(--apg-aviation-navy-deep)]">{payment.receivedBy?.fullName || "-"}</div>
-                        <div className="mt-1 text-xs text-[var(--apg-text-secondary)]">{payment.receivedBy?.email || "-"}</div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end">
-                          {canRejectPayments ? (
-                            <RejectPaymentButton
-                              bookingId={bookingId}
-                              disabled={payment.status === "REJECTED" || payment.status === "REFUNDED"}
-                              paymentId={payment.id}
-                            />
-                          ) : (
-                            <span className="rounded-full border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-2 text-xs text-[var(--apg-text-secondary)]">
-                              Read-only
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
+        <div className="mt-[18px] overflow-hidden rounded-[12px] border border-[var(--line)]">
+          <DataTable
+            columns={columns}
+            rows={payments}
+            getRowKey={(payment) => payment.id}
+            framed={false}
+            empty="Booking này chưa có payment record nào."
+          />
+        </div>
       </div>
-    </section>
+    </Panel>
   );
 }

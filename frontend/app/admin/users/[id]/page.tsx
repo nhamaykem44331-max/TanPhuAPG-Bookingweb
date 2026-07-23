@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
+import { formatDateTime } from "@/lib/admin/ui/format";
 import { getRoleLabel, USER_MANAGER_ROLES } from "@/lib/auth/constants";
 import { requireRole } from "@/lib/auth/requireRole";
 import { getAdminUserById } from "@/lib/users/admin";
 import { ResetPasswordDialog } from "@/components/admin/ResetPasswordDialog";
 import { UserForm } from "@/components/admin/UserForm";
+import { Chip } from "@/components/admin/ui/Chip";
+import { Eyebrow, Panel } from "@/components/admin/ui/Panel";
 
 interface UserDetailPageProps {
   params: {
@@ -13,16 +17,14 @@ interface UserDetailPageProps {
   };
 }
 
-function formatDateTime(value: string | null): string {
-  if (!value) {
-    return "-";
-  }
-
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Ho_Chi_Minh",
-  }).format(new Date(value));
+// Ô thông tin nhỏ trong hồ sơ: nhãn eyebrow + giá trị. `mono` cho mốc thời gian (§2 hợp đồng).
+function InfoCell({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="rounded-[10px] border border-[var(--line)] bg-[var(--paper2)] px-[14px] py-[12px]">
+      <Eyebrow>{label}</Eyebrow>
+      <div className={`mt-[7px] text-[13.5px] font-semibold text-[var(--ink)] ${mono ? "ofly-num" : ""}`}>{value}</div>
+    </div>
+  );
 }
 
 export default async function UserDetailPage({ params }: UserDetailPageProps) {
@@ -34,70 +36,65 @@ export default async function UserDetailPage({ params }: UserDetailPageProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <section className="apg-admin-sheet overflow-hidden">
-        <div className="grid gap-0 xl:grid-cols-[minmax(0,1.55fr)_380px]">
-          <div className="px-5 py-6 lg:px-6">
-            <Link className="text-sm font-semibold text-[var(--apg-aviation-navy)] hover:underline" href="/admin/users">
-              ← Quay lại danh sách tài khoản
-            </Link>
-            <p className="apg-eyebrow mt-5">User Control</p>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--apg-aviation-navy-deep)] text-sm font-semibold tracking-[0.08em] text-white shadow-sm">
-                {user.fullName.slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <h2 className="text-3xl font-semibold tracking-tight text-[var(--apg-aviation-navy-deep)]">{user.email}</h2>
-                <p className="mt-1 text-sm text-[var(--apg-text-secondary)]">{user.fullName} · {getRoleLabel(user.role)}</p>
-              </div>
-              <span className={`inline-flex rounded-full border px-3 py-1 text-sm font-semibold ${user.active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-                {user.active ? "Active" : "Locked"}
-              </span>
-            </div>
+    <div className="flex flex-col gap-[12px]">
+      <Link
+        className="inline-flex w-fit items-center gap-[7px] text-[12.5px] font-semibold text-[var(--ink3)] transition-colors duration-150 hover:text-[var(--ink)]"
+        href="/admin/users"
+      >
+        <ArrowLeft size={15} strokeWidth={1.5} />
+        Quay lại danh sách tài khoản
+      </Link>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Họ tên</div>
-                <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{user.fullName}</div>
-              </article>
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Role</div>
-                <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{getRoleLabel(user.role)}</div>
-              </article>
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Tạo lúc</div>
-                <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{formatDateTime(user.createdAt)}</div>
-              </article>
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Đăng nhập cuối</div>
-                <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{formatDateTime(user.lastLoginAt)}</div>
-              </article>
+      <div className="grid gap-[12px] xl:grid-cols-[minmax(0,1.55fr)_380px]">
+        <Panel>
+          <Eyebrow>User Control</Eyebrow>
+
+          <div className="mt-[14px] flex flex-wrap items-center gap-[14px]">
+            {/* Avatar khối navy đặc — #FFFFFF là ngoại lệ hex duy nhất hợp đồng cho phép */}
+            <span
+              aria-hidden="true"
+              className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-[12px] text-[15px] font-bold tracking-[0.06em]"
+              style={{ background: "var(--gradNavy)", color: "#FFFFFF" }}
+            >
+              {user.fullName.slice(0, 2).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <h2 className="ofly-serif m-0 break-words text-[25px] font-medium leading-[1.1] tracking-[-0.8px] text-[var(--ink)]">
+                {user.email}
+              </h2>
+              <p className="m-0 mt-[7px] text-[13px] text-[var(--ink3)]">
+                {user.fullName} · {getRoleLabel(user.role)}
+              </p>
             </div>
+            {user.active ? <Chip tone="ok">Active</Chip> : <Chip tone="red">Locked</Chip>}
           </div>
 
-          <div className="border-t border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(233,238,242,0.95),rgba(255,255,255,0.98))] px-5 py-5 xl:border-l xl:border-t-0">
-            <div className="space-y-3">
-              <div className="apg-admin-stat px-4 py-4">
-                <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Tác vụ chính</div>
-                <div className="mt-3">
-                  <ResetPasswordDialog userId={user.id} />
-                </div>
-              </div>
-
-              <div className="apg-admin-stat px-4 py-4">
-                <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Lưu ý bảo mật</div>
-                <p className="mt-3 text-sm leading-6 text-[var(--apg-text-secondary)]">
-                  Reset password chỉ trả về mật khẩu tạm đúng một lần và không ghi plaintext vào AuditLog.
-                </p>
-              </div>
-            </div>
+          <div className="mt-[18px] grid gap-[12px] md:grid-cols-2 xl:grid-cols-4">
+            <InfoCell label="Họ tên" value={user.fullName} />
+            <InfoCell label="Role" value={getRoleLabel(user.role)} />
+            <InfoCell label="Tạo lúc" value={formatDateTime(user.createdAt)} mono />
+            <InfoCell label="Đăng nhập cuối" value={formatDateTime(user.lastLoginAt)} mono />
           </div>
+        </Panel>
+
+        <div className="flex flex-col gap-[12px]">
+          <Panel>
+            <Eyebrow>Tác vụ chính</Eyebrow>
+            <div className="mt-[14px]">
+              <ResetPasswordDialog userId={user.id} />
+            </div>
+          </Panel>
+
+          <Panel>
+            <Eyebrow>Lưu ý bảo mật</Eyebrow>
+            <p className="m-0 mt-[12px] text-[12.5px] leading-[1.6] text-[var(--ink3)]">
+              Reset password chỉ trả về mật khẩu tạm đúng một lần và không ghi plaintext vào AuditLog.
+            </p>
+          </Panel>
         </div>
-      </section>
-
-      <div className="apg-admin-toolbar p-5 lg:p-6">
-        <UserForm mode="edit" user={user} />
       </div>
+
+      <UserForm mode="edit" user={user} />
     </div>
   );
 }

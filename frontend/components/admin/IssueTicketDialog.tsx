@@ -1,7 +1,14 @@
 "use client";
 
+import { Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
+
+import { Btn } from "@/components/admin/ui/Btn";
+import { Field, Input, Textarea } from "@/components/admin/ui/Field";
+import { Eyebrow } from "@/components/admin/ui/Panel";
+import { StatTile } from "@/components/admin/ui/Stat";
+import { toneVars } from "@/lib/admin/ui/tones";
 
 interface IssueTicketDialogProps {
   bookingId: string;
@@ -116,89 +123,91 @@ export function IssueTicketDialog({
 
   return (
     <>
-      <button
-        className={`w-full rounded-[var(--apg-radius-md)] px-4 py-2 text-sm font-semibold transition ${
-          disabled
-            ? "cursor-not-allowed border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] text-[var(--apg-text-secondary)] opacity-70"
-            : "border border-amber-300 bg-amber-500 text-white hover:bg-amber-600"
-        }`}
-        disabled={disabled}
-        onClick={() => setOpen(true)}
-        type="button"
-      >
+      <Btn variant="rust" full disabled={disabled} onClick={() => setOpen(true)}>
         Xuất vé
-      </button>
+      </Btn>
 
-      {disabled && disabledReason ? <p className="text-xs leading-5 text-[var(--apg-text-secondary)]">{disabledReason}</p> : null}
+      {disabled && disabledReason ? <p className="mt-2 text-[12px] leading-[1.5] text-[var(--ink3)]">{disabledReason}</p> : null}
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
-          <div className="apg-admin-toolbar max-h-[90vh] w-full max-w-4xl overflow-y-auto px-5 py-5 lg:px-6">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="apg-eyebrow">Issue Ticket</p>
-                <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">Xác nhận xuất vé nội bộ</h3>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--apg-text-secondary)]">
+        // Modal theo Manager (`kit.tsx` → Modal): overlay mờ + blur, hộp bo 14px, tiêu đề Fraunces.
+        <div
+          className="ofly-overlay-in fixed inset-0 z-50 flex items-center justify-center p-6"
+          style={{ background: "rgba(20,17,16,0.52)", backdropFilter: "blur(2px)" }}
+        >
+          <div
+            aria-modal="true"
+            role="dialog"
+            className="ofly-modal-in max-h-[90vh] w-full max-w-[820px] overflow-y-auto rounded-[14px] border border-[var(--line2)] bg-[var(--paper)]"
+            style={{ boxShadow: "0 30px 80px -30px rgba(20,17,16,0.55)" }}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] px-[24px] pb-[16px] pt-[22px]">
+              <div className="min-w-0">
+                <Eyebrow className="mb-2">Xuất vé</Eyebrow>
+                <h3 className="ofly-serif m-0 text-[23px] font-medium leading-[1.2] tracking-[-0.6px] text-[var(--ink)]">
+                  Xác nhận xuất vé nội bộ
+                </h3>
+                <p className="m-0 mt-[10px] max-w-[560px] text-[13px] leading-[1.55] text-[var(--ink3)]">
                   Bước này chỉ ghi nhận trạng thái trong admin panel. Không gọi API issue thật của nhà cung cấp.
                 </p>
               </div>
-              <button className="apg-btn-secondary" disabled={isPending} onClick={() => setOpen(false)} type="button">
-                Đóng
+              <button
+                type="button"
+                aria-label="Đóng"
+                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[8px] border border-[var(--line2)] bg-transparent text-[var(--ink2)] transition-colors duration-150 hover:bg-[var(--paper2)] disabled:opacity-60"
+                disabled={isPending}
+                onClick={() => setOpen(false)}
+              >
+                <X size={16} strokeWidth={1.5} />
               </button>
             </div>
 
-            <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_320px]">
-              <div className="space-y-5">
+            <div className="grid gap-5 px-[24px] py-[20px] lg:grid-cols-[minmax(0,1.2fr)_260px]">
+              <div className="flex flex-col gap-4">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <article className="apg-admin-stat px-4 py-4">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Mã đơn hàng</div>
-                    <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{pnr}</div>
-                  </article>
-                  <article className="apg-admin-stat px-4 py-4">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Tổng tiền</div>
-                    <div className="mt-2 apg-tabular text-base font-semibold text-[var(--apg-aviation-navy-deep)]">
-                      {formatCurrency(totalDue, currency)}
-                    </div>
-                  </article>
-                  <article className="apg-admin-stat px-4 py-4">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Đã thu</div>
-                    <div className="mt-2 apg-tabular text-base font-semibold text-[var(--apg-aviation-navy-deep)]">
-                      {formatCurrency(totalPaid, currency)}
-                    </div>
-                  </article>
-                  <article className="apg-admin-stat px-4 py-4">
-                    <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Balance</div>
-                    <div className="mt-2 apg-tabular text-base font-semibold text-[var(--apg-aviation-navy-deep)]">
-                      {formatCurrency(balance, currency)}
-                    </div>
-                  </article>
+                  <StatTile label="Mã đơn hàng" value={pnr} tone="rust" minWidth={0} />
+                  <StatTile label="Tổng tiền" value={formatCurrency(totalDue, currency)} minWidth={0} />
+                  <StatTile label="Đã thu" value={formatCurrency(totalPaid, currency)} tone="green" minWidth={0} />
+                  <StatTile
+                    label="Balance"
+                    value={formatCurrency(balance, currency)}
+                    tone={balance > 0 ? "amber" : "plain"}
+                    minWidth={0}
+                  />
                 </div>
 
-                <div className="apg-admin-sheet px-4 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-semibold text-[var(--apg-aviation-navy-deep)]">Số vé theo hành khách</div>
-                      <p className="mt-1 text-sm text-[var(--apg-text-secondary)]">Có thể để trống nếu chưa cần lưu ticket number ở thời điểm này.</p>
+                <div className="rounded-[12px] border border-[var(--line)] bg-[var(--paper2)] px-[16px] py-[14px]">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[13.5px] font-semibold text-[var(--ink)]">Số vé theo hành khách</div>
+                      <p className="m-0 mt-1 text-[12.5px] leading-[1.5] text-[var(--ink3)]">
+                        Có thể để trống nếu chưa cần lưu ticket number ở thời điểm này.
+                      </p>
                     </div>
-                    <button className="apg-btn-secondary h-9 px-4 text-xs" disabled={isPending} onClick={() => setTickets((current) => [...current, { passengerName: "", ticketNumber: "" }])} type="button">
+                    <Btn
+                      variant="ghost"
+                      size="sm"
+                      icon={<Plus size={14} strokeWidth={1.5} />}
+                      disabled={isPending}
+                      onClick={() => setTickets((current) => [...current, { passengerName: "", ticketNumber: "" }])}
+                    >
                       Thêm dòng
-                    </button>
+                    </Btn>
                   </div>
 
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-4 flex flex-col gap-3">
                     {tickets.map((ticket, index) => (
                       <div key={`${ticket.passengerName}-${index}`} className="grid gap-3 sm:grid-cols-2">
-                        <input
-                          className="apg-field"
+                        <Input
                           disabled={isPending}
                           onChange={(event) => updateTicket(index, "passengerName", event.target.value)}
                           placeholder="Tên hành khách"
                           type="text"
                           value={ticket.passengerName}
                         />
-                        <input
-                          className="apg-field"
+                        <Input
                           disabled={isPending}
+                          mono
                           onChange={(event) => updateTicket(index, "ticketNumber", event.target.value)}
                           placeholder="Số vé"
                           type="text"
@@ -209,32 +218,31 @@ export function IssueTicketDialog({
                   </div>
                 </div>
 
-                <label className="block">
-                  <span className="apg-field-label">Ghi chú</span>
-                  <textarea
-                    className="apg-field mt-2 h-auto min-h-[120px] py-3"
+                <Field label="Ghi chú">
+                  <Textarea
+                    className="min-h-[120px]"
                     disabled={isPending}
                     maxLength={500}
                     onChange={(event) => setNotes(event.target.value)}
                     placeholder="Ghi chú nội bộ khi xác nhận xuất vé."
                     value={notes}
                   />
-                </label>
+                </Field>
               </div>
 
-              <aside className="space-y-3">
-                <div className="apg-admin-stat px-4 py-4">
-                  <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Checklist trước khi issue</div>
-                  <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--apg-text-secondary)]">
+              <aside className="flex flex-col gap-3">
+                <div className="rounded-[12px] border border-[var(--line)] bg-[var(--paper)] px-[16px] py-[14px]">
+                  <Eyebrow>Checklist trước khi issue</Eyebrow>
+                  <ul className="mt-3 flex list-none flex-col gap-2 p-0 text-[12.5px] leading-[1.5] text-[var(--ink2)]">
                     <li>Booking phải ở trạng thái HELD.</li>
                     <li>Balance cần bằng 0 trước khi xác nhận.</li>
                     <li>Booking phải có ít nhất một PNR SUCCESS.</li>
                   </ul>
                 </div>
 
-                <div className="apg-admin-stat px-4 py-4">
-                  <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Lưu ý</div>
-                  <p className="mt-3 text-sm leading-6 text-[var(--apg-text-secondary)]">
+                <div className="rounded-[12px] border border-[var(--line)] bg-[var(--paper)] px-[16px] py-[14px]">
+                  <Eyebrow>Lưu ý</Eyebrow>
+                  <p className="m-0 mt-3 text-[12.5px] leading-[1.5] text-[var(--ink2)]">
                     Sau khi thành công, hệ thống sẽ khóa lại giá bán và ghi timeline `TICKET_ISSUED`.
                   </p>
                 </div>
@@ -242,23 +250,22 @@ export function IssueTicketDialog({
             </div>
 
             {message ? (
-              <div className="mt-5 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+              <div
+                className="mx-[24px] mb-[4px] rounded-[10px] border px-[13px] py-[10px] text-[12.5px] font-medium leading-[1.45]"
+                style={{ color: toneVars("red").fg, background: toneVars("red").bg, borderColor: toneVars("red").bd }}
+                role="alert"
+              >
                 {message}
               </div>
             ) : null}
 
-            <div className="mt-5 flex flex-wrap justify-end gap-3">
-              <button className="apg-btn-secondary" disabled={isPending} onClick={() => setOpen(false)} type="button">
+            <div className="mt-[16px] flex flex-wrap justify-end gap-[10px] border-t border-[var(--line)] px-[24px] py-[16px]">
+              <Btn variant="ghost" disabled={isPending} onClick={() => setOpen(false)}>
                 Hủy
-              </button>
-              <button
-                className="rounded-[var(--apg-radius-md)] bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isPending}
-                onClick={handleSubmit}
-                type="button"
-              >
+              </Btn>
+              <Btn variant="rust" disabled={isPending} onClick={handleSubmit}>
                 {isPending ? "Đang xác nhận..." : "Xác nhận xuất vé"}
-              </button>
+              </Btn>
             </div>
           </div>
         </div>

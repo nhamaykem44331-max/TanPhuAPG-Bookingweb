@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
 
+import { Btn } from "@/components/admin/ui/Btn";
+
 interface RejectPaymentButtonProps {
   bookingId: string;
   paymentId: string;
@@ -47,15 +49,13 @@ export function RejectPaymentButton({ bookingId, paymentId, disabled = false }: 
 
   return (
     <div className="flex flex-col items-end gap-2">
-      <button
-        className="apg-btn-danger h-9 px-4 text-xs"
-        disabled={disabled || isPending}
-        onClick={handleReject}
-        type="button"
-      >
+      {/* Hành động phá huỷ → Btn variant danger (viền đỏ nhạt, chữ đỏ) */}
+      <Btn disabled={disabled || isPending} onClick={handleReject} size="sm" type="button" variant="danger">
         {isPending ? "Đang từ chối..." : "Từ chối"}
-      </button>
-      {message ? <span className="max-w-[180px] text-right text-xs text-rose-600">{message}</span> : null}
+      </Btn>
+      {message ? (
+        <span className="max-w-[180px] text-right text-[11.5px] text-[var(--red)]">{message}</span>
+      ) : null}
     </div>
   );
 }

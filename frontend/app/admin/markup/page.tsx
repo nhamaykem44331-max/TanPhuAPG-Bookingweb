@@ -1,10 +1,12 @@
-import Link from "next/link";
+import { Pencil, Plus } from "lucide-react";
 
 import { toggleMarkupRuleActiveAction } from "@/app/admin/markup-rules/actions";
 import { DeleteRuleForm } from "@/components/admin/ConfirmDeleteRuleButton";
-import { MiniChip } from "@/components/admin/ui/Chip";
+import { ButtonLink } from "@/components/admin/ui/Btn";
+import { Chip } from "@/components/admin/ui/Chip";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
 import { formatNumber, formatVnd } from "@/lib/admin/ui/format";
+import { toneVars } from "@/lib/admin/ui/tones";
 import { MARKUP_RULE_MANAGER_ROLES } from "@/lib/auth/constants";
 import { requireRole } from "@/lib/auth/requireRole";
 import { listMarkupRules, type MarkupRuleRecord } from "@/lib/pricing/markupRules";
@@ -61,6 +63,41 @@ function statusMessage(sp: AdminMarkupPageProps["searchParams"]): { message: str
   return null;
 }
 
+// Công tắc bật/tắt theo Manager (`ui.tsx` → Toggle): 42×24, bo 100px, nền --rust khi bật,
+// núm trắng 18px. Vẫn là <button type="submit"> trong form server action nên logic không đổi;
+// chữ "Tạm dừng"/"Bật lại" chuyển thành nhãn trợ năng + tooltip.
+function ActiveToggle({ rule }: { rule: MarkupRuleRecord }) {
+  const label = rule.active ? "Tạm dừng" : "Bật lại";
+  return (
+    <form action={toggleMarkupRuleActiveAction} className="flex">
+      <input type="hidden" name="id" value={rule.id} />
+      <input type="hidden" name="active" value={String(!rule.active)} />
+      <button
+        type="submit"
+        role="switch"
+        aria-checked={rule.active}
+        aria-label={label}
+        title={label}
+        className="relative h-[24px] w-[42px] shrink-0 cursor-pointer rounded-full border p-0 transition-all duration-[180ms]"
+        style={{
+          background: rule.active ? "var(--rust)" : "var(--paper3)",
+          borderColor: rule.active ? "var(--rust)" : "var(--line2)",
+        }}
+      >
+        <span
+          aria-hidden="true"
+          className="absolute top-[2px] block h-[18px] w-[18px] rounded-full transition-[left] duration-[180ms]"
+          style={{
+            left: rule.active ? 20 : 2,
+            background: "var(--onInk)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+          }}
+        />
+      </button>
+    </form>
+  );
+}
+
 interface AdminMarkupPageProps {
   searchParams?: {
     created?: string | string[];
@@ -82,50 +119,48 @@ export default async function AdminMarkupPage({ searchParams }: AdminMarkupPageP
       key: "scope",
       header: "PHẠM VI",
       width: "minmax(0,1.2fr)",
-      render: (row) => <span className="text-[14px] font-medium">{scopeLabel(row)}</span>,
+      render: (row) => (
+        <span className="text-[13.5px] font-semibold text-[var(--ink)]">{scopeLabel(row)}</span>
+      ),
     },
     {
       key: "cond",
       header: "ĐIỀU KIỆN",
       width: "minmax(0,1fr)",
-      render: (row) => <span className="text-[13px] text-[var(--ink-soft)]">{conditionLabel(row)}</span>,
+      render: (row) => <span className="text-[13px] text-[var(--ink3)]">{conditionLabel(row)}</span>,
     },
     {
       key: "value",
       header: "MỨC CỘNG",
-      width: "140px",
-      render: (row) => <span className="ofly-serif text-[15px] font-medium text-[var(--rust)]">{markupValueLabel(row)}</span>,
+      width: "150px",
+      // Số → mono (§6 hợp đồng), tô accent để đọc lướt được cột giá.
+      render: (row) => (
+        <span className="ofly-num text-[13px] font-semibold text-[var(--rust)]">{markupValueLabel(row)}</span>
+      ),
     },
     {
       key: "status",
       header: "TRẠNG THÁI",
-      width: "100px",
+      width: "130px",
       render: (row) =>
-        row.active ? <MiniChip tone="ok">Đang áp dụng</MiniChip> : <MiniChip tone="muted">Tạm dừng</MiniChip>,
+        row.active ? <Chip tone="ok">Đang áp dụng</Chip> : <Chip tone="muted">Tạm dừng</Chip>,
     },
     {
       key: "actions",
       header: "THAO TÁC",
-      width: "220px",
+      width: "200px",
       align: "right",
       render: (row) => (
-        <div className="flex items-center justify-end gap-3">
-          <Link
+        <div className="flex items-center justify-end gap-[10px]">
+          <ActiveToggle rule={row} />
+          <ButtonLink
             href={`/admin/markup-rules/${row.id}/edit`}
-            className="text-[12px] font-semibold text-[var(--rust)] hover:underline"
+            variant="ghost"
+            size="sm"
+            icon={<Pencil size={14} strokeWidth={1.5} />}
           >
             Sửa
-          </Link>
-          <form action={toggleMarkupRuleActiveAction}>
-            <input type="hidden" name="id" value={row.id} />
-            <input type="hidden" name="active" value={String(!row.active)} />
-            <button
-              type="submit"
-              className="text-[12px] font-semibold text-[var(--ink-soft)] hover:text-[var(--ink)] hover:underline"
-            >
-              {row.active ? "Tạm dừng" : "Bật lại"}
-            </button>
-          </form>
+          </ButtonLink>
           <DeleteRuleForm ruleId={row.id} scope={row.scope} />
         </div>
       ),
@@ -135,24 +170,27 @@ export default async function AdminMarkupPage({ searchParams }: AdminMarkupPageP
   return (
     <div>
       <div className="mb-[22px] flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <p className="max-w-[560px] text-[14px] leading-[1.6] text-[var(--ink-soft)]">
+        <p className="max-w-[560px] text-[14px] leading-[1.55] text-[var(--ink3)]">
           Quy tắc markup quyết định giá khách thấy trên web. Áp dụng theo thứ tự ưu tiên: đường bay → hãng → mặc định.
         </p>
-        <Link
+        <ButtonLink
           href="/admin/markup-rules/new"
-          className="apg-btn-primary inline-flex h-10 shrink-0 items-center justify-center px-4 text-sm font-bold text-white"
+          variant="rust"
+          icon={<Plus size={16} strokeWidth={1.9} />}
         >
-          + Tạo quy tắc
-        </Link>
+          Tạo quy tắc
+        </ButtonLink>
       </div>
 
+      {/* Banner kết quả lấy màu từ biến tone → tự đúng ở cả giao diện Ngày và Đêm. */}
       {status ? (
         <div
-          className={`mb-4 rounded-[10px] border px-4 py-3 text-[13px] font-medium ${
-            status.tone === "success"
-              ? "border-[color:rgba(31,122,84,0.28)] bg-[color:rgba(31,122,84,0.08)] text-[#1f7a54]"
-              : "border-[color:rgba(200,76,58,0.28)] bg-[color:rgba(200,76,58,0.08)] text-[#c2513a]"
-          }`}
+          className="mb-[14px] rounded-[10px] border px-[16px] py-[11px] text-[13px] font-medium"
+          style={{
+            color: toneVars(status.tone === "success" ? "ok" : "red").fg,
+            background: toneVars(status.tone === "success" ? "ok" : "red").bg,
+            borderColor: toneVars(status.tone === "success" ? "ok" : "red").bd,
+          }}
         >
           {status.message}
         </div>
@@ -163,7 +201,6 @@ export default async function AdminMarkupPage({ searchParams }: AdminMarkupPageP
         rows={rules}
         getRowKey={(row) => row.id}
         empty="Chưa có quy tắc markup nào."
-        className="overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface)]"
       />
     </div>
   );

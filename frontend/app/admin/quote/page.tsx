@@ -2,13 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Download, Eye, EyeOff, Globe, Mail, Phone } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Download, Eye, EyeOff, Globe, Mail, Phone, X } from 'lucide-react';
 import type { FlightResult, QuotePayload } from '@/lib/types';
 import { durationText, fmtVND, hhmm } from '@/lib/utils';
 import { getAirlineMeta } from '@/lib/airlines';
 import { prefetchAncillaryResponse } from '@/lib/ancillary-cache';
-import SiteGlobeHeader from '@/components/SiteGlobeHeader';
 import { findAirportByCode, useAirports } from '@/lib/useAirports';
+import { Btn } from '@/components/admin/ui/Btn';
+import { Chip } from '@/components/admin/ui/Chip';
+import { Eyebrow, Panel } from '@/components/admin/ui/Panel';
+import { PageHead } from '@/components/admin/ui/PageHead';
 
 const QUOTE_SELECTION_KEY = 'apg_quote_selection';
 
@@ -216,7 +219,7 @@ function AirlineLogo({
         alt={code || ''}
         width={size}
         height={size}
-        className="shrink-0 rounded-lg border border-slate-100 bg-white object-contain p-0.5"
+        className="shrink-0 rounded-[8px] border border-[var(--line)] bg-[var(--paper)] object-contain p-0.5"
         referrerPolicy="no-referrer"
         onError={() => setImgFailed(true)}
       />
@@ -251,12 +254,12 @@ function FlightSegment({
   const airportLabel = (iata: string) => airportCodeLabel(airports, iata);
 
   return (
-    <div className="overflow-hidden rounded-[var(--apg-radius-md)] border border-[var(--apg-border-default)] bg-white shadow-sm">
+    <div className="overflow-hidden rounded-[12px] border border-[var(--line)] bg-[var(--paper)]">
       <div
         className="flex items-center justify-between px-3 py-2"
-        style={{ background: `linear-gradient(135deg, var(--apg-aviation-navy), color-mix(in srgb, ${color} 55%, var(--apg-aviation-navy)))` }}
+        style={{ background: `linear-gradient(135deg, var(--navy), color-mix(in srgb, ${color} 55%, var(--navy)))` }}
       >
-        <span className="apg-display text-[11px] font-medium uppercase tracking-[0.22em] text-white/90">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/90">{label}</span>
         <span className="rounded-full border border-white/20 bg-white/15 px-3 py-1 text-[11px] font-extrabold text-white">
           {longDate(date)}
         </span>
@@ -266,61 +269,61 @@ function FlightSegment({
         <AirlineLogo code={flight.airlineCode} airline={flight.airline} logo={flight.airlineLogo} size={30} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="apg-mono text-base font-black text-[#1a1a1a] sm:text-xl">{hhmm(flight.departure.time)}</span>
-            <span className="text-sm text-[var(--apg-brand-gold)]">→</span>
-            <span className="apg-mono text-base font-black text-[#1a1a1a] sm:text-xl">{hhmm(flight.arrival.time)}</span>
-            <span className="whitespace-nowrap text-xs text-slate-400">{durationText(flight.duration)}</span>
+            <span className="ofly-num text-base font-bold text-[var(--ink)] sm:text-xl">{hhmm(flight.departure.time)}</span>
+            <span className="text-sm text-[var(--rust)]">→</span>
+            <span className="ofly-num text-base font-bold text-[var(--ink)] sm:text-xl">{hhmm(flight.arrival.time)}</span>
+            <span className="whitespace-nowrap text-xs text-[var(--ink4)]">{durationText(flight.duration)}</span>
           </div>
-          <div className="text-sm text-slate-500">
+          <div className="text-sm text-[var(--ink3)]">
             {flight.airline} · {flight.flightNumber} · {flight.stops === 0 ? 'Bay thẳng' : `${flight.stops} điểm dừng`}
           </div>
-          <div className="text-sm leading-snug text-slate-600">
+          <div className="text-sm leading-snug text-[var(--ink2)]">
             {routeAirportLabel(airports, flight.departure, flight.arrival)}
           </div>
         </div>
         <div className="shrink-0 text-right">
-          <div className="apg-tabular text-lg font-black text-[#1a1a1a]">{fmtVND(amount)}</div>
-          <div className="text-[11px] text-slate-400">/người</div>
+          <div className="ofly-num text-lg font-bold text-[var(--ink)]">{fmtVND(amount)}</div>
+          <div className="text-[11px] text-[var(--ink4)]">/người</div>
         </div>
       </div>
 
       {layovers.length > 0 && (
-        <div className="border-t border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-4 py-3">
+        <div className="border-t border-[var(--line)] bg-[var(--paper2)] px-4 py-3">
           <div className="space-y-2">
             {layovers.map((stop, idx) => (
-              <div key={`${stop.airport}-${idx}`} className="rounded-lg border border-[var(--apg-border-default)] bg-white px-3 py-3">
+              <div key={`${stop.airport}-${idx}`} className="rounded-[10px] border border-[var(--line)] bg-[var(--paper)] px-3 py-3">
                 <div className="flex items-start justify-between gap-3 text-xs">
-                  <div className="font-semibold text-[#1a1a1a]">
+                  <div className="font-semibold text-[var(--ink)]">
                     {airportLabel(stop.fromSegment.from)} → {airportLabel(stop.fromSegment.to)}
                   </div>
-                  <div className="text-slate-500">{longDateFromAbayText(stop.fromSegment.departDate)}</div>
+                  <div className="text-[var(--ink3)]">{longDateFromAbayText(stop.fromSegment.departDate)}</div>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <AirlineLogo code={flight.airlineCode} airline={flight.airline} logo={flight.airlineLogo} size={22} />
-                  <div className="min-w-0 flex-1 text-xs text-slate-700">{stop.fromSegment.flightNumber}</div>
-                  <div className="text-xs text-slate-500">{formatMinutesShort(stop.fromSegment.durationMinutes)}</div>
-                  <div className="apg-mono text-sm font-bold text-[#1a1a1a]">
+                  <div className="min-w-0 flex-1 text-xs text-[var(--ink2)]">{stop.fromSegment.flightNumber}</div>
+                  <div className="text-xs text-[var(--ink3)]">{formatMinutesShort(stop.fromSegment.durationMinutes)}</div>
+                  <div className="ofly-num text-sm font-bold text-[var(--ink)]">
                     {stop.fromSegment.departHm} - {stop.fromSegment.arriveHm}
                   </div>
                 </div>
                 <div className="my-3 flex items-center gap-2 pl-2">
-                  <div className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-[var(--apg-text-secondary)] bg-white">
-                    <div className="h-1.5 w-1.5 rounded-full bg-[var(--apg-text-secondary)]" />
+                  <div className="flex h-4 w-4 items-center justify-center rounded-full border-2 border-[var(--rust)] bg-[var(--paper)]">
+                    <div className="h-1.5 w-1.5 rounded-full bg-[var(--rust)]" />
                   </div>
-                  <div className="h-8 w-px bg-[var(--apg-border-strong)]" />
-                  <div className="text-sm font-semibold text-[var(--apg-text-secondary)]">Nối chuyến: {stop.durationText}</div>
+                  <div className="h-8 w-px bg-[var(--line2)]" />
+                  <div className="text-sm font-semibold text-[var(--rust)]">Nối chuyến: {stop.durationText}</div>
                 </div>
                 <div className="flex items-start justify-between gap-3 text-xs">
-                  <div className="font-semibold text-[#1a1a1a]">
+                  <div className="font-semibold text-[var(--ink)]">
                     {airportLabel(stop.toSegment.from)} → {airportLabel(stop.toSegment.to)}
                   </div>
-                  <div className="text-slate-500">{longDateFromAbayText(stop.toSegment.departDate)}</div>
+                  <div className="text-[var(--ink3)]">{longDateFromAbayText(stop.toSegment.departDate)}</div>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <AirlineLogo code={flight.airlineCode} airline={flight.airline} logo={flight.airlineLogo} size={22} />
-                  <div className="min-w-0 flex-1 text-xs text-slate-700">{stop.toSegment.flightNumber}</div>
-                  <div className="text-xs text-slate-500">{formatMinutesShort(stop.toSegment.durationMinutes)}</div>
-                  <div className="apg-mono text-sm font-bold text-[#1a1a1a]">
+                  <div className="min-w-0 flex-1 text-xs text-[var(--ink2)]">{stop.toSegment.flightNumber}</div>
+                  <div className="text-xs text-[var(--ink3)]">{formatMinutesShort(stop.toSegment.durationMinutes)}</div>
+                  <div className="ofly-num text-sm font-bold text-[var(--ink)]">
                     {stop.toSegment.departHm} - {stop.toSegment.arriveHm}
                   </div>
                 </div>
@@ -334,6 +337,27 @@ function FlightSegment({
 }
 
 const UNLOCK_PASSWORD = '8888';
+
+// Mặt vé xuất ảnh dùng màu LITERAL, không dùng token theme: html2canvas chụp DOM thật
+// nên nếu bám vào biến CSS thì file PDF/JPEG sẽ đổi màu theo theme sáng/tối của admin.
+// Một nguồn duy nhất cho cả nền canvas lúc chụp lẫn nền khối in → không còn viền lệch màu.
+// Bảng màu bám dải navy/xám của skin mới (§9), thay dải kem-nâu của skin cũ.
+const PRINT_COLORS = {
+  page: '#f5f5f7', // nền trang in (cũng là backgroundColor của html2canvas)
+  card: '#ffffff',
+  cardSoft: '#f3f5f7', // nền dải phụ (trước là kem #fcfaf6)
+  border: '#d2d2d7',
+  borderSoft: '#e7ebef', // đường kẻ nhạt (trước là #eee / #f0ebe0 / #f1d9b5)
+  ink: '#14253b', // chữ chính
+  ink2: '#31445e', // chữ thân bài
+  ink3: '#5b6776', // chữ phụ / nhãn
+  ink4: '#93a0af', // chữ rất mờ
+  navy: '#0f3d6a', // khối header/footer navy đặc
+  navyDeep: '#112f4f',
+  accent: '#0a74c0', // nhấn: chấm nối chuyến, dòng cảm ơn
+  onNavy: '#ffffff', // chữ trên nền navy đặc
+} as const;
+
 const TICKET_NOTICE_INTRO =
   'Quý khách vui lòng có mặt ở sân bay trước giờ khởi hành 90 phút cho chuyến bay nội địa và 180 phút cho chuyến bay quốc tế.';
 const TICKET_NOTICE_ITEMS = [
@@ -399,7 +423,7 @@ function TicketModal({
     return h2c(printRef.current, {
       scale: 2,
       useCORS: true,
-      backgroundColor: '#f5f0e8',
+      backgroundColor: PRINT_COLORS.page,
       logging: false,
     });
   }
@@ -450,23 +474,36 @@ function TicketModal({
       }}
     >
       <div className="flex min-h-full items-end justify-center lg:items-center">
-        <div className="my-auto flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-2xl bg-white shadow-2xl lg:max-w-[1240px] xl:max-w-[1320px] lg:rounded-2xl">
-          <div className="flex items-center justify-between border-b border-[var(--apg-border-default)] px-4 py-3 lg:px-5">
-            <div className="apg-display">
-              <div className="text-sm font-bold">Mặt vé báo giá</div>
-              <div className="text-[10px] text-slate-400">Xem trước · Chỉnh sửa · Tải về</div>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mặt vé báo giá"
+          className="my-auto flex max-h-[92vh] w-full max-w-lg flex-col rounded-t-[14px] border border-[var(--line2)] bg-[var(--paper)] lg:max-w-[1240px] xl:max-w-[1320px] lg:rounded-[14px]"
+          style={{ boxShadow: '0 30px 80px -30px rgba(20,17,16,0.55)' }}
+        >
+          <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3 lg:px-5">
+            {/* Tiêu đề modal theo thang Manager: Fraunces 23px/500. Dòng chú thích dùng sans
+                (serif chỉ dành cho tiêu đề và số lớn). */}
+            <div className="min-w-0">
+              <div className="ofly-serif m-0 text-[23px] font-medium leading-[1.2] tracking-[-0.6px] text-[var(--ink)]">
+                Mặt vé báo giá
+              </div>
+              <div className="mt-[6px] text-[11.5px] text-[var(--ink3)]">Xem trước · Chỉnh sửa · Tải về</div>
             </div>
+            {/* Vùng bấm 44×44 trên mobile theo §8, thu về 32px ở desktop. */}
             <button
+              type="button"
               onClick={onClose}
-              className="apg-btn-secondary flex h-8 w-8 items-center justify-center px-0 text-slate-400 shadow-none"
+              aria-label="Đóng"
+              className="flex h-11 w-11 flex-none items-center justify-center rounded-[8px] border border-[var(--line2)] text-[var(--ink3)] transition-colors duration-150 hover:text-[var(--ink)] lg:h-8 lg:w-8"
             >
-              ×
+              <X size={16} strokeWidth={1.5} />
             </button>
           </div>
 
           {/* Mở khóa chỉnh sửa trên MOBILE (desktop dùng panel cài đặt bên phải). Có nút này thì
               admin dùng điện thoại mới sửa được giá/liên hệ trên mặt vé rồi tải về. */}
-          <div className="border-b border-[#e8dcc8] bg-[var(--apg-bg-surface-soft)] px-4 py-2.5 lg:hidden">
+          <div className="border-b border-[var(--line)] bg-[var(--paper2)] px-4 py-2.5 lg:hidden">
             {locked ? (
               <div>
                 <div className="flex items-center gap-2">
@@ -485,7 +522,7 @@ function TicketModal({
                       }
                     }}
                     placeholder="Mật khẩu để chỉnh sửa mặt vé"
-                    className="min-w-0 flex-1 rounded-lg border border-[var(--apg-border-strong)] px-3 py-2 text-sm"
+                    className="min-w-0 flex-1 rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none placeholder:text-[var(--ink4)] focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                   />
                   <button
                     onClick={() => {
@@ -497,19 +534,19 @@ function TicketModal({
                         setPwInput('');
                       }
                     }}
-                    className="apg-btn-primary h-10 shrink-0 px-4 text-sm font-bold text-white"
+                    className="h-11 shrink-0 rounded-[7px] bg-[var(--navyMid)] px-4 text-sm font-semibold text-[var(--onInk)]"
                   >
                     Mở khóa
                   </button>
                 </div>
-                {pwError && <div className="mt-1 text-xs text-red-500">{pwError}</div>}
+                {pwError && <div className="mt-1 text-xs text-[var(--red)]">{pwError}</div>}
               </div>
             ) : (
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-green-700">✓ Đã mở chỉnh sửa — sửa giá/liên hệ bên dưới</span>
+                <span className="text-xs font-semibold text-[var(--green)]">✓ Đã mở chỉnh sửa — sửa giá/liên hệ bên dưới</span>
                 <button
                   onClick={() => setLocked(true)}
-                  className="shrink-0 text-xs font-semibold text-slate-500 underline"
+                  className="shrink-0 text-xs font-semibold text-[var(--ink3)] underline"
                 >
                   Khóa lại
                 </button>
@@ -518,59 +555,59 @@ function TicketModal({
           </div>
 
           {!locked && (
-            <div className="border-b border-[#e8dcc8] bg-[var(--apg-bg-surface-soft)] px-4 py-2 lg:hidden">
+            <div className="border-b border-[var(--line)] bg-[var(--paper2)] px-4 py-2 lg:hidden">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <label className="text-[10px] text-slate-500">Giá đi (VND)</label>
+                  <label className="text-[10px] text-[var(--ink3)]">Giá đi (VND)</label>
                   <input
                     type="number"
                     value={ed.outPrice}
                     onChange={(event) => setEd((prev) => ({ ...prev, outPrice: Number(event.target.value) }))}
-                    className="w-full rounded border border-[var(--apg-border-strong)] px-2 py-1 text-xs"
+                    className="w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                   />
                 </div>
                 {isRT && (
                   <div>
-                    <label className="text-[10px] text-slate-500">Giá về (VND)</label>
+                    <label className="text-[10px] text-[var(--ink3)]">Giá về (VND)</label>
                     <input
                       type="number"
                       value={ed.inPrice}
                       onChange={(event) => setEd((prev) => ({ ...prev, inPrice: Number(event.target.value) }))}
-                      className="w-full rounded border border-[var(--apg-border-strong)] px-2 py-1 text-xs"
+                      className="w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                     />
                   </div>
                 )}
                 <div>
-                  <label className="text-[10px] text-slate-500">Thuế %</label>
+                  <label className="text-[10px] text-[var(--ink3)]">Thuế %</label>
                   <input
                     type="number"
                     value={ed.taxPct}
                     onChange={(event) => setEd((prev) => ({ ...prev, taxPct: Number(event.target.value) }))}
-                    className="w-full rounded border border-[var(--apg-border-strong)] px-2 py-1 text-xs"
+                    className="w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-500">Điện thoại</label>
+                  <label className="text-[10px] text-[var(--ink3)]">Điện thoại</label>
                   <input
                     value={ed.phone}
                     onChange={(event) => setEd((prev) => ({ ...prev, phone: event.target.value }))}
-                    className="w-full rounded border border-[var(--apg-border-strong)] px-2 py-1 text-xs"
+                    className="w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-500">Trang web</label>
+                  <label className="text-[10px] text-[var(--ink3)]">Trang web</label>
                   <input
                     value={ed.website}
                     onChange={(event) => setEd((prev) => ({ ...prev, website: event.target.value }))}
-                    className="w-full rounded border border-[var(--apg-border-strong)] px-2 py-1 text-xs"
+                    className="w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-slate-500">Email</label>
+                  <label className="text-[10px] text-[var(--ink3)]">Email</label>
                   <input
                     value={ed.email}
                     onChange={(event) => setEd((prev) => ({ ...prev, email: event.target.value }))}
-                    className="w-full rounded border border-[var(--apg-border-strong)] px-2 py-1 text-xs"
+                    className="w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                   />
                 </div>
               </div>
@@ -578,12 +615,12 @@ function TicketModal({
           )}
 
         <div className="flex-1 min-h-0 overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="overflow-auto bg-[var(--apg-bg-page)] p-3 lg:p-6 xl:p-8">
+          <div className="overflow-auto bg-[var(--canvas)] p-3 lg:p-6 xl:p-8">
             <div ref={printRef}>
               <div
                 style={{
                   fontFamily: 'var(--font-sans)',
-                  backgroundColor: 'var(--apg-bg-page)',
+                  backgroundColor: PRINT_COLORS.page,
                   padding: '16px',
                   maxWidth: '720px',
                   margin: '0 auto',
@@ -591,7 +628,7 @@ function TicketModal({
               >
                 <div
                   style={{
-                    background: 'var(--apg-blue-800)',
+                    background: PRINT_COLORS.navy,
                     borderRadius: '12px',
                     padding: '14px 16px',
                     marginBottom: '12px',
@@ -618,7 +655,7 @@ function TicketModal({
                         />
                       </div>
                       <div>
-                        <div style={{ color: 'white', fontWeight: 600, fontSize: '16px', letterSpacing: '0.08em', fontFamily: 'var(--font-display)' }}>
+                        <div style={{ color: PRINT_COLORS.onNavy, fontWeight: 600, fontSize: '16px', letterSpacing: '0.08em', fontFamily: 'var(--font-display)' }}>
                           TAN PHU APG
                         </div>
                         <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '10px' }}>Corporate Aviation Services</div>
@@ -626,7 +663,7 @@ function TicketModal({
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: '9px' }}>Mã báo giá</div>
-                      <div style={{ color: 'white', fontWeight: 800, fontSize: '11px', fontFamily: 'monospace' }}>
+                      <div style={{ color: PRINT_COLORS.onNavy, fontWeight: 800, fontSize: '11px', fontFamily: 'monospace' }}>
                         {data.quoteCode ?? `APG-${new Date(data.createdAt || Date.now()).getTime().toString(36).toUpperCase().slice(-6)}`}
                       </div>
                     </div>
@@ -659,10 +696,10 @@ function TicketModal({
                   const meta = getAirlineMeta(flight.airlineCode, flight.airline, flight.airlineLogo);
                   const layovers = buildLayovers(flight.detailUrl);
                   return (
-                    <div key={label} style={{ background: 'white', borderRadius: '10px', border: '1px solid var(--apg-border-default)', marginBottom: '10px', overflow: 'hidden' }}>
+                    <div key={label} style={{ background: PRINT_COLORS.card, borderRadius: '10px', border: `1px solid ${PRINT_COLORS.border}`, marginBottom: '10px', overflow: 'hidden' }}>
                       <div style={{ background: color, padding: '7px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ color: 'white', fontWeight: 700, fontSize: '10px', letterSpacing: '0.06em' }}>{label}</span>
-                        <span style={{ color: '#fff', fontSize: '11px', fontWeight: 900, padding: '4px 10px', borderRadius: '999px', background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.24)' }}>
+                        <span style={{ color: PRINT_COLORS.onNavy, fontWeight: 700, fontSize: '10px', letterSpacing: '0.06em' }}>{label}</span>
+                        <span style={{ color: PRINT_COLORS.onNavy, fontSize: '11px', fontWeight: 900, padding: '4px 10px', borderRadius: '999px', background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.24)' }}>
                           {longDate(date)}
                         </span>
                       </div>
@@ -671,78 +708,78 @@ function TicketModal({
                           <img
                             src={meta.logo}
                             alt={flight.airline}
-                            style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'contain', border: '1px solid #eee', background: 'white', padding: '2px' }}
+                            style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'contain', border: `1px solid ${PRINT_COLORS.borderSoft}`, background: PRINT_COLORS.card, padding: '2px' }}
                           />
                         )}
                         <div style={{ flex: 1 }}>
                           <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                            <span style={{ fontSize: '22px', fontWeight: 900, color: '#1a1a1a' }}>{hhmm(flight.departure.time)}</span>
-                            <span style={{ color: 'var(--apg-text-secondary)', fontSize: '13px' }}>→</span>
-                            <span style={{ fontSize: '22px', fontWeight: 900, color: '#1a1a1a' }}>{hhmm(flight.arrival.time)}</span>
-                            <span style={{ fontSize: '12px', color: '#9ca3af' }}>{durationText(flight.duration)}</span>
+                            <span style={{ fontSize: '22px', fontWeight: 900, color: PRINT_COLORS.ink }}>{hhmm(flight.departure.time)}</span>
+                            <span style={{ color: PRINT_COLORS.ink3, fontSize: '13px' }}>→</span>
+                            <span style={{ fontSize: '22px', fontWeight: 900, color: PRINT_COLORS.ink }}>{hhmm(flight.arrival.time)}</span>
+                            <span style={{ fontSize: '12px', color: PRINT_COLORS.ink4 }}>{durationText(flight.duration)}</span>
                           </div>
-                          <div style={{ fontSize: '13px', color: '#777' }}>
+                          <div style={{ fontSize: '13px', color: PRINT_COLORS.ink3 }}>
                             {flight.airline} · {flight.flightNumber} · {flight.stops === 0 ? 'Bay thẳng' : `${flight.stops} điểm dừng`}
                           </div>
-                          <div style={{ fontSize: '13px', color: '#888' }}>
+                          <div style={{ fontSize: '13px', color: PRINT_COLORS.ink3 }}>
                             {routeAirportLabel(airports, flight.departure, flight.arrival)}
                           </div>
                         </div>
                         {showTicketFare ? (
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '18px', fontWeight: 900, color: '#1a1a1a', lineHeight: 1.2 }}>{formatTicketMoney(price)}</div>
-                            <div style={{ fontSize: '11px', color: '#9ca3af' }}>/người</div>
+                            <div style={{ fontSize: '18px', fontWeight: 900, color: PRINT_COLORS.ink, lineHeight: 1.2 }}>{formatTicketMoney(price)}</div>
+                            <div style={{ fontSize: '11px', color: PRINT_COLORS.ink4 }}>/người</div>
                           </div>
                         ) : null}
                       </div>
                       {layovers.length > 0 && (
-                        <div style={{ borderTop: '1px solid #f0ebe0', background: '#fcfaf6', padding: '10px 14px' }}>
+                        <div style={{ borderTop: `1px solid ${PRINT_COLORS.borderSoft}`, background: PRINT_COLORS.cardSoft, padding: '10px 14px' }}>
                           {layovers.map((stop, idx) => (
-                            <div key={`${stop.airport}-${idx}`} style={{ background: 'white', border: '1px solid var(--apg-border-default)', borderRadius: '8px', padding: '10px 12px', marginBottom: idx < layovers.length - 1 ? '8px' : '0' }}>
+                            <div key={`${stop.airport}-${idx}`} style={{ background: PRINT_COLORS.card, border: `1px solid ${PRINT_COLORS.border}`, borderRadius: '8px', padding: '10px 12px', marginBottom: idx < layovers.length - 1 ? '8px' : '0' }}>
                               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '13px' }}>
-                                <div style={{ fontWeight: 700, color: '#1a1a1a' }}>
+                                <div style={{ fontWeight: 700, color: PRINT_COLORS.ink }}>
                                   {airportLabel(stop.fromSegment.from)} → {airportLabel(stop.fromSegment.to)}
                                 </div>
-                                <div style={{ fontSize: '11px', color: '#777' }}>{longDateFromAbayText(stop.fromSegment.departDate)}</div>
+                                <div style={{ fontSize: '11px', color: PRINT_COLORS.ink3 }}>{longDateFromAbayText(stop.fromSegment.departDate)}</div>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
                                 {meta.logo && (
                                   <img
                                     src={meta.logo}
                                     alt={flight.airline}
-                                    style={{ width: '22px', height: '22px', borderRadius: '5px', objectFit: 'contain', border: '1px solid #eee', background: 'white', padding: '2px' }}
+                                    style={{ width: '22px', height: '22px', borderRadius: '5px', objectFit: 'contain', border: `1px solid ${PRINT_COLORS.borderSoft}`, background: PRINT_COLORS.card, padding: '2px' }}
                                   />
                                 )}
-                                <div style={{ flex: 1, fontSize: '12px', color: '#555' }}>{stop.fromSegment.flightNumber}</div>
-                                <div style={{ fontSize: '12px', color: '#666' }}>{formatMinutesShort(stop.fromSegment.durationMinutes)}</div>
-                                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1a1a1a' }}>
+                                <div style={{ flex: 1, fontSize: '12px', color: PRINT_COLORS.ink3 }}>{stop.fromSegment.flightNumber}</div>
+                                <div style={{ fontSize: '12px', color: PRINT_COLORS.ink3 }}>{formatMinutesShort(stop.fromSegment.durationMinutes)}</div>
+                                <div style={{ fontSize: '13px', fontWeight: 800, color: PRINT_COLORS.ink }}>
                                   {stop.fromSegment.departHm} - {stop.fromSegment.arriveHm}
                                 </div>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '10px 0 8px 2px' }}>
-                                <div style={{ width: '14px', height: '14px', borderRadius: '999px', border: '2px solid #f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
-                                  <div style={{ width: '6px', height: '6px', borderRadius: '999px', background: '#f97316' }} />
+                                <div style={{ width: '14px', height: '14px', borderRadius: '999px', border: `2px solid ${PRINT_COLORS.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: PRINT_COLORS.card }}>
+                                  <div style={{ width: '6px', height: '6px', borderRadius: '999px', background: PRINT_COLORS.accent }} />
                                 </div>
-                                <div style={{ width: '1px', height: '28px', background: '#f1d9b5' }} />
-                                <div style={{ fontSize: '13px', fontWeight: 700, color: '#ea580c' }}>Nối chuyến: {stop.durationText}</div>
+                                <div style={{ width: '1px', height: '28px', background: PRINT_COLORS.borderSoft }} />
+                                <div style={{ fontSize: '13px', fontWeight: 700, color: PRINT_COLORS.accent }}>Nối chuyến: {stop.durationText}</div>
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', fontSize: '13px' }}>
-                                <div style={{ fontWeight: 700, color: '#1a1a1a' }}>
+                                <div style={{ fontWeight: 700, color: PRINT_COLORS.ink }}>
                                   {airportLabel(stop.toSegment.from)} → {airportLabel(stop.toSegment.to)}
                                 </div>
-                                <div style={{ fontSize: '11px', color: '#777' }}>{longDateFromAbayText(stop.toSegment.departDate)}</div>
+                                <div style={{ fontSize: '11px', color: PRINT_COLORS.ink3 }}>{longDateFromAbayText(stop.toSegment.departDate)}</div>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
                                 {meta.logo && (
                                   <img
                                     src={meta.logo}
                                     alt={flight.airline}
-                                    style={{ width: '22px', height: '22px', borderRadius: '5px', objectFit: 'contain', border: '1px solid #eee', background: 'white', padding: '2px' }}
+                                    style={{ width: '22px', height: '22px', borderRadius: '5px', objectFit: 'contain', border: `1px solid ${PRINT_COLORS.borderSoft}`, background: PRINT_COLORS.card, padding: '2px' }}
                                   />
                                 )}
-                                <div style={{ flex: 1, fontSize: '12px', color: '#555' }}>{stop.toSegment.flightNumber}</div>
-                                <div style={{ fontSize: '12px', color: '#666' }}>{formatMinutesShort(stop.toSegment.durationMinutes)}</div>
-                                <div style={{ fontSize: '13px', fontWeight: 800, color: '#1a1a1a' }}>
+                                <div style={{ flex: 1, fontSize: '12px', color: PRINT_COLORS.ink3 }}>{stop.toSegment.flightNumber}</div>
+                                <div style={{ fontSize: '12px', color: PRINT_COLORS.ink3 }}>{formatMinutesShort(stop.toSegment.durationMinutes)}</div>
+                                <div style={{ fontSize: '13px', fontWeight: 800, color: PRINT_COLORS.ink }}>
                                   {stop.toSegment.departHm} - {stop.toSegment.arriveHm}
                                 </div>
                               </div>
@@ -755,9 +792,9 @@ function TicketModal({
                 })}
 
                 {showTicketFare ? (
-                  <div style={{ background: 'white', borderRadius: '10px', border: '1px solid var(--apg-border-default)', marginBottom: '10px', overflow: 'hidden' }}>
-                    <div style={{ background: 'var(--apg-bg-surface-soft)', borderBottom: '1px solid var(--apg-border-default)', padding: '6px 12px' }}>
-                      <span style={{ fontSize: '10px', fontWeight: 700, color: '#7a6a52', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  <div style={{ background: PRINT_COLORS.card, borderRadius: '10px', border: `1px solid ${PRINT_COLORS.border}`, marginBottom: '10px', overflow: 'hidden' }}>
+                    <div style={{ background: PRINT_COLORS.cardSoft, borderBottom: `1px solid ${PRINT_COLORS.border}`, padding: '6px 12px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: PRINT_COLORS.ink3, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                         Chi tiết giá vé
                       </span>
                     </div>
@@ -766,19 +803,19 @@ function TicketModal({
                         [`NL × ${data.adults}`, Math.round(farePerPax * data.adults)],
                         [`Thuế ~${ed.taxPct}%`, tax],
                       ].map(([label, value]) => (
-                        <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#555', marginBottom: '5px' }}>
+                        <div key={String(label)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: PRINT_COLORS.ink3, marginBottom: '5px' }}>
                           <span>{label}</span>
-                          <span style={{ fontWeight: 600, color: '#333' }}>{formatTicketMoney(Number(value))}</span>
+                          <span style={{ fontWeight: 600, color: PRINT_COLORS.ink }}>{formatTicketMoney(Number(value))}</span>
                         </div>
                       ))}
-                      <div style={{ borderTop: '1px solid var(--apg-border-default)', marginTop: '6px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ borderTop: `1px solid ${PRINT_COLORS.border}`, marginTop: '6px', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#4a3b28' }}>Tổng giá vé</div>
-                          <div style={{ fontSize: '9px', color: '#aaa' }}>* Tham khảo</div>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: PRINT_COLORS.ink }}>Tổng giá vé</div>
+                          <div style={{ fontSize: '9px', color: PRINT_COLORS.ink4 }}>* Tham khảo</div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: '18px', fontWeight: 900, color: '#1a1a1a', lineHeight: 1.2 }}>{formatTicketMoney(grandTotal)}</div>
-                          <div style={{ fontSize: '9px', color: '#bbb' }}>{`≈$${Math.round(grandTotal / usdRate)} USD`}</div>
+                          <div style={{ fontSize: '18px', fontWeight: 900, color: PRINT_COLORS.ink, lineHeight: 1.2 }}>{formatTicketMoney(grandTotal)}</div>
+                          <div style={{ fontSize: '9px', color: PRINT_COLORS.ink4 }}>{`≈$${Math.round(grandTotal / usdRate)} USD`}</div>
                         </div>
                       </div>
                     </div>
@@ -787,7 +824,7 @@ function TicketModal({
 
                 <div
                   style={{
-                    background: 'linear-gradient(180deg, rgba(242,247,252,0.96), rgba(255,255,255,0.98) 30%, rgba(250,246,238,0.98) 100%)',
+                    background: 'linear-gradient(180deg, rgba(242,247,252,0.96), rgba(255,255,255,0.98) 30%, rgba(243,245,247,0.98) 100%)',
                     borderRadius: '12px',
                     border: '1px solid rgba(20,59,95,0.16)',
                     marginBottom: '12px',
@@ -798,8 +835,8 @@ function TicketModal({
                   <div
                     style={{
                       padding: '9px 14px',
-                      background: 'var(--apg-blue-800)',
-                      color: 'white',
+                      background: PRINT_COLORS.navy,
+                      color: PRINT_COLORS.onNavy,
                       fontSize: '11px',
                       fontWeight: 800,
                       letterSpacing: '0.08em',
@@ -809,9 +846,9 @@ function TicketModal({
                   >
                     Lưu ý
                   </div>
-                  <div style={{ padding: '13px 14px 14px', color: '#425266', fontSize: '11px', lineHeight: 1.68 }}>
-                    <div style={{ fontWeight: 800, textTransform: 'uppercase', color: 'var(--apg-aviation-navy-deep)', letterSpacing: '0.01em' }}>{TICKET_NOTICE_INTRO}</div>
-                    <ul style={{ margin: '10px 0 0', paddingLeft: '16px', color: '#4b5b70' }}>
+                  <div style={{ padding: '13px 14px 14px', color: PRINT_COLORS.ink2, fontSize: '11px', lineHeight: 1.68 }}>
+                    <div style={{ fontWeight: 800, textTransform: 'uppercase', color: PRINT_COLORS.navyDeep, letterSpacing: '0.01em' }}>{TICKET_NOTICE_INTRO}</div>
+                    <ul style={{ margin: '10px 0 0', paddingLeft: '16px', color: PRINT_COLORS.ink2 }}>
                       {TICKET_NOTICE_ITEMS.map((item) => (
                         <li key={item} style={{ marginBottom: '5px' }}>
                           {item}
@@ -826,7 +863,7 @@ function TicketModal({
                         background: 'rgba(20,59,95,0.06)',
                         border: '1px solid rgba(20,59,95,0.08)',
                         fontWeight: 700,
-                        color: 'var(--apg-aviation-navy-deep)',
+                        color: PRINT_COLORS.navyDeep,
                       }}
                     >
                       {TICKET_NOTICE_CONFIRM}
@@ -835,12 +872,12 @@ function TicketModal({
                       style={{
                         marginTop: '12px',
                         paddingTop: '11px',
-                        borderTop: '1px dashed rgba(177,138,59,0.36)',
+                        borderTop: `1px dashed ${PRINT_COLORS.borderSoft}`,
                         textAlign: 'center',
                         fontWeight: 800,
                         letterSpacing: '0.06em',
                         textTransform: 'uppercase',
-                        color: 'var(--apg-brand-gold)',
+                        color: PRINT_COLORS.accent,
                       }}
                     >
                       {TICKET_NOTICE_THANKS}
@@ -850,7 +887,7 @@ function TicketModal({
 
                 <div
                   style={{
-                    background: 'var(--apg-blue-800)',
+                    background: PRINT_COLORS.navy,
                     borderRadius: '12px',
                     border: '1px solid rgba(20,59,95,0.2)',
                     overflow: 'hidden',
@@ -887,7 +924,7 @@ function TicketModal({
                         />
                       </div>
                       <div>
-                        <div style={{ color: 'white', fontWeight: 600, fontSize: '13px', letterSpacing: '0.08em', fontFamily: 'var(--font-display)' }}>
+                        <div style={{ color: PRINT_COLORS.onNavy, fontWeight: 600, fontSize: '13px', letterSpacing: '0.08em', fontFamily: 'var(--font-display)' }}>
                           TAN PHU APG
                         </div>
                         <div style={{ color: 'rgba(255,255,255,0.72)', fontSize: '9px' }}>Corporate Aviation Services</div>
@@ -914,7 +951,7 @@ function TicketModal({
                           <div style={{ color: 'rgba(255,255,255,0.62)', fontSize: '9px', marginBottom: '3px' }}>{label}</div>
                           <div
                             style={{
-                              color: 'white',
+                              color: PRINT_COLORS.onNavy,
                               fontSize: label === 'Email' ? '10px' : '11px',
                               fontWeight: 600,
                               lineHeight: 1.25,
@@ -948,33 +985,34 @@ function TicketModal({
             </div>
           </div>
 
-          <aside className="hidden min-h-0 border-l border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] lg:flex lg:flex-col">
+          <aside className="hidden min-h-0 border-l border-[var(--line)] bg-[var(--paper2)] lg:flex lg:flex-col">
             <div className="flex min-h-0 flex-1 flex-col">
               <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
-                <div className="apg-panel px-4 py-4">
-                  <div className="apg-eyebrow">Tổng báo giá</div>
-                  <div className="apg-tabular mt-2 text-2xl font-black text-[#1a1a1a]">{fmtVND(grandTotal)}</div>
-                  <div className="mt-1 text-xs text-slate-500">≈${Math.round(grandTotal / usdRate)} USD · {data.adults} khách</div>
-                  <div className="mt-3 rounded-xl border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-3 text-xs text-slate-600">
+                <div className="rounded-[12px] border border-[var(--line)] bg-[var(--paper)] px-4 py-4">
+                  <div className="ofly-eyebrow">Tổng báo giá</div>
+                  <div className="ofly-num mt-2 text-2xl font-bold text-[var(--ink)]">{fmtVND(grandTotal)}</div>
+                  <div className="mt-1 text-xs text-[var(--ink3)]">≈${Math.round(grandTotal / usdRate)} USD · {data.adults} khách</div>
+                  <div className="mt-3 rounded-[10px] border border-[var(--line)] bg-[var(--paper2)] px-3 py-3 text-xs text-[var(--ink2)]">
                     {routeAirportLabel(airports, data.outbound.departure, data.outbound.arrival)}
                     {isRT ? ` · Khứ hồi` : ` · Một chiều`}
                   </div>
                 </div>
 
-                <div className="apg-panel px-4 py-4">
-                  <div className="apg-eyebrow">Cài Đặt Nâng Cao</div>
-                  <div className="mt-3 flex items-center justify-between rounded-xl border border-[var(--apg-border-default)] bg-white px-3 py-3">
+                <div className="rounded-[12px] border border-[var(--line)] bg-[var(--paper)] px-4 py-4">
+                  <div className="ofly-eyebrow">Cài Đặt Nâng Cao</div>
+                  <div className="mt-3 flex items-center justify-between rounded-[10px] border border-[var(--line)] bg-[var(--paper2)] px-3 py-3">
                     <div>
-                      <div className="text-sm font-semibold text-[#1a1a1a]">{locked ? 'Đang khóa cài đặt' : 'Đã mở chỉnh sửa'}</div>
-                      <div className="text-xs text-slate-500">{locked ? 'Chỉ xem trước và tải mặt vé.' : 'Có thể cập nhật giá, liên hệ và ghi chú.'}</div>
+                      <div className="text-sm font-semibold text-[var(--ink)]">{locked ? 'Đang khóa cài đặt' : 'Đã mở chỉnh sửa'}</div>
+                      <div className="text-xs text-[var(--ink3)]">{locked ? 'Chỉ xem trước và tải mặt vé.' : 'Có thể cập nhật giá, liên hệ và ghi chú.'}</div>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${locked ? 'bg-slate-100 text-slate-600' : 'bg-green-100 text-green-700'}`}>
+                    {/* Pill trạng thái theo §3: bo tròn, padding 5/11, dùng tone token nên tự đúng ở theme tối. */}
+                    <span className={`rounded-full border px-[11px] py-[5px] text-[12px] font-semibold ${locked ? 'border-[var(--tone-muted-bd)] bg-[var(--tone-muted-bg)] text-[var(--tone-muted-fg)]' : 'border-[var(--tone-ok-bd)] bg-[var(--tone-ok-bg)] text-[var(--tone-ok-fg)]'}`}>
                       {locked ? 'Khóa' : 'Đã mở'}
                     </span>
                   </div>
                   {locked ? (
                     <div className="mt-3 space-y-2">
-                      <label className="block text-xs font-semibold text-[#7a6a52]">
+                      <label className="block text-xs font-semibold text-[var(--ink3)]">
                         Mật khẩu
                         <input
                           type="password"
@@ -990,10 +1028,10 @@ function TicketModal({
                               setPwInput('');
                             }
                           }}
-                          className="mt-1 w-full rounded-lg border border-[#e8dcc8] px-3 py-2 text-sm"
+                          className="mt-1 w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                         />
                       </label>
-                      {pwError && <div className="text-xs text-red-500">{pwError}</div>}
+                      {pwError && <div className="text-xs text-[var(--red)]">{pwError}</div>}
                       <button
                         onClick={() => {
                           if (pwInput === UNLOCK_PASSWORD) {
@@ -1004,7 +1042,7 @@ function TicketModal({
                             setPwInput('');
                           }
                         }}
-                        className="apg-btn-primary h-11 w-full text-sm font-bold text-white"
+                        className="h-11 w-full rounded-[7px] bg-[var(--navyMid)] text-sm font-semibold text-[var(--onInk)]"
                       >
                         Mở Cài đặt
                       </button>
@@ -1012,7 +1050,7 @@ function TicketModal({
                   ) : (
                     <button
                       onClick={() => setLocked(true)}
-                      className="apg-btn-secondary mt-3 h-11 w-full text-sm font-semibold"
+                      className="mt-3 h-11 w-full rounded-[7px] border border-[var(--line2)] text-sm font-semibold text-[var(--ink2)]"
                     >
                       Khóa lại
                     </button>
@@ -1020,60 +1058,60 @@ function TicketModal({
                 </div>
 
                 {!locked && (
-                  <div className="apg-panel px-4 py-4">
-                    <div className="apg-eyebrow">Nội dung báo giá</div>
+                  <div className="rounded-[12px] border border-[var(--line)] bg-[var(--paper)] px-4 py-4">
+                    <div className="ofly-eyebrow">Nội dung báo giá</div>
                     <div className="mt-3 grid gap-3 text-xs">
-                      <label className="font-semibold text-[#7a6a52]">
+                      <label className="font-semibold text-[var(--ink3)]">
                         Giá đi (VND)
                         <input
                           type="number"
                           value={ed.outPrice}
                           onChange={(event) => setEd((prev) => ({ ...prev, outPrice: Number(event.target.value) }))}
-                          className="mt-1 w-full rounded-lg border border-[#e8dcc8] px-3 py-2 text-sm"
+                          className="mt-1 w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                         />
                       </label>
                       {isRT && (
-                        <label className="font-semibold text-[#7a6a52]">
+                        <label className="font-semibold text-[var(--ink3)]">
                           Giá về (VND)
                           <input
                             type="number"
                             value={ed.inPrice}
                             onChange={(event) => setEd((prev) => ({ ...prev, inPrice: Number(event.target.value) }))}
-                            className="mt-1 w-full rounded-lg border border-[#e8dcc8] px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                           />
                         </label>
                       )}
-                      <label className="font-semibold text-[#7a6a52]">
+                      <label className="font-semibold text-[var(--ink3)]">
                         Thuế %
                         <input
                           type="number"
                           value={ed.taxPct}
                           onChange={(event) => setEd((prev) => ({ ...prev, taxPct: Number(event.target.value) }))}
-                          className="mt-1 w-full rounded-lg border border-[#e8dcc8] px-3 py-2 text-sm"
+                          className="mt-1 w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                         />
                       </label>
-                      <label className="font-semibold text-[#7a6a52]">
+                      <label className="font-semibold text-[var(--ink3)]">
                         Điện thoại
                         <input
                           value={ed.phone}
                           onChange={(event) => setEd((prev) => ({ ...prev, phone: event.target.value }))}
-                          className="mt-1 w-full rounded-lg border border-[#e8dcc8] px-3 py-2 text-sm"
+                          className="mt-1 w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                         />
                       </label>
-                      <label className="font-semibold text-[#7a6a52]">
+                      <label className="font-semibold text-[var(--ink3)]">
                         Trang web
                         <input
                           value={ed.website}
                           onChange={(event) => setEd((prev) => ({ ...prev, website: event.target.value }))}
-                          className="mt-1 w-full rounded-lg border border-[#e8dcc8] px-3 py-2 text-sm"
+                          className="mt-1 w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                         />
                       </label>
-                      <label className="font-semibold text-[#7a6a52]">
+                      <label className="font-semibold text-[var(--ink3)]">
                         Email
                         <input
                           value={ed.email}
                           onChange={(event) => setEd((prev) => ({ ...prev, email: event.target.value }))}
-                          className="mt-1 w-full rounded-lg border border-[#e8dcc8] px-3 py-2 text-sm"
+                          className="mt-1 w-full rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)] outline-none focus:border-[var(--ink)] focus:bg-[var(--paper)]"
                         />
                       </label>
                     </div>
@@ -1081,27 +1119,28 @@ function TicketModal({
                 )}
               </div>
 
-              <div className="border-t border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-5 py-4">
+              <div className="border-t border-[var(--line)] bg-[var(--paper2)] px-5 py-4">
                 <div className="grid gap-3">
                   <button
                     onClick={() => setShowTicketFare((prev) => !prev)}
-                    className="apg-btn-secondary inline-flex h-11 w-full items-center justify-center gap-2 text-sm font-semibold"
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[7px] border border-[var(--line2)] text-sm font-semibold text-[var(--ink2)]"
                   >
                     {showTicketFare ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     {showTicketFare ? 'Ẩn giá vé' : 'Hiện giá vé'}
                   </button>
-                  <div className="px-1 text-center text-[11px] text-slate-500">Chỉ áp dụng trên mặt vé báo giá và file xuất ra.</div>
+                  <div className="px-1 text-center text-[11px] text-[var(--ink3)]">Chỉ áp dụng trên mặt vé báo giá và file xuất ra.</div>
                   <button
                     onClick={handleJPEG}
                     disabled={!!exporting}
-                    className="apg-btn-secondary h-12 w-full text-sm font-semibold disabled:opacity-60"
+                    className="h-12 w-full rounded-[7px] border border-[var(--line2)] text-sm font-semibold text-[var(--ink2)] disabled:opacity-60"
                   >
                     {exporting === 'jpg' ? 'Đang xuất...' : 'Tải JPEG'}
                   </button>
                   <button
                     onClick={handlePDF}
                     disabled={!!exporting}
-                    className="apg-btn-primary h-12 w-full text-sm font-bold text-white disabled:opacity-60"
+                    className="h-12 w-full rounded-[7px] text-sm font-semibold text-[var(--onInk)] disabled:opacity-60"
+                    style={{ background: 'var(--gradGreen)', boxShadow: '0 6px 16px -8px rgba(14,50,88,0.7)' }}
                   >
                     {exporting === 'pdf' ? 'Đang xuất...' : 'Tải PDF'}
                   </button>
@@ -1111,11 +1150,11 @@ function TicketModal({
           </aside>
         </div>
 
-        <div className="border-t border-[var(--apg-border-default)] px-4 py-3 lg:hidden">
+        <div className="border-t border-[var(--line)] px-4 py-3 lg:hidden">
           <div className="grid gap-2">
             <button
               onClick={() => setShowTicketFare((prev) => !prev)}
-              className="apg-btn-secondary inline-flex h-10 w-full items-center justify-center gap-2 text-xs font-semibold"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-[7px] border border-[var(--line2)] text-xs font-semibold text-[var(--ink2)]"
             >
               {showTicketFare ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               {showTicketFare ? 'Ẩn giá vé' : 'Hiện giá vé'}
@@ -1124,14 +1163,15 @@ function TicketModal({
               <button
                 onClick={handleJPEG}
                 disabled={!!exporting}
-                className="apg-btn-secondary flex-1 h-10 text-xs font-semibold disabled:opacity-60"
+                className="h-10 flex-1 rounded-[7px] border border-[var(--line2)] text-xs font-semibold text-[var(--ink2)] disabled:opacity-60"
               >
                 {exporting === 'jpg' ? 'Đang xuất...' : 'Tải JPEG'}
               </button>
               <button
                 onClick={handlePDF}
                 disabled={!!exporting}
-                className="apg-btn-primary flex-1 h-10 text-xs font-bold text-white disabled:opacity-60"
+                className="h-10 flex-1 rounded-[7px] text-xs font-semibold text-[var(--onInk)] disabled:opacity-60"
+                style={{ background: 'var(--gradGreen)' }}
               >
                 {exporting === 'pdf' ? 'Đang xuất...' : 'Tải PDF'}
               </button>
@@ -1229,19 +1269,15 @@ export default function QuotePage() {
 
   if (!data || !calc) {
     return (
-      <main className="flex min-h-screen items-center justify-center" style={{ backgroundColor: '#f5f0e8' }}>
-        <div className="max-w-xs rounded-xl bg-white p-6 text-center shadow-md">
+      // AdminShell đã dựng <main> + nền trang, nên ở đây chỉ căn giữa khối rỗng trong vùng nội dung.
+      <div className="flex min-h-[420px] items-center justify-center">
+        <Panel className="max-w-xs text-center">
           <div className="mb-2 text-3xl">✈️</div>
-          <p className="mb-4 text-sm text-[#666]">Chưa có dữ liệu báo giá.</p>
-          <button
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-white"
-            style={{ backgroundColor: 'var(--apg-brand-gold)' }}
-            onClick={() => router.push('/dat-ve')}
-          >
-            Quay lại tìm vé
-          </button>
-        </div>
-      </main>
+          {/* Empty state Manager: Fraunces in nghiêng, màu ink3 */}
+          <p className="ofly-serif mb-4 text-[16px] italic text-[var(--ink3)]">Chưa có dữ liệu báo giá.</p>
+          <Btn onClick={() => router.push('/dat-ve')}>Quay lại tìm vé</Btn>
+        </Panel>
+      </div>
     );
   }
 
@@ -1259,13 +1295,13 @@ export default function QuotePage() {
     minute: '2-digit',
   });
   const quoteJourneyText = `${departureLabel} ${isRT ? '⇄' : '→'} ${arrivalLabel}`;
-  const holdSummaryCardClassName =
-    'rounded-[20px] px-4 py-4 text-white shadow-[0_14px_28px_rgba(0,0,0,0.22)]';
+  // Khối tổng tiền: nền navy đặc của Manager → chữ trắng ở đây là ngoại lệ hợp lệ.
+  const holdSummaryCardClassName = 'rounded-[12px] px-4 py-4 text-white';
   const holdSummaryCardStyle = {
-    background: 'var(--apg-bg-inverse)',
+    background: 'var(--gradNavy)',
   };
   const holdPrimaryButtonClassName =
-    'mt-3 h-11 w-full rounded-[14px] bg-white text-sm font-bold text-[var(--apg-blue-700)] shadow-[0_8px_18px_rgba(0,0,0,0.18)] transition hover:bg-[var(--apg-blue-50)]';
+    'mt-3 h-11 w-full rounded-[7px] bg-white text-sm font-semibold text-[var(--navy)] transition hover:opacity-90';
   const contactItems = [
     { icon: Phone, value: '0918.752.686', sub: 'Điện thoại', href: 'tel:0918752686' },
     { icon: Globe, value: 'tanphuapg.com', sub: 'Trang web', href: 'https://tanphuapg.com' },
@@ -1273,44 +1309,38 @@ export default function QuotePage() {
   ] as const;
 
   return (
-    <main className="min-h-screen" style={{ backgroundColor: 'var(--apg-bg-page)' }}>
-      <SiteGlobeHeader />
-      <div className="mx-auto max-w-[1120px] px-4 pb-8 lg:px-0">
-        <div className="border border-[var(--apg-aviation-navy)] lg:mt-4 lg:rounded-t-2xl" style={{ background: 'var(--apg-blue-800)' }}>
-          <div className="flex items-center justify-between px-4 py-3">
-            <div className="apg-display text-[13px] font-semibold tracking-[0.18em] text-white/90">BÁO GIÁ</div>
-            <div className="rounded-[var(--apg-radius-md)] border border-white/10 bg-white/10 px-3 py-2 text-right">
-              <div className="apg-display text-[9px] font-medium tracking-[0.16em] text-white/70">Mã báo giá</div>
-              <div className="apg-mono text-xs font-black text-white">{quoteId}</div>
-            </div>
-          </div>
-          <div className="flex justify-between border-t border-white/20 bg-white/10 px-4 py-1.5 text-[10px] text-white/80">
-            <span>{isRT ? '↔ Khứ hồi' : '→ Một chiều'} · {cabinLabel(data.cabin)}</span>
-            <span>{new Date(data.createdAt).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-        </div>
+    // AdminShell đã cấp Sidebar/Topbar/<main> + khung 1440px & padding 34px, nên trang chỉ dựng nội dung.
+    <div>
+      <PageHead
+        eyebrow="Báo giá"
+        title={quoteJourneyText}
+        actions={
+          <>
+            {/* Pill trung tính như bản cũ (không chấm) — chỉ là nhãn loại hành trình, không phải trạng thái. */}
+            <Chip tone="muted" dot={false}>
+              {quoteModeLabel}
+            </Chip>
+            <Btn
+              variant="secondary"
+              icon={<Download className="h-4 w-4" aria-hidden="true" />}
+              onClick={() => setShowTicket(true)}
+            >
+              Tải mặt vé
+            </Btn>
+            <Btn
+              variant="ghost"
+              icon={<ArrowLeft className="h-4 w-4" aria-hidden="true" />}
+              onClick={() => router.push('/dat-ve?go=1')}
+            >
+              Đổi chuyến
+            </Btn>
+          </>
+        }
+      />
 
-        <div className="space-y-6 lg:pt-6">
-          <section className="overflow-hidden bg-white lg:rounded-2xl lg:border lg:border-[var(--apg-border-default)] lg:shadow-sm">
-            <div className="bg-white px-4 py-3" style={{ borderBottom: '1px solid var(--apg-border-default)' }}>
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="min-w-0 text-left">
-                  <div className="apg-display max-w-[520px] text-[18px] font-semibold leading-tight text-[var(--apg-aviation-navy)] lg:text-[20px]">
-                    {departureLabel}
-                  </div>
-                </div>
-                <span className="text-base text-[var(--apg-brand-gold)]">{isRT ? '⇄' : '→'}</span>
-                <div className="min-w-0 text-left">
-                  <div className="apg-display max-w-[520px] text-[18px] font-semibold leading-tight text-[var(--apg-aviation-navy)] lg:text-[20px]">
-                    {arrivalLabel}
-                  </div>
-                </div>
-                <span className="mx-1 text-[#ddd]">|</span>
-                <span className="text-xs text-[#666]">{passengersText}</span>
-              </div>
-            </div>
-
-            <div className="space-y-2 bg-white px-3 py-3" style={{ borderBottom: '1px solid var(--apg-border-default)' }}>
+      <div className="space-y-3">
+          <Panel padded={false} className="overflow-hidden">
+            <div className="space-y-2 px-3 py-3" style={{ borderBottom: '1px solid var(--line)' }}>
               <FlightSegment
                 label={isRT ? '✈ CHIỀU ĐI' : '✈ CHUYẾN BAY'}
                 flight={data.outbound}
@@ -1327,83 +1357,71 @@ export default function QuotePage() {
               )}
             </div>
 
-            <div className="bg-white px-3 py-3">
-              <div className="apg-display mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--apg-brand-gold)]">Chi tiết giá vé</div>
+            <div className="px-3 py-3">
+              <Eyebrow className="mb-2">Chi tiết giá vé</Eyebrow>
               <div className="space-y-1 text-xs">
-                <div className="flex justify-between text-[#555]">
+                <div className="flex justify-between text-[var(--ink2)]">
                   <span>Người lớn × {data.adults}</span>
-                  <span className="font-semibold text-[#333]">{fmtVND(calc.baseAdults)}</span>
+                  <span className="ofly-num font-semibold text-[var(--ink)]">{fmtVND(calc.baseAdults)}</span>
                 </div>
-                <div className="flex justify-between text-[#555]">
+                <div className="flex justify-between text-[var(--ink2)]">
                   <span>Thuế + phí</span>
-                  <span className="font-semibold">{fmtVND(calc.taxAdults)}</span>
+                  <span className="ofly-num font-semibold text-[var(--ink)]">{fmtVND(calc.taxAdults)}</span>
                 </div>
                 {data.children > 0 && (
-                  <div className="flex justify-between text-[#555]">
+                  <div className="flex justify-between text-[var(--ink2)]">
                     <span>Trẻ em × {data.children}</span>
-                    <span className="font-semibold">{fmtVND(Math.round(calc.farePerPax * 0.75 * data.children))}</span>
+                    <span className="ofly-num font-semibold text-[var(--ink)]">{fmtVND(Math.round(calc.farePerPax * 0.75 * data.children))}</span>
                   </div>
                 )}
                 {data.infants > 0 && (
-                  <div className="flex justify-between text-[#555]">
+                  <div className="flex justify-between text-[var(--ink2)]">
                     <span>Em bé × {data.infants}</span>
-                    <span className="font-semibold">{fmtVND(Math.round(calc.farePerPax * 0.1 * data.infants))}</span>
+                    <span className="ofly-num font-semibold text-[var(--ink)]">{fmtVND(Math.round(calc.farePerPax * 0.1 * data.infants))}</span>
                   </div>
                 )}
               </div>
               <div
-                className="mt-3 flex items-center justify-between rounded-xl px-3 py-3"
-                style={{ background: 'linear-gradient(135deg, var(--apg-bg-surface-soft), white)', border: '1px solid var(--apg-border-default)' }}
+                className="mt-3 flex items-center justify-between rounded-[10px] px-3 py-3"
+                style={{ background: 'var(--paper2)', border: '1px solid var(--line)' }}
               >
                 <div>
-                  <div className="apg-display text-xs font-medium uppercase tracking-[0.16em] text-[var(--apg-brand-gold)]">Tổng giá vé</div>
-                  <div className="text-[9px] text-[#aaa]">* Tham khảo</div>
+                  <div className="ofly-eyebrow">Tổng giá vé</div>
+                  {/* 9px + --ink4 trên nền --paper2 không đủ tương phản ở cả 2 theme → nâng cỡ và đậm màu. */}
+                  <div className="mt-1 text-[11px] text-[var(--ink3)]">* Tham khảo</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-bold text-[#1a1a1a]">{fmtVND(calc.total)}</div>
-                  <div className="text-[9px] text-[#bbb]">{totalUsdLabel}</div>
+                  <div className="ofly-num text-lg font-bold text-[var(--ink)]">{fmtVND(calc.total)}</div>
+                  <div className="text-[11px] text-[var(--ink3)]">{totalUsdLabel}</div>
                 </div>
               </div>
             </div>
-          </section>
+          </Panel>
 
-          <section className="apg-panel overflow-hidden">
-            <div className="border-b border-[var(--apg-border-default)] px-4 py-3 lg:px-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="apg-eyebrow">Báo giá</div>
-                <div className="rounded-full border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-3 py-1 text-[11px] font-semibold text-[var(--apg-text-secondary)]">
-                  {quoteModeLabel}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_392px] lg:items-stretch lg:px-5 lg:py-5">
-              <div className="flex h-full flex-col justify-between rounded-[16px] border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-4 py-4">
+          <Panel padded={false} className="overflow-hidden">
+            <div className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_392px] lg:items-stretch lg:px-5 lg:py-5">
+              <div className="flex h-full flex-col justify-between rounded-[12px] border border-[var(--line)] bg-[var(--paper2)] px-4 py-4">
                 <div>
-                  <div className="apg-mono text-[24px] font-black text-[#1a1a1a] lg:text-[28px]">{quoteId}</div>
-                  <div className="mt-1 text-sm text-slate-500">{cabinLabel(data.cabin)} · {passengersText}</div>
+                  {/* Nhãn "Mã báo giá" giữ lại từ dải navy cũ — dải đó đã nhường chỗ cho PageHead. */}
+                  <Eyebrow>Mã báo giá</Eyebrow>
+                  <div className="ofly-num mt-[7px] text-[24px] font-bold text-[var(--ink)] lg:text-[28px]">{quoteId}</div>
+                  <div className="mt-1 text-sm text-[var(--ink3)]">{cabinLabel(data.cabin)} · {passengersText}</div>
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_170px]">
-                  <div className="min-w-0 rounded-[12px] border border-[var(--apg-border-default)] bg-white px-3 py-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--apg-text-secondary)]">Hành trình</div>
-                    <div className="mt-1 text-sm font-semibold leading-snug text-[#1a1a1a] lg:text-[15px]">{quoteJourneyText}</div>
-                  </div>
-                  <div className="rounded-[12px] border border-[var(--apg-border-default)] bg-white px-3 py-3 text-left sm:text-right">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--apg-text-secondary)]">Xuất báo giá</div>
-                    <div className="mt-1 text-sm font-semibold text-[#1a1a1a]">{quoteIssuedAt}</div>
-                  </div>
+                <div className="mt-4 rounded-[12px] border border-[var(--line)] bg-[var(--paper)] px-3 py-3">
+                  <Eyebrow>Xuất báo giá</Eyebrow>
+                  <div className="ofly-num mt-[7px] text-sm font-semibold text-[var(--ink)]">{quoteIssuedAt}</div>
                 </div>
               </div>
 
               <div className={`${holdSummaryCardClassName} flex h-full flex-col justify-between`} style={holdSummaryCardStyle}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <div className="apg-eyebrow text-white/65">Tổng thanh toán</div>
-                    <div className="mt-1 text-[13px] text-white/80">{passengersText}</div>
+                    <div className="text-[10px] font-semibold uppercase leading-none tracking-[2px] text-white/65">Tổng thanh toán</div>
+                    <div className="mt-[10px] text-[13px] text-white/80">{passengersText}</div>
                   </div>
                   <div className="text-right">
-                    <div className="apg-tabular whitespace-nowrap text-[30px] font-black leading-none tracking-tight text-white lg:text-[34px]">{fmtVND(calc.total)}</div>
+                    <div className="ofly-serif whitespace-nowrap text-[30px] font-medium leading-none tracking-[-1.4px] text-white lg:text-[34px]">{fmtVND(calc.total)}</div>
                     <div className="mt-1 text-[12px] text-white/70">{totalUsdLabel}</div>
                   </div>
                 </div>
@@ -1419,30 +1437,11 @@ export default function QuotePage() {
                 </button>
               </div>
             </div>
-
-            <div className="border-t border-[var(--apg-border-default)] px-4 py-4 lg:px-5">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <button
-                  className="apg-btn-secondary inline-flex h-11 items-center justify-center gap-2 text-sm font-bold text-[var(--apg-aviation-navy)]"
-                  onClick={() => setShowTicket(true)}
-                >
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                  Tải mặt vé
-                </button>
-                <button
-                  className="apg-btn-secondary inline-flex h-11 items-center justify-center gap-2 text-sm font-semibold text-[var(--apg-aviation-navy)]"
-                  onClick={() => router.push('/dat-ve?go=1')}
-                >
-                  <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                  Đổi chuyến
-                </button>
-              </div>
-            </div>
-          </section>
+          </Panel>
 
           <footer
-            className="overflow-hidden border border-[var(--apg-aviation-navy)] text-white shadow-sm lg:rounded-2xl"
-            style={{ background: 'var(--apg-blue-800)' }}
+            className="overflow-hidden rounded-[12px] border border-[var(--line)] text-white"
+            style={{ background: 'var(--gradNavy)' }}
           >
             <div className="grid gap-5 px-4 py-5 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)] lg:gap-8 lg:px-6 lg:py-6">
               <div className="max-w-[360px]">
@@ -1458,7 +1457,7 @@ export default function QuotePage() {
                     />
                   </div>
                   <div>
-                    <div className="apg-display text-[14px] font-semibold tracking-[0.08em] text-white lg:text-[15px]">TAN PHU APG</div>
+                    <div className="ofly-serif text-[14px] font-medium tracking-[0.08em] text-white lg:text-[15px]">TAN PHU APG</div>
                     <div className="text-[10px] tracking-[0.04em] text-white/70">Corporate Aviation Services</div>
                   </div>
                 </div>
@@ -1468,7 +1467,7 @@ export default function QuotePage() {
               </div>
 
               <div className="min-w-0">
-                <div className="apg-eyebrow text-white/55">Liên hệ</div>
+                <div className="text-[10px] font-semibold uppercase leading-none tracking-[2px] text-white/55">Liên hệ</div>
                 <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
                   {contactItems.map(({ icon: Icon, value, sub, href }) => (
                   <a
@@ -1498,15 +1497,14 @@ export default function QuotePage() {
             <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-t border-white/10 bg-black/10 px-4 py-2.5 text-center text-[10px] text-white/85 lg:px-6">
               <span>© 2026 TAN PHU APG</span>
               <span className="text-white/30">·</span>
-              <span>MST: <span className="apg-mono tabular-nums">4600111735</span></span>
+              <span>MST: <span className="ofly-num">4600111735</span></span>
               <span className="text-white/30">·</span>
               <span>tanphuapg.com</span>
             </div>
           </footer>
-        </div>
       </div>
 
       {showTicket && <TicketModal data={data} onClose={() => setShowTicket(false)} usdRate={usdRate} />}
-    </main>
+    </div>
   );
 }

@@ -2,8 +2,11 @@
 
 import type { BookingStatus } from "@prisma/client";
 import { useRouter } from "next/navigation";
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 
+import { Btn, type BtnVariant } from "@/components/admin/ui/Btn";
+import { Field, Input, Select, Textarea } from "@/components/admin/ui/Field";
+import { Eyebrow } from "@/components/admin/ui/Panel";
 import { toneVars } from "@/lib/admin/ui/tones";
 
 // HANDOFF Phần J.3 — bảng thao tác đơn ở màn chi tiết (parity actBtn/actions file thiết kế,
@@ -12,6 +15,13 @@ import { toneVars } from "@/lib/admin/ui/tones";
 
 type ButtonKind = "primary" | "danger" | "ghost";
 type FormMode = "cannot-issue" | "refund-request" | "cancel";
+
+// Skin Manager (§4): hành động chính là CTA gradient navy, phá huỷ là viền đỏ, còn lại ghost.
+const KIND_VARIANT: Record<ButtonKind, BtnVariant> = {
+  primary: "rust",
+  danger: "danger",
+  ghost: "ghost",
+};
 
 interface OrderActionsPermissions {
   issue: boolean;
@@ -52,23 +62,6 @@ const CANCEL_REASONS = [
   { value: "DUPLICATE", label: "Đơn trùng" },
   { value: "OTHER", label: "Khác" },
 ] as const;
-
-const BTN_BASE =
-  "rounded-[8px] px-[14px] py-[11px] text-[13px] font-semibold leading-none w-full transition disabled:cursor-not-allowed disabled:opacity-50";
-const FIELD =
-  "w-full rounded-[8px] border border-[var(--line)] bg-[var(--surface)] px-[12px] py-[9px] text-[13px] text-[var(--ink)] outline-none transition focus:border-[var(--line-strong)]";
-const FIELD_LABEL = "mb-[6px] block text-[11px] font-semibold uppercase tracking-[1px] text-[var(--ink-faint)]";
-
-function buttonStyle(kind: ButtonKind): CSSProperties {
-  const rust = toneVars("rust");
-  if (kind === "primary") {
-    return { border: "1px solid var(--rust)", background: "var(--rust)", color: "#F5F1EA" };
-  }
-  if (kind === "danger") {
-    return { border: `1px solid ${rust.bd}`, background: rust.bg, color: rust.fg };
-  }
-  return { border: "1px solid var(--line-strong)", background: "transparent", color: "var(--ink-soft)" };
-}
 
 function messageForError(status: number, data: { error?: string; message?: string }): string {
   if (status === 403) return "Bạn không có quyền thực hiện thao tác này.";
@@ -175,7 +168,7 @@ export function OrderActions({ bookingId, status, alreadyHandedOff, totalPaid, p
     <div>
       {error ? (
         <div
-          className="mb-3 rounded-[8px] border px-[12px] py-[9px] text-[12px] font-medium"
+          className="mb-3 rounded-[10px] border px-[13px] py-[10px] text-[12px] font-medium leading-[1.45]"
           style={{ color: toneVars("red").fg, background: toneVars("red").bg, borderColor: toneVars("red").bd }}
           role="alert"
         >
@@ -184,15 +177,11 @@ export function OrderActions({ bookingId, status, alreadyHandedOff, totalPaid, p
       ) : null}
 
       {mode === "cannot-issue" ? (
-        <div className="flex flex-col gap-[12px]">
-          <div className="ofly-eyebrow">Báo không xuất được</div>
-          <div>
-            <label className={FIELD_LABEL} htmlFor="ci-reason">
-              Lý do
-            </label>
-            <select
+        <div className="flex flex-col gap-[13px]">
+          <Eyebrow>Báo không xuất được</Eyebrow>
+          <Field label="Lý do">
+            <Select
               id="ci-reason"
-              className={FIELD}
               value={cannotIssueReason}
               onChange={(event) => setCannotIssueReason(event.target.value)}
             >
@@ -201,25 +190,22 @@ export function OrderActions({ bookingId, status, alreadyHandedOff, totalPaid, p
                   {reason.label}
                 </option>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className={FIELD_LABEL} htmlFor="ci-detail">
-              Chi tiết {cannotIssueReason === "OTHER" ? "(bắt buộc, tối thiểu 10 ký tự)" : "(tuỳ chọn)"}
-            </label>
-            <textarea
+            </Select>
+          </Field>
+          <Field label={`Chi tiết ${cannotIssueReason === "OTHER" ? "(bắt buộc, tối thiểu 10 ký tự)" : "(tuỳ chọn)"}`}>
+            <Textarea
               id="ci-detail"
-              className={`${FIELD} min-h-[72px] resize-none`}
+              className="min-h-[72px]"
               value={cannotIssueDetail}
               onChange={(event) => setCannotIssueDetail(event.target.value)}
               placeholder="Mô tả ngắn gọn lý do không xuất được vé…"
             />
-          </div>
+          </Field>
           <div className="flex gap-2">
-            <button
-              type="button"
-              className={BTN_BASE}
-              style={buttonStyle("danger")}
+            <Btn
+              variant="danger"
+              size="sm"
+              full
               disabled={busy || !cannotIssueValid}
               onClick={() =>
                 submit("cannot-issue", {
@@ -229,92 +215,74 @@ export function OrderActions({ bookingId, status, alreadyHandedOff, totalPaid, p
               }
             >
               Xác nhận
-            </button>
-            <button type="button" className={BTN_BASE} style={buttonStyle("ghost")} disabled={busy} onClick={closeForm}>
+            </Btn>
+            <Btn variant="ghost" size="sm" full disabled={busy} onClick={closeForm}>
               Quay lại
-            </button>
+            </Btn>
           </div>
         </div>
       ) : mode === "refund-request" ? (
-        <div className="flex flex-col gap-[12px]">
-          <div className="ofly-eyebrow">Tạo yêu cầu hoàn tiền</div>
-          <div>
-            <label className={FIELD_LABEL} htmlFor="rf-amount">
-              Số tiền hoàn (₫)
-            </label>
-            <input
+        <div className="flex flex-col gap-[13px]">
+          <Eyebrow>Tạo yêu cầu hoàn tiền</Eyebrow>
+          <Field label="Số tiền hoàn (₫)">
+            <Input
               id="rf-amount"
               type="number"
               min={1}
-              className={FIELD}
+              mono
               value={refundAmount}
               onChange={(event) => setRefundAmount(event.target.value)}
             />
-          </div>
-          <div>
-            <label className={FIELD_LABEL} htmlFor="rf-reason">
-              Lý do hoàn (tối thiểu 3 ký tự)
-            </label>
-            <input
+          </Field>
+          <Field label="Lý do hoàn (tối thiểu 3 ký tự)">
+            <Input
               id="rf-reason"
-              className={FIELD}
               value={refundReason}
               onChange={(event) => setRefundReason(event.target.value)}
               placeholder="VD: Không xuất được vé do hết chỗ"
             />
-          </div>
+          </Field>
           <div className="flex gap-2">
-            <button
-              type="button"
-              className={BTN_BASE}
-              style={buttonStyle("primary")}
+            <Btn
+              variant="rust"
+              size="sm"
+              full
               disabled={busy || !refundValid}
               onClick={() => submit("refund/request", { amount: refundAmountNum, reason: refundReason.trim() })}
             >
               Gửi yêu cầu
-            </button>
-            <button type="button" className={BTN_BASE} style={buttonStyle("ghost")} disabled={busy} onClick={closeForm}>
+            </Btn>
+            <Btn variant="ghost" size="sm" full disabled={busy} onClick={closeForm}>
               Quay lại
-            </button>
+            </Btn>
           </div>
         </div>
       ) : mode === "cancel" ? (
-        <div className="flex flex-col gap-[12px]">
-          <div className="ofly-eyebrow">Huỷ đơn</div>
-          <div>
-            <label className={FIELD_LABEL} htmlFor="cancel-reason">
-              Lý do huỷ
-            </label>
-            <select
-              id="cancel-reason"
-              className={FIELD}
-              value={cancelReason}
-              onChange={(event) => setCancelReason(event.target.value)}
-            >
+        <div className="flex flex-col gap-[13px]">
+          <Eyebrow>Huỷ đơn</Eyebrow>
+          <Field label="Lý do huỷ">
+            <Select id="cancel-reason" value={cancelReason} onChange={(event) => setCancelReason(event.target.value)}>
               {CANCEL_REASONS.map((reason) => (
                 <option key={reason.value} value={reason.value}>
                   {reason.label}
                 </option>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className={FIELD_LABEL} htmlFor="cancel-detail">
-              Chi tiết {cancelReason === "OTHER" ? "(bắt buộc, tối thiểu 10 ký tự)" : "(tuỳ chọn)"}
-            </label>
-            <textarea
+            </Select>
+          </Field>
+          <Field label={`Chi tiết ${cancelReason === "OTHER" ? "(bắt buộc, tối thiểu 10 ký tự)" : "(tuỳ chọn)"}`}>
+            <Textarea
               id="cancel-detail"
-              className={`${FIELD} min-h-[72px] resize-none`}
+              className="min-h-[72px]"
               value={cancelDetail}
               onChange={(event) => setCancelDetail(event.target.value)}
               placeholder="Mô tả ngắn gọn lý do huỷ đơn…"
             />
-          </div>
+          </Field>
           <div className="flex gap-2">
-            <button
-              type="button"
-              className={BTN_BASE}
-              style={buttonStyle("danger")}
+            <Btn
+              variant="danger"
+              size="sm"
+              full
               disabled={busy || !cancelValid}
               onClick={() =>
                 submit("cancel", {
@@ -325,29 +293,22 @@ export function OrderActions({ bookingId, status, alreadyHandedOff, totalPaid, p
               }
             >
               Xác nhận huỷ
-            </button>
-            <button type="button" className={BTN_BASE} style={buttonStyle("ghost")} disabled={busy} onClick={closeForm}>
+            </Btn>
+            <Btn variant="ghost" size="sm" full disabled={busy} onClick={closeForm}>
               Quay lại
-            </button>
+            </Btn>
           </div>
         </div>
       ) : actions.length > 0 ? (
         <div className="flex flex-col gap-[9px]">
           {actions.map((action) => (
-            <button
-              key={action.key}
-              type="button"
-              className={BTN_BASE}
-              style={buttonStyle(action.kind)}
-              disabled={busy}
-              onClick={action.onClick}
-            >
+            <Btn key={action.key} variant={KIND_VARIANT[action.kind]} full disabled={busy} onClick={action.onClick}>
               {action.label}
-            </button>
+            </Btn>
           ))}
         </div>
       ) : (
-        <div className="text-[12px] italic text-[var(--ink-soft)]">Không có thao tác khả dụng ở bước này.</div>
+        <div className="ofly-serif py-[6px] text-[13px] italic text-[var(--ink3)]">Không có thao tác khả dụng ở bước này.</div>
       )}
     </div>
   );

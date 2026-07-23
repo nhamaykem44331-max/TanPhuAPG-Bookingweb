@@ -4,20 +4,22 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react
 
 import { Sidebar } from "@/components/admin/shell/Sidebar";
 import { Topbar } from "@/components/admin/shell/Topbar";
+import { TopSubNav } from "@/components/admin/shell/TopSubNav";
 import { OflyThemeContext, type OflyTheme } from "@/components/admin/shell/theme-context";
-import type { AdminNavGroup, AdminNavKey } from "@/lib/admin/nav";
+import type { AdminNav, AdminNavKey } from "@/lib/admin/nav";
 
 const STORAGE_KEY = "ofly-theme";
 
 interface AdminShellUser {
   fullName: string;
+  email: string;
   roleLabel: string;
   initial: string;
 }
 
 interface AdminShellProps {
   user: AdminShellUser;
-  groups: AdminNavGroup[];
+  nav: AdminNav;
   badges: Partial<Record<AdminNavKey, number>>;
   initialTheme: OflyTheme;
   fontClassName: string;
@@ -32,7 +34,7 @@ function persistTheme(theme: OflyTheme) {
 
 export function AdminShell({
   user,
-  groups,
+  nav,
   badges,
   initialTheme,
   fontClassName,
@@ -71,19 +73,19 @@ export function AdminShell({
         lang="vi-VN"
       >
         <div className="hidden lg:flex">
-          <Sidebar groups={groups} badges={badges} user={user} logoutAction={logoutAction} />
+          <Sidebar nav={nav} badges={badges} user={user} logoutAction={logoutAction} />
         </div>
 
         {mobileOpen ? (
           <div className="fixed inset-0 z-40 lg:hidden">
             <div
-              className="absolute inset-0 bg-black/40"
+              className="ofly-overlay-in absolute inset-0 bg-black/40"
               onClick={closeMobile}
               aria-hidden="true"
             />
             <div className="absolute inset-y-0 left-0 shadow-xl">
               <Sidebar
-                groups={groups}
+                nav={nav}
                 badges={badges}
                 user={user}
                 logoutAction={logoutAction}
@@ -96,7 +98,10 @@ export function AdminShell({
 
         <main className="flex h-[100dvh] flex-1 flex-col overflow-y-auto">
           <Topbar onOpenMobile={() => setMobileOpen(true)} />
-          <div className="flex-1 px-4 py-6 sm:px-6 lg:px-[34px] lg:pb-14 lg:pt-[30px]">{children}</div>
+          <TopSubNav nav={nav} badges={badges} />
+          <div className="mx-auto w-full max-w-[1440px] flex-1 px-4 pb-14 pt-[30px] sm:px-6 lg:px-[34px]">
+            <div className="ofly-in">{children}</div>
+          </div>
         </main>
       </div>
     </OflyThemeContext.Provider>

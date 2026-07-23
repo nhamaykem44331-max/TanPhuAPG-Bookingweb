@@ -1,7 +1,12 @@
-import Link from "next/link";
+import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import { CustomerTable } from "@/components/admin/CustomerTable";
 import { ExportButton } from "@/components/admin/ExportButton";
+import { Btn, ButtonLink } from "@/components/admin/ui/Btn";
+import { Field, Input } from "@/components/admin/ui/Field";
+import { Panel } from "@/components/admin/ui/Panel";
+import { StatTile } from "@/components/admin/ui/Stat";
+import { formatNumber } from "@/lib/admin/ui/format";
 import { ADMIN_ROLES, CUSTOMER_MANAGER_ROLES } from "@/lib/auth/constants";
 import { requireRole } from "@/lib/auth/requireRole";
 import { listAdminCustomers } from "@/lib/customers/admin";
@@ -46,17 +51,24 @@ export default async function AdminCustomersPage({ searchParams }: AdminCustomer
     }).filter((entry) => entry[1]),
   );
 
+  // ButtonLink nhận href dạng chuỗi → dựng query string tại chỗ, giữ nguyên
+  // cơ chế phân trang bằng URL như cũ.
+  const pageHref = (offset: number) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries({ ...baseQuery, offset: String(offset) })) {
+      if (value) params.set(key, value);
+    }
+    return `/admin/customers?${params.toString()}`;
+  };
+
   return (
-    <div className="space-y-5">
-      <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-base font-semibold text-[var(--apg-text-primary)]">Customers</h1>
-          <p className="mt-1 text-sm text-[var(--apg-text-secondary)]">Tra cứu hồ sơ, lịch sử booking và blacklist.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-md border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-3 py-2 text-sm text-[var(--apg-text-secondary)]">
-            {result.total} khách hàng
-          </span>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <p className="max-w-[560px] text-[14px] leading-[1.55] text-[var(--ink3)]">
+          Tra cứu hồ sơ, lịch sử booking và blacklist.
+        </p>
+        <div className="flex flex-wrap items-center gap-[10px]">
+          <StatTile label="Khách hàng" value={formatNumber(result.total)} minWidth={118} />
           <ExportButton
             basePath="/api/admin/customers/export"
             query={{
@@ -66,82 +78,80 @@ export default async function AdminCustomersPage({ searchParams }: AdminCustomer
             }}
           />
           {canCreate ? (
-            <Link className="apg-btn-primary inline-flex items-center justify-center px-4" href="/admin/customers/new">
-              + Thêm mới
-            </Link>
+            <ButtonLink href="/admin/customers/new" variant="rust" icon={<Plus size={16} strokeWidth={1.9} />}>
+              Thêm mới
+            </ButtonLink>
           ) : null}
         </div>
-      </section>
+      </div>
 
-      <section className="apg-admin-toolbar px-4 py-4">
+      <Panel>
         <form className="grid gap-3 xl:grid-cols-[minmax(280px,1fr)_160px_160px_110px_auto_auto_auto] xl:items-end">
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Tìm kiếm
-            <input className="apg-field mt-2" defaultValue={parsedQuery.q ?? ""} name="q" placeholder="Tên, SĐT, email" />
-          </label>
+          <Field label="Tìm kiếm">
+            <Input defaultValue={parsedQuery.q ?? ""} name="q" placeholder="Tên, SĐT, email" />
+          </Field>
 
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Từ ngày
-            <input className="apg-field mt-2" defaultValue={parsedQuery.from ?? ""} name="from" type="date" />
-          </label>
+          <Field label="Từ ngày">
+            <Input defaultValue={parsedQuery.from ?? ""} name="from" type="date" />
+          </Field>
 
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Đến ngày
-            <input className="apg-field mt-2" defaultValue={parsedQuery.to ?? ""} name="to" type="date" />
-          </label>
+          <Field label="Đến ngày">
+            <Input defaultValue={parsedQuery.to ?? ""} name="to" type="date" />
+          </Field>
 
-          <label className="text-sm font-medium text-[var(--apg-text-secondary)]">
-            Limit
-            <input className="apg-field mt-2" defaultValue={String(parsedQuery.limit)} min={1} max={100} name="limit" type="number" />
-          </label>
+          <Field label="Limit">
+            <Input defaultValue={String(parsedQuery.limit)} min={1} max={100} name="limit" type="number" mono />
+          </Field>
 
-          <label className="flex h-9 items-center gap-2 rounded-md border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-3 text-sm font-medium text-[var(--apg-text-secondary)]">
-            <input defaultChecked={parsedQuery.blacklisted === true} name="blacklisted" type="checkbox" value="true" />
+          {/* Cao 40px + bo 9px cho khớp SearchBox/FilterTab của Manager */}
+          <label className="flex h-[40px] cursor-pointer items-center gap-[9px] rounded-[9px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] text-[13px] font-medium text-[var(--ink2)]">
+            <input
+              defaultChecked={parsedQuery.blacklisted === true}
+              name="blacklisted"
+              type="checkbox"
+              value="true"
+              className="h-[15px] w-[15px] accent-[var(--rust)]"
+            />
             Chỉ blacklist
           </label>
 
           <input name="offset" type="hidden" value="0" />
-          <button className="apg-btn-primary w-full" type="submit">
+          <Btn type="submit" full>
             Lọc
-          </button>
-          <Link className="apg-btn-secondary inline-flex w-full items-center justify-center" href="/admin/customers">
+          </Btn>
+          <ButtonLink href="/admin/customers" variant="ghost" full>
             Xóa lọc
-          </Link>
+          </ButtonLink>
         </form>
-      </section>
+      </Panel>
 
       <CustomerTable customers={result.items} />
 
-      <div className="flex items-center justify-between rounded-lg border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-4 py-3">
-        <Link
-          className={`apg-btn-secondary ${parsedQuery.offset === 0 ? "pointer-events-none opacity-50" : ""}`}
-          href={{
-            pathname: "/admin/customers",
-            query: {
-              ...baseQuery,
-              offset: String(previousOffset),
-            },
-          }}
+      <div className="flex flex-col items-center gap-3 text-[12.5px] text-[var(--ink3)] sm:flex-row sm:justify-between">
+        <ButtonLink
+          href={pageHref(previousOffset)}
+          variant="ghost"
+          size="sm"
+          icon={<ChevronLeft size={16} strokeWidth={1.5} aria-hidden="true" />}
+          className={`order-2 sm:order-none ${parsedQuery.offset === 0 ? "pointer-events-none opacity-40" : ""}`}
         >
           Trang trước
-        </Link>
+        </ButtonLink>
 
-        <div className="text-sm text-[var(--apg-text-secondary)]">
-          Hiển thị {result.items.length} / {result.total}
+        <div className="order-1 text-center sm:order-none">
+          Hiển thị <span className="ofly-num text-[var(--ink)]">{result.items.length}</span> /{" "}
+          <span className="ofly-num text-[var(--ink)]">{formatNumber(result.total)}</span>
         </div>
 
-        <Link
-          className={`apg-btn-secondary ${!hasNextPage ? "pointer-events-none opacity-50" : ""}`}
-          href={{
-            pathname: "/admin/customers",
-            query: {
-              ...baseQuery,
-              offset: String(nextOffset),
-            },
-          }}
+        <ButtonLink
+          href={pageHref(nextOffset)}
+          variant="ghost"
+          size="sm"
+          className={`order-3 sm:order-none ${!hasNextPage ? "pointer-events-none opacity-40" : ""}`}
         >
           Trang sau
-        </Link>
+          <ChevronRight size={16} strokeWidth={1.5} aria-hidden="true" />
+        </ButtonLink>
       </div>
     </div>
   );

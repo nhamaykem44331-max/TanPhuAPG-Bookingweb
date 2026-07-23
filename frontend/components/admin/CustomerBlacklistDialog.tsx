@@ -1,7 +1,12 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+
+import { Btn } from "@/components/admin/ui/Btn";
+import { Field, Textarea } from "@/components/admin/ui/Field";
+import { Eyebrow } from "@/components/admin/ui/Panel";
 
 interface CustomerBlacklistDialogProps {
   actorId: string;
@@ -76,41 +81,83 @@ export function CustomerBlacklistDialog({
 
   return (
     <div>
-      <button
-        className={currentBlacklisted ? "apg-btn-secondary w-full" : "apg-btn-danger w-full"}
-        type="button"
-        onClick={() => setIsOpen(true)}
-      >
+      <Btn variant={currentBlacklisted ? "secondary" : "danger"} full onClick={() => setIsOpen(true)}>
         {currentBlacklisted ? "Gỡ blacklist" : "Đánh dấu blacklist"}
-      </button>
+      </Btn>
 
       {isOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4">
-          <div className="apg-admin-toolbar w-full max-w-2xl px-5 py-5 lg:px-6">
-            <p className="apg-eyebrow">Customer Risk</p>
-            <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">
-              {nextBlacklisted ? "Xác nhận blacklist khách hàng" : "Xác nhận gỡ blacklist"}
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-[var(--apg-text-secondary)]">
-              Thao tác này sẽ được ghi vào AuditLog và cập nhật tags của khách hàng để giữ lịch sử quyết định.
-            </p>
+        // Dáng Modal của Manager: overlay mờ + hộp bo 14px, viền --line2, đổ bóng sâu.
+        <div
+          className="ofly-overlay-in fixed inset-0 z-50 flex items-center justify-center p-6 backdrop-blur-[2px]"
+          style={{ background: "rgba(20,17,16,0.52)" }}
+          onMouseDown={() => setIsOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="ofly-modal-in max-h-[90vh] w-full max-w-[560px] overflow-y-auto rounded-[14px] border border-[var(--line2)] bg-[var(--paper)]"
+            style={{ boxShadow: "0 30px 80px -30px rgba(20,17,16,0.55)" }}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] px-[24px] pb-[16px] pt-[22px]">
+              <div className="min-w-0">
+                <Eyebrow>Customer Risk</Eyebrow>
+                <h3 className="ofly-serif m-0 mt-[8px] text-[23px] font-medium leading-[1.2] tracking-[-0.6px] text-[var(--ink)]">
+                  {nextBlacklisted ? "Xác nhận blacklist khách hàng" : "Xác nhận gỡ blacklist"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                aria-label="Đóng"
+                onClick={() => setIsOpen(false)}
+                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[8px] border border-[var(--line2)] text-[var(--ink2)] transition-colors hover:border-[var(--ink)] hover:text-[var(--ink)]"
+              >
+                <X size={16} strokeWidth={1.5} />
+              </button>
+            </div>
 
-            {nextBlacklisted ? (
-              <label className="mt-5 block">
-                <span className="apg-field-label">Lý do blacklist</span>
-                <textarea className="apg-field mt-2 h-auto min-h-[120px] py-3" value={reason} onChange={(event) => setReason(event.target.value)} />
-              </label>
-            ) : null}
+            <div className="px-[24px] py-[20px]">
+              <p className="m-0 text-[13px] leading-[1.6] text-[var(--ink2)]">
+                Thao tác này sẽ được ghi vào AuditLog và cập nhật tags của khách hàng để giữ lịch sử quyết định.
+              </p>
 
-            {error ? <div className="mt-4 rounded-[18px] bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+              {nextBlacklisted ? (
+                <div className="mt-[18px]">
+                  <Field label="Lý do blacklist" required>
+                    <Textarea
+                      className="min-h-[120px]"
+                      value={reason}
+                      onChange={(event) => setReason(event.target.value)}
+                    />
+                  </Field>
+                </div>
+              ) : null}
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <button className="apg-btn-secondary" type="button" onClick={() => setIsOpen(false)}>
+              {error ? (
+                <div
+                  className="mt-4 rounded-[10px] border px-[16px] py-[12px] text-[13px]"
+                  style={{
+                    color: "var(--red)",
+                    background: "color-mix(in srgb, var(--red) 8%, transparent)",
+                    borderColor: "color-mix(in srgb, var(--red) 30%, transparent)",
+                  }}
+                >
+                  {error}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-[10px] border-t border-[var(--line)] px-[24px] py-[16px]">
+              <Btn variant="ghost" onClick={() => setIsOpen(false)}>
                 Đóng
-              </button>
-              <button className={currentBlacklisted ? "apg-btn-primary" : "apg-btn-danger"} disabled={isPending} type="button" onClick={submit}>
+              </Btn>
+              <Btn
+                variant={currentBlacklisted ? "primary" : "danger"}
+                disabled={isPending}
+                onClick={submit}
+              >
                 {isPending ? "Đang cập nhật..." : "Xác nhận"}
-              </button>
+              </Btn>
             </div>
           </div>
         </div>

@@ -1,7 +1,14 @@
 "use client";
 
+import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
+
+import { Btn } from "@/components/admin/ui/Btn";
+import { Field, Input, Select, Textarea } from "@/components/admin/ui/Field";
+import { Eyebrow } from "@/components/admin/ui/Panel";
+import { StatTile } from "@/components/admin/ui/Stat";
+import { toneVars } from "@/lib/admin/ui/tones";
 
 type CancelReason = "CUSTOMER_REQUEST" | "PAYMENT_FAIL" | "AIRLINE_CANCEL" | "DUPLICATE" | "OTHER";
 
@@ -95,48 +102,51 @@ export function CancelBookingDialog({
 
   return (
     <>
-      <button
-        className={`w-full rounded-[var(--apg-radius-md)] px-4 py-2 text-sm font-semibold transition ${
-          disabled
-            ? "cursor-not-allowed border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] text-[var(--apg-text-secondary)] opacity-70"
-            : "border border-rose-300 bg-rose-600 text-white hover:bg-rose-700"
-        }`}
-        disabled={disabled}
-        onClick={() => setOpen(true)}
-        type="button"
-      >
+      <Btn variant="danger" full disabled={disabled} onClick={() => setOpen(true)}>
         Hủy booking
-      </button>
+      </Btn>
 
-      {disabled && disabledReason ? <p className="text-xs leading-5 text-[var(--apg-text-secondary)]">{disabledReason}</p> : null}
+      {disabled && disabledReason ? <p className="mt-2 text-[12px] leading-[1.5] text-[var(--ink3)]">{disabledReason}</p> : null}
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-8">
-          <div className="apg-admin-toolbar max-h-[90vh] w-full max-w-3xl overflow-y-auto px-5 py-5 lg:px-6">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="apg-eyebrow">Cancel Booking</p>
-                <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">Xác nhận hủy booking</h3>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--apg-text-secondary)]">
+        // Modal theo Manager (`kit.tsx` → Modal): overlay mờ + blur, hộp bo 14px, tiêu đề Fraunces.
+        <div
+          className="ofly-overlay-in fixed inset-0 z-50 flex items-center justify-center p-6"
+          style={{ background: "rgba(20,17,16,0.52)", backdropFilter: "blur(2px)" }}
+        >
+          <div
+            aria-modal="true"
+            role="dialog"
+            className="ofly-modal-in max-h-[90vh] w-full max-w-[720px] overflow-y-auto rounded-[14px] border border-[var(--line2)] bg-[var(--paper)]"
+            style={{ boxShadow: "0 30px 80px -30px rgba(20,17,16,0.55)" }}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] px-[24px] pb-[16px] pt-[22px]">
+              <div className="min-w-0">
+                <Eyebrow className="mb-2">Hủy đơn</Eyebrow>
+                <h3 className="ofly-serif m-0 text-[23px] font-medium leading-[1.2] tracking-[-0.6px] text-[var(--ink)]">
+                  Xác nhận hủy booking
+                </h3>
+                <p className="m-0 mt-[10px] max-w-[560px] text-[13px] leading-[1.55] text-[var(--ink3)]">
                   Hệ thống sẽ chuyển booking sang trạng thái CANCELLED, ghi timeline và có thể tạo payment âm nếu anh chọn hoàn tiền.
                 </p>
               </div>
-              <button className="apg-btn-secondary" disabled={isPending} onClick={() => setOpen(false)} type="button">
-                Đóng
+              <button
+                type="button"
+                aria-label="Đóng"
+                className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[8px] border border-[var(--line2)] bg-transparent text-[var(--ink2)] transition-colors duration-150 hover:bg-[var(--paper2)] disabled:opacity-60"
+                disabled={isPending}
+                onClick={() => setOpen(false)}
+              >
+                <X size={16} strokeWidth={1.5} />
               </button>
             </div>
 
-            <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_320px]">
-              <div className="space-y-5">
-                <div className="apg-admin-stat px-4 py-4">
-                  <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Trạng thái hiện tại</div>
-                  <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{status}</div>
-                </div>
+            <div className="grid gap-5 px-[24px] py-[20px] lg:grid-cols-[minmax(0,1.2fr)_260px]">
+              <div className="flex flex-col gap-4">
+                <StatTile label="Trạng thái hiện tại" value={status} minWidth={0} />
 
-                <label className="block">
-                  <span className="apg-field-label">Lý do hủy</span>
-                  <select
-                    className="apg-field mt-2"
+                <Field label="Lý do hủy">
+                  <Select
                     disabled={isPending}
                     onChange={(event) => setReason(event.target.value as CancelReason)}
                     value={reason}
@@ -146,97 +156,93 @@ export function CancelBookingDialog({
                         {option.label}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </Select>
+                </Field>
 
-                <label className="block">
-                  <span className="apg-field-label">Chi tiết</span>
-                  <textarea
-                    className="apg-field mt-2 h-auto min-h-[120px] py-3"
+                <Field label="Chi tiết">
+                  <Textarea
+                    className="min-h-[120px]"
                     disabled={isPending}
                     maxLength={1000}
                     onChange={(event) => setDetail(event.target.value)}
                     placeholder={reason === "OTHER" ? "Bắt buộc tối thiểu 10 ký tự khi chọn lý do khác." : "Ghi chú nội bộ nếu cần."}
                     value={detail}
                   />
-                </label>
+                </Field>
 
                 {canMarkRefund ? (
-                  <div className="apg-admin-sheet px-4 py-4">
-                    <label className="flex items-start gap-3 text-sm font-medium text-[var(--apg-aviation-navy-deep)]">
+                  <div className="rounded-[12px] border border-[var(--line)] bg-[var(--paper2)] px-[16px] py-[14px]">
+                    <label className="flex items-start gap-3 text-[13.5px] font-semibold text-[var(--ink)]">
                       <input
                         checked={markRefund}
-                        className="mt-1"
+                        className="mt-[3px] h-[15px] w-[15px] flex-none accent-[var(--rust)]"
                         disabled={isPending}
                         onChange={(event) => setMarkRefund(event.target.checked)}
                         type="checkbox"
                       />
                       <span>
                         Đánh dấu refund
-                        <span className="mt-1 block text-sm font-normal text-[var(--apg-text-secondary)]">
+                        <span className="mt-1 block text-[12.5px] font-normal leading-[1.5] text-[var(--ink3)]">
                           Tổng đã thu hiện tại: {formatCurrency(totalPaid, currency)}. Refund sẽ tạo payment âm.
                         </span>
                       </span>
                     </label>
 
                     {markRefund ? (
-                      <label className="mt-4 block">
-                        <span className="apg-field-label">Số tiền hoàn ({currency})</span>
-                        <input
-                          className="apg-field mt-2"
-                          disabled={isPending}
-                          inputMode="numeric"
-                          max={totalPaid}
-                          onChange={(event) => setRefundAmount(event.target.value)}
-                          placeholder={`Tối đa ${formatMoney(totalPaid)}`}
-                          step={1000}
-                          type="number"
-                          value={refundAmount}
-                        />
-                      </label>
+                      <div className="mt-4">
+                        <Field label={`Số tiền hoàn (${currency})`}>
+                          <Input
+                            disabled={isPending}
+                            inputMode="numeric"
+                            max={totalPaid}
+                            mono
+                            onChange={(event) => setRefundAmount(event.target.value)}
+                            placeholder={`Tối đa ${formatMoney(totalPaid)}`}
+                            step={1000}
+                            type="number"
+                            value={refundAmount}
+                          />
+                        </Field>
+                      </div>
                     ) : null}
                   </div>
                 ) : null}
               </div>
 
-              <aside className="space-y-3">
-                <div className="apg-admin-stat px-4 py-4">
-                  <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Checklist nhanh</div>
-                  <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--apg-text-secondary)]">
+              <aside className="flex flex-col gap-3">
+                <div className="rounded-[12px] border border-[var(--line)] bg-[var(--paper)] px-[16px] py-[14px]">
+                  <Eyebrow>Checklist nhanh</Eyebrow>
+                  <ul className="mt-3 flex list-none flex-col gap-2 p-0 text-[12.5px] leading-[1.5] text-[var(--ink2)]">
                     <li>Chỉ hủy khi đã xác nhận trạng thái với đội vận hành.</li>
                     <li>Refund chỉ nên bật cho booking TICKETED có payment PAID.</li>
                     <li>Lý do OTHER cần mô tả cụ thể để tra soát sau.</li>
                   </ul>
                 </div>
 
-                <div className="apg-admin-stat px-4 py-4">
-                  <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Tổng đã thu</div>
-                  <div className="mt-3 apg-tabular text-3xl font-semibold text-[var(--apg-aviation-navy-deep)]">
-                    {formatMoney(totalPaid)}
-                  </div>
-                  <div className="mt-1 text-sm text-[var(--apg-text-secondary)]">{currency} đang có thể tham chiếu khi hoàn tiền.</div>
-                </div>
+                <StatTile label="Tổng đã thu" value={formatMoney(totalPaid)} sub={currency} tone="navy" minWidth={0} />
+                <p className="m-0 text-[12px] leading-[1.5] text-[var(--ink3)]">
+                  {currency} đang có thể tham chiếu khi hoàn tiền.
+                </p>
               </aside>
             </div>
 
             {message ? (
-              <div className="mt-5 rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+              <div
+                className="mx-[24px] mb-[4px] rounded-[10px] border px-[13px] py-[10px] text-[12.5px] font-medium leading-[1.45]"
+                style={{ color: toneVars("red").fg, background: toneVars("red").bg, borderColor: toneVars("red").bd }}
+                role="alert"
+              >
                 {message}
               </div>
             ) : null}
 
-            <div className="mt-5 flex flex-wrap justify-end gap-3">
-              <button className="apg-btn-secondary" disabled={isPending} onClick={() => setOpen(false)} type="button">
+            <div className="mt-[16px] flex flex-wrap justify-end gap-[10px] border-t border-[var(--line)] px-[24px] py-[16px]">
+              <Btn variant="ghost" disabled={isPending} onClick={() => setOpen(false)}>
                 Đóng
-              </button>
-              <button
-                className="rounded-[var(--apg-radius-md)] bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isPending}
-                onClick={handleSubmit}
-                type="button"
-              >
+              </Btn>
+              <Btn variant="danger" disabled={isPending} onClick={handleSubmit}>
                 {isPending ? "Đang hủy..." : "Xác nhận hủy"}
-              </button>
+              </Btn>
             </div>
           </div>
         </div>

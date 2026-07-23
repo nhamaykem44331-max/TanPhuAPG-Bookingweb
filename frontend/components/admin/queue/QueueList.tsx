@@ -1,13 +1,14 @@
 "use client";
 
 import type { BookingStatus } from "@prisma/client";
-import Link from "next/link";
+import { TicketCheck, TriangleAlert, UserCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Chip } from "@/components/admin/ui/Chip";
+import { Btn, ButtonLink } from "@/components/admin/ui/Btn";
+import { StatusChip } from "@/components/admin/ui/Chip";
+import { Eyebrow, Panel } from "@/components/admin/ui/Panel";
 import { formatVnd, formatRoute } from "@/lib/admin/ui/format";
-import { statusMeta } from "@/lib/admin/ui/status";
 import { toneVars, type Tone } from "@/lib/admin/ui/tones";
 import type { TicketingQueueRecord } from "@/lib/bookings/ticketingQueue";
 
@@ -25,6 +26,10 @@ interface SlaView {
   tone: Tone;
   barPct: number;
   elapsedText: string;
+  /** Gấp → chấm tròn nhấp nháy (mẫu Countdown của Manager). */
+  urgent: boolean;
+  /** Chuỗi dạng đồng hồ → chữ mono; câu mô tả người xử lý → chữ sans. */
+  mono: boolean;
 }
 
 function computeSla(item: TicketingQueueRecord): SlaView {
@@ -34,12 +39,14 @@ function computeSla(item: TicketingQueueRecord): SlaView {
       tone: "info",
       barPct: 65,
       elapsedText: "",
+      urgent: false,
+      mono: false,
     };
   }
 
   const minutes = item.minutesToSla;
   if (minutes === null) {
-    return { text: "Chưa có hạn SLA", tone: "muted", barPct: 0, elapsedText: "" };
+    return { text: "Chưa có hạn SLA", tone: "muted", barPct: 0, elapsedText: "", urgent: false, mono: false };
   }
 
   let barPct = 0;
@@ -53,13 +60,17 @@ function computeSla(item: TicketingQueueRecord): SlaView {
     }
   }
 
+  // Ngưỡng màu theo Countdown của Manager: đỏ khi <10 phút (hoặc đã trễ), vàng khi <30 phút.
   if (minutes < 0) {
-    return { text: `Quá SLA +${Math.abs(minutes)}p`, tone: "rust", barPct: 100, elapsedText };
+    return { text: `Quá SLA +${Math.abs(minutes)}p`, tone: "red", barPct: 100, elapsedText, urgent: true, mono: true };
   }
-  if (minutes <= 10) {
-    return { text: `Còn ${minutes}p`, tone: "warn", barPct, elapsedText };
+  if (minutes < 10) {
+    return { text: `Còn ${minutes}p`, tone: "red", barPct, elapsedText, urgent: true, mono: true };
   }
-  return { text: `Còn ${minutes}p`, tone: "ok", barPct, elapsedText };
+  if (minutes < 30) {
+    return { text: `Còn ${minutes}p`, tone: "warn", barPct, elapsedText, urgent: false, mono: true };
+  }
+  return { text: `Còn ${minutes}p`, tone: "ok", barPct, elapsedText, urgent: false, mono: true };
 }
 
 function messageForError(status: number, data: { error?: string; message?: string }): string {
@@ -81,11 +92,6 @@ function messageForError(status: number, data: { error?: string; message?: strin
       return "Có lỗi xảy ra, vui lòng thử lại.";
   }
 }
-
-const RUST_BUTTON =
-  "rounded-[7px] border border-[var(--rust)] bg-[var(--rust)] px-[14px] py-[9px] text-[12px] font-semibold text-[#F5F1EA] whitespace-nowrap transition disabled:cursor-not-allowed disabled:opacity-50";
-const GHOST_BUTTON =
-  "rounded-[7px] border border-[var(--line-strong)] bg-transparent px-[14px] py-[9px] text-[12px] font-medium text-[var(--ink-soft)] whitespace-nowrap transition hover:border-[var(--ink)] hover:text-[var(--ink)]";
 
 export function QueueList({ items, currentUserName }: QueueListProps) {
   const router = useRouter();
@@ -133,102 +139,131 @@ export function QueueList({ items, currentUserName }: QueueListProps) {
     <div>
       {error ? (
         <div
-          className="mb-3 rounded-[8px] border px-[14px] py-[10px] text-[12px] font-medium"
+          className="mb-3 flex items-center gap-[10px] rounded-[10px] border px-[14px] py-[10px] text-[12.5px] font-medium"
           style={{ color: toneVars("red").fg, background: toneVars("red").bg, borderColor: toneVars("red").bd }}
           role="alert"
         >
+          <TriangleAlert size={16} strokeWidth={1.9} className="flex-none" aria-hidden="true" />
           {error}
         </div>
       ) : null}
 
-      <div className="overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface)]">
+      <Panel padded={false} className="overflow-hidden">
         {rows.length === 0 ? (
-          <div className="ofly-serif px-12 py-12 text-center text-[18px] italic text-[var(--ink-soft)]">
+          <div className="ofly-serif px-[18px] py-[54px] text-center text-[16px] italic text-[var(--ink3)]">
             Không còn đơn nào chờ xuất. Sạch sẽ.
           </div>
         ) : (
           rows.map((item) => {
             const sla = computeSla(item);
-            const meta = statusMeta(item.status as BookingStatus);
             const isTicketing = item.status === "TICKETING";
             const busy = pendingId === item.id;
 
             return (
               <div
                 key={item.id}
-                className="relative flex items-center gap-[18px] border-b border-[var(--line)] py-[16px] pr-[20px] last:border-b-0"
+                className="relative flex flex-wrap items-center gap-x-[18px] gap-y-[12px] border-b border-[var(--line)] py-[14px] pl-[20px] pr-[18px] transition-colors duration-[120ms] last:border-b-0 hover:bg-[var(--paper2)]"
               >
-                <div className="w-[3px] self-stretch" style={{ background: toneVars(sla.tone).solid }} aria-hidden="true" />
+                {/* Thanh SLA bám mép trái: đặt absolute để vẫn phủ hết chiều cao khi hàng xuống dòng ở mobile. */}
+                <span
+                  className="absolute bottom-0 left-0 top-0 w-[3px]"
+                  style={{ background: toneVars(sla.tone).solid }}
+                  aria-hidden="true"
+                />
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-[10px]">
-                    <span className="ofly-serif whitespace-nowrap text-[18px] font-medium tracking-[0.5px]">
+                <div className="min-w-[190px] flex-1">
+                  <div className="flex flex-wrap items-center gap-[10px]">
+                    <span className="ofly-num whitespace-nowrap text-[15px] font-semibold tracking-[0.5px] text-[var(--ink)]">
                       {formatRoute(item.route)}
                     </span>
-                    <Chip tone={meta.tone}>{meta.label}</Chip>
+                    <StatusChip status={item.status as BookingStatus} />
                   </div>
-                  <div className="mt-[5px] truncate text-[12px] text-[var(--ink-soft)]">
-                    {[item.airline ?? "—", item.orderCode].filter(Boolean).join(" · ")}
-                  </div>
-                </div>
-
-                <div className="w-[88px] flex-none">
-                  <div className="mb-[4px] text-[10px] font-semibold uppercase leading-none tracking-[1.5px] text-[var(--ink-faint)]">
-                    PNR
-                  </div>
-                  <div className="ofly-sans text-[13px] font-semibold tracking-[1px] text-[var(--rust)]">
-                    {item.pnr ?? "—"}
+                  <div className="mt-[5px] flex min-w-0 items-center gap-[6px] text-[12px] text-[var(--ink3)]">
+                    <span className="truncate">{item.airline ?? "—"}</span>
+                    <span aria-hidden="true">·</span>
+                    <span className="ofly-num text-[11.5px]">{item.orderCode}</span>
                   </div>
                 </div>
 
-                <div className="w-[80px] flex-none">
-                  <div className="mb-[4px] text-[10px] font-semibold uppercase leading-none tracking-[1.5px] text-[var(--ink-faint)]">
-                    KHÁCH
-                  </div>
-                  <div className="text-[13px] font-medium">{item.passengerCount} khách</div>
+                <div className="w-[92px] flex-none">
+                  <Eyebrow className="mb-[5px] tracking-[1.4px]">PNR</Eyebrow>
+                  <div className="ofly-num text-[13px] font-semibold text-[var(--rust)]">{item.pnr ?? "—"}</div>
                 </div>
 
-                <div className="w-[120px] flex-none">
-                  <div className="mb-[4px] text-[10px] font-semibold uppercase leading-none tracking-[1.5px] text-[var(--ink-faint)]">
-                    SỐ TIỀN
+                <div className="w-[76px] flex-none">
+                  <Eyebrow className="mb-[5px] tracking-[1.4px]">KHÁCH</Eyebrow>
+                  <div className="text-[13px] text-[var(--ink2)]">
+                    <span className="ofly-num font-semibold text-[var(--ink)]">{item.passengerCount}</span> khách
                   </div>
-                  <div className="ofly-serif text-[15px] font-medium">{formatVnd(item.sellPrice)}</div>
                 </div>
 
-                <div className="w-[158px] flex-none">
-                  <div className="mb-[6px] flex items-center justify-between">
-                    <span className="text-[12px] font-semibold" style={{ color: toneVars(sla.tone).fg }}>
-                      {sla.text}
+                <div className="w-[124px] flex-none">
+                  <Eyebrow className="mb-[5px] tracking-[1.4px]">SỐ TIỀN</Eyebrow>
+                  <div className="ofly-num text-[13.5px] font-semibold text-[var(--ink)]">
+                    {formatVnd(item.sellPrice)}
+                  </div>
+                </div>
+
+                <div className="w-[162px] flex-none">
+                  <div className="mb-[7px] flex items-center justify-between gap-2">
+                    <span className="inline-flex min-w-0 items-center gap-[7px]">
+                      <span
+                        className={`h-[7px] w-[7px] flex-none rounded-full ${sla.urgent ? "ofly-pulse" : ""}`}
+                        style={{ background: toneVars(sla.tone).solid }}
+                        aria-hidden="true"
+                      />
+                      <span
+                        className={`truncate text-[12.5px] font-semibold ${sla.mono ? "ofly-num" : ""}`}
+                        style={{ color: toneVars(sla.tone).fg }}
+                      >
+                        {sla.text}
+                      </span>
                     </span>
-                    <span className="text-[11px] text-[var(--ink-faint)]">{sla.elapsedText}</span>
+                    {sla.elapsedText ? (
+                      <span className="ofly-num whitespace-nowrap text-[11px] text-[var(--ink4)]">
+                        {sla.elapsedText}
+                      </span>
+                    ) : null}
                   </div>
-                  <div className="h-[4px] overflow-hidden rounded-[4px] bg-[var(--surface-2)]">
+                  <div className="h-[3px] overflow-hidden rounded-full bg-[var(--paper2)]">
                     <div
-                      className="h-full rounded-[4px]"
+                      className="h-full rounded-full"
                       style={{ width: `${sla.barPct}%`, background: toneVars(sla.tone).solid }}
                     />
                   </div>
                 </div>
 
-                <div className="flex w-[200px] flex-none justify-end gap-2">
+                <div className="ml-auto flex flex-none items-center justify-end gap-2">
                   {!isTicketing ? (
-                    <button type="button" className={RUST_BUTTON} disabled={busy} onClick={() => mutate(item.id, "claim")}>
+                    <Btn
+                      variant="rust"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => mutate(item.id, "claim")}
+                      icon={<UserCheck size={14} strokeWidth={1.9} />}
+                    >
                       Nhận xử lý
-                    </button>
+                    </Btn>
                   ) : (
-                    <button type="button" className={RUST_BUTTON} disabled={busy} onClick={() => mutate(item.id, "issue")}>
+                    <Btn
+                      variant="rust"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => mutate(item.id, "issue")}
+                      icon={<TicketCheck size={14} strokeWidth={1.9} />}
+                    >
                       Xác nhận xuất
-                    </button>
+                    </Btn>
                   )}
-                  <Link className={GHOST_BUTTON} href={`/admin/bookings/${item.id}`}>
+                  <ButtonLink variant="ghost" size="sm" href={`/admin/bookings/${item.id}`}>
                     Chi tiết
-                  </Link>
+                  </ButtonLink>
                 </div>
               </div>
             );
           })
         )}
-      </div>
+      </Panel>
     </div>
   );
 }

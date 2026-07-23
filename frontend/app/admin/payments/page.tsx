@@ -1,7 +1,10 @@
-import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { MiniChip } from "@/components/admin/ui/Chip";
+import { ButtonLink } from "@/components/admin/ui/Btn";
+import { Chip } from "@/components/admin/ui/Chip";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
+import { StatTile } from "@/components/admin/ui/Stat";
+import { FilterTab } from "@/components/admin/ui/Tabs";
 import { formatNumber, formatTime, formatVnd } from "@/lib/admin/ui/format";
 import type { Tone } from "@/lib/admin/ui/tones";
 import { PAYMENT_CAPTURE_ROLES } from "@/lib/auth/constants";
@@ -28,7 +31,7 @@ function singleValue(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }
 
-// BankTransactionStatus → nhãn + tone miniChip (parity bảng "Khớp thanh toán" file thiết kế).
+// BankTransactionStatus → nhãn + tone Chip (parity bảng "Khớp thanh toán" file thiết kế).
 function transactionChip(status: string): { label: string; tone: Tone; needsReview: boolean } {
   switch (status) {
     case "MATCHED":
@@ -67,17 +70,23 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
   const previousOffset = Math.max(parsedQuery.offset - parsedQuery.limit, 0);
   const nextOffset = parsedQuery.offset + parsedQuery.limit;
   const hasNextPage = nextOffset < result.totalTransactions;
-  const pageQuery = (offset: number) => ({
-    ...(currentScope !== "all" ? { scope: currentScope } : {}),
-    ...(offset > 0 ? { offset: String(offset) } : {}),
-  });
+  // FilterTab/ButtonLink nhận href dạng chuỗi nên dựng query string tại đây (giữ nguyên
+  // đúng bộ tham số cũ: chỉ scope + offset).
+  const scopeHref = (scope: PayScope) => (scope === "all" ? "/admin/payments" : `/admin/payments?scope=${scope}`);
+  const pageHref = (offset: number) => {
+    const params = new URLSearchParams();
+    if (currentScope !== "all") params.set("scope", currentScope);
+    if (offset > 0) params.set("offset", String(offset));
+    const query = params.toString();
+    return query ? `/admin/payments?${query}` : "/admin/payments";
+  };
 
   const columns: DataTableColumn<AdminPaymentOpsTransaction>[] = [
     {
       key: "time",
       header: "GIỜ",
       width: "72px",
-      render: (row) => <span className="text-[12px] text-[var(--ink-soft)]">{formatTime(row.createdAt)}</span>,
+      render: (row) => <span className="ofly-num text-[12px] text-[var(--ink3)]">{formatTime(row.createdAt)}</span>,
     },
     {
       key: "ref",
@@ -85,16 +94,22 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
       width: "minmax(0,1fr)",
       render: (row) => (
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-medium">{row.reference ?? row.providerOrderCode ?? "—"}</div>
-          <div className="mt-[2px] truncate text-[11px] text-[var(--ink-soft)]">{memoLine(row)}</div>
+          {/* Mã tham chiếu là chuỗi tra soát → mono cho dễ dò từng ký tự */}
+          <div className="ofly-num truncate text-[13px] font-medium text-[var(--ink)]">
+            {row.reference ?? row.providerOrderCode ?? "—"}
+          </div>
+          <div className="mt-[3px] truncate text-[11.5px] text-[var(--ink3)]">{memoLine(row)}</div>
         </div>
       ),
     },
     {
       key: "amount",
       header: "SỐ TIỀN",
-      width: "140px",
-      render: (row) => <span className="ofly-serif text-[15px] font-medium">{formatVnd(row.amount)}</span>,
+      width: "148px",
+      align: "right",
+      render: (row) => (
+        <span className="ofly-num text-[13.5px] font-semibold text-[var(--ink)]">{formatVnd(row.amount)}</span>
+      ),
     },
     {
       key: "pnr",
@@ -102,8 +117,8 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
       width: "120px",
       render: (row) => (
         <span
-          className="ofly-sans text-[13px] font-semibold tracking-[1px]"
-          style={{ color: row.pnr ? "var(--rust)" : "var(--ink-faint)" }}
+          className="ofly-num text-[13px] font-semibold"
+          style={{ color: row.pnr ? "var(--rust)" : "var(--ink4)" }}
         >
           {row.pnr ?? "?"}
         </span>
@@ -112,14 +127,15 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
     {
       key: "status",
       header: "TRẠNG THÁI",
-      width: "168px",
+      width: "196px",
       render: (row) => {
         const chip = transactionChip(row.status);
         return (
-          <div className="flex items-center gap-[10px]">
-            <MiniChip tone={chip.tone}>{chip.label}</MiniChip>
+          <div className="flex flex-wrap items-center justify-end gap-[10px] lg:justify-start">
+            {/* Cột TRẠNG THÁI dùng Chip 12px có chấm — đồng bộ với mọi bảng admin khác */}
+            <Chip tone={chip.tone}>{chip.label}</Chip>
             {chip.needsReview ? (
-              <Link
+              <ButtonLink
                 href={
                   row.bookingId
                     ? `/admin/bookings/${row.bookingId}`
@@ -127,10 +143,11 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
                       ? `/admin/bookings?q=${encodeURIComponent(row.pnr)}`
                       : "/admin/bookings"
                 }
-                className="rounded-[6px] border border-[var(--rust)] bg-transparent px-[9px] py-[5px] text-[11px] font-semibold text-[var(--rust)] transition hover:bg-[var(--rust)] hover:text-[#F5F1EA]"
+                variant="ghost"
+                size="sm"
               >
                 Khớp tay
-              </Link>
+              </ButtonLink>
             ) : null}
           </div>
         );
@@ -140,29 +157,25 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
 
   return (
     <div>
-      <p className="mb-[22px] max-w-[560px] text-[14px] leading-[1.6] text-[var(--ink-soft)]">
+      <p className="mb-[18px] max-w-[580px] text-[14px] leading-[1.55] text-[var(--ink3)]">
         Giao dịch ngân hàng về qua webhook (SePay / PayOS / VietQR), tự khớp theo nội dung chuyển khoản. Trường hợp không
         khớp được sẽ chuyển sang <strong className="font-semibold text-[var(--ink)]">đối soát thủ công</strong>.
       </p>
 
-      <div className="mb-5 flex flex-wrap gap-[6px]">
-        {SCOPE_ORDER.map((scope) => {
-          const active = currentScope === scope;
-          return (
-            <Link
-              key={scope}
-              href={{ pathname: "/admin/payments", query: scope === "all" ? {} : { scope } }}
-              className="rounded-[8px] border px-[14px] py-[8px] text-[12px] font-medium leading-none transition"
-              style={
-                active
-                  ? { borderColor: "var(--rust)", background: "var(--rust)", color: "#F5F1EA" }
-                  : { borderColor: "var(--line)", background: "var(--surface)", color: "var(--ink-soft)" }
-              }
-            >
-              {SCOPE_LABELS[scope]}
-            </Link>
-          );
-        })}
+      {/* Ô KPI đối soát — "cần đối soát" tone amber để mắt bắt ngay việc phải làm tay */}
+      <div className="mb-[18px] flex flex-wrap gap-[12px]">
+        <StatTile label="Đang chờ thanh toán" value={formatNumber(result.summary.activeIntentCount)} />
+        <StatTile label="Cần đối soát" value={formatNumber(result.summary.manualReviewCount)} tone="amber" />
+        <StatTile label="Khớp hôm nay" value={formatNumber(result.summary.matchedTodayCount)} tone="green" />
+        <StatTile label="Thông báo chờ gửi" value={formatNumber(result.summary.pendingReminderCount)} />
+      </div>
+
+      <div className="mb-[18px] flex flex-wrap gap-[8px]">
+        {SCOPE_ORDER.map((scope) => (
+          <FilterTab key={scope} href={scopeHref(scope)} active={currentScope === scope}>
+            {SCOPE_LABELS[scope]}
+          </FilterTab>
+        ))}
       </div>
 
       <DataTable
@@ -170,29 +183,31 @@ export default async function AdminPaymentsPage({ searchParams }: AdminPaymentsP
         rows={result.transactions}
         getRowKey={(row) => row.id}
         empty="Chưa có giao dịch nào trong nhóm này."
-        className="overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface)]"
       />
 
-      <div className="mt-4 flex flex-col items-center gap-3 text-[12px] text-[var(--ink-soft)] sm:flex-row sm:justify-between">
-        <Link
-          href={{ pathname: "/admin/payments", query: pageQuery(previousOffset) }}
-          className={`order-2 whitespace-nowrap rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] sm:order-none ${
-            parsedQuery.offset === 0 ? "pointer-events-none opacity-40" : ""
-          }`}
+      <div className="mt-4 flex flex-col items-center gap-3 text-[12px] text-[var(--ink3)] sm:flex-row sm:justify-between">
+        <ButtonLink
+          href={pageHref(previousOffset)}
+          variant="ghost"
+          size="sm"
+          icon={<ChevronLeft size={15} strokeWidth={1.5} />}
+          className={`order-2 sm:order-none ${parsedQuery.offset === 0 ? "pointer-events-none opacity-40" : ""}`}
         >
           Trang trước
-        </Link>
+        </ButtonLink>
         <span className="order-1 text-center sm:order-none">
-          Hiển thị {result.transactions.length} / {formatNumber(result.totalTransactions)} giao dịch
+          Hiển thị <span className="ofly-num text-[var(--ink2)]">{result.transactions.length}</span> /{" "}
+          <span className="ofly-num text-[var(--ink2)]">{formatNumber(result.totalTransactions)}</span> giao dịch
         </span>
-        <Link
-          href={{ pathname: "/admin/payments", query: pageQuery(nextOffset) }}
-          className={`order-3 whitespace-nowrap rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] sm:order-none ${
-            !hasNextPage ? "pointer-events-none opacity-40" : ""
-          }`}
+        <ButtonLink
+          href={pageHref(nextOffset)}
+          variant="ghost"
+          size="sm"
+          className={`order-3 sm:order-none ${!hasNextPage ? "pointer-events-none opacity-40" : ""}`}
         >
           Trang sau
-        </Link>
+          <ChevronRight size={15} strokeWidth={1.5} />
+        </ButtonLink>
       </div>
     </div>
   );

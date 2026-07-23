@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 
 import { updateMarkupRuleAction } from "@/app/admin/markup-rules/actions";
 import { MarkupRuleForm } from "@/components/admin/MarkupRuleForm";
+import { SectionTitle } from "@/components/admin/ui/PageHead";
+import { Eyebrow, Panel } from "@/components/admin/ui/Panel";
 import { MARKUP_RULE_MANAGER_ROLES } from "@/lib/auth/constants";
 import { requireRole } from "@/lib/auth/requireRole";
 import { getMarkupRuleById, type MarkupRuleRecord } from "@/lib/pricing/markupRules";
@@ -43,41 +46,43 @@ export default async function EditMarkupRulePage({ params }: EditMarkupRulePageP
   const updateAction = updateMarkupRuleAction.bind(null, rule.id);
 
   return (
-    <section className="space-y-6">
-      <div className="apg-admin-sheet overflow-hidden">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.4fr)_360px]">
-          <div className="px-5 py-6 lg:px-6">
-            <Link className="text-sm font-semibold text-[var(--apg-aviation-navy)] hover:underline" href="/admin/markup">
-              ← Quay lại danh sách markup
-            </Link>
-            <p className="apg-eyebrow mt-5">Markup Control</p>
-            <h2 className="mt-3 text-3xl font-semibold text-[var(--apg-aviation-navy-deep)]">Chỉnh sửa markup rule</h2>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--apg-text-secondary)]">
-              Rule ID: <span className="apg-mono font-semibold">{rule.id}</span>. Mọi thay đổi đều ghi AuditLog theo diff để đội vận hành xem lại chính xác field nào đã đổi.
+    <section className="space-y-[12px]">
+      <Link
+        href="/admin/markup"
+        className="inline-flex items-center gap-[7px] text-[13px] font-semibold text-[var(--ink2)] transition-colors hover:text-[var(--ink)]"
+      >
+        <ArrowLeft size={15} strokeWidth={1.5} aria-hidden="true" />
+        Quay lại danh sách markup
+      </Link>
+
+      {/* Panel không padding để cột tóm tắt bên phải tràn viền (dáng DetailPane của Manager). */}
+      <Panel padded={false} className="overflow-hidden">
+        <div className="grid lg:grid-cols-[minmax(0,1.4fr)_360px]">
+          <div className="px-[20px] py-[18px]">
+            <Eyebrow>Markup Control</Eyebrow>
+            <SectionTitle className="mt-[10px]">Chỉnh sửa markup rule</SectionTitle>
+            <p className="mt-[10px] max-w-[620px] text-[13.5px] leading-[1.6] text-[var(--ink3)]">
+              Rule ID: <span className="ofly-num text-[12.5px] font-semibold text-[var(--ink)]">{rule.id}</span>. Mọi thay đổi đều ghi AuditLog theo diff để đội vận hành xem lại chính xác field nào đã đổi.
             </p>
           </div>
 
-          <div className="border-t border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(233,238,242,0.95),rgba(255,255,255,0.98))] px-5 py-5 lg:border-l lg:border-t-0">
-            <div className="apg-admin-stat px-4 py-4">
-              <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Tóm tắt hiện tại</div>
-              <div className="mt-3 space-y-2 text-sm text-[var(--apg-text-secondary)]">
-                <div>Scope: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{rule.scope}</span></div>
-                <div>Airline: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{rule.airline ?? "Tất cả"}</span></div>
-                <div>Priority: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{rule.priority}</span></div>
-                <div>Trạng thái: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{rule.active ? "Đang bật" : "Đang tắt"}</span></div>
-              </div>
+          <div className="border-t border-[var(--line)] bg-[var(--paper2)] px-[20px] py-[18px] lg:border-l lg:border-t-0">
+            <Eyebrow>Tóm tắt hiện tại</Eyebrow>
+            <div className="mt-[12px] space-y-[7px] text-[13.5px] text-[var(--ink3)]">
+              <div>Scope: <span className="font-semibold text-[var(--ink)]">{rule.scope}</span></div>
+              <div>Airline: <span className="font-semibold text-[var(--ink)]">{rule.airline ?? "Tất cả"}</span></div>
+              <div>Priority: <span className="ofly-num font-semibold text-[var(--ink)]">{rule.priority}</span></div>
+              <div>Trạng thái: <span className="font-semibold text-[var(--ink)]">{rule.active ? "Đang bật" : "Đang tắt"}</span></div>
             </div>
           </div>
         </div>
-      </div>
+      </Panel>
 
-      <div className="apg-admin-toolbar p-5 lg:p-6">
-        <MarkupRuleForm
-          action={updateAction}
-          initialValues={markupRuleToFormValues(rule)}
-          submitLabel="Lưu thay đổi"
-        />
-      </div>
+      <MarkupRuleForm
+        action={updateAction}
+        initialValues={markupRuleToFormValues(rule)}
+        submitLabel="Lưu thay đổi"
+      />
     </section>
   );
 }

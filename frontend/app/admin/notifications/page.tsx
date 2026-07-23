@@ -1,5 +1,8 @@
-import { MiniChip } from "@/components/admin/ui/Chip";
+import { BellRing, MessageSquare, Send, type LucideIcon } from "lucide-react";
+
+import { Chip, MiniChip } from "@/components/admin/ui/Chip";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
+import { Panel } from "@/components/admin/ui/Panel";
 import { formatRoute, formatTime } from "@/lib/admin/ui/format";
 import { toneVars, type Tone } from "@/lib/admin/ui/tones";
 import { ADMIN_ROLES } from "@/lib/auth/constants";
@@ -25,6 +28,7 @@ interface ChannelMeta {
   chipLabel: string;
   tone: Tone;
   desc: string;
+  icon: LucideIcon;
 }
 
 const CHANNEL_CARDS: ChannelMeta[] = [
@@ -34,6 +38,7 @@ const CHANNEL_CARDS: ChannelMeta[] = [
     chipLabel: "Kênh chính",
     tone: "ok",
     desc: "Kênh chính cho cảnh báo nội bộ: cần xuất vé, quá SLA, sắp hết hạn giữ chỗ.",
+    icon: MessageSquare,
   },
   {
     channel: "ZNS",
@@ -41,6 +46,7 @@ const CHANNEL_CARDS: ChannelMeta[] = [
     chipLabel: "Khách hàng",
     tone: "info",
     desc: "Tin chính thức gửi khách: xác nhận giữ chỗ, link thanh toán, vé điện tử, hoàn tiền.",
+    icon: BellRing,
   },
   {
     channel: "TELEGRAM",
@@ -48,6 +54,7 @@ const CHANNEL_CARDS: ChannelMeta[] = [
     chipLabel: "Dự phòng",
     tone: "warn",
     desc: "Dự phòng khi khẩn cấp — chỉ kích hoạt cho cảnh báo quá SLA / không xuất được.",
+    icon: Send,
   },
 ];
 
@@ -73,24 +80,24 @@ interface NotifRow {
   route: string | null;
 }
 
-// NotificationJobStatus → nhãn + màu chữ (cột trạng thái là text màu, không phải chip).
-function statusText(row: NotifRow): { label: string; color: string } {
+// NotificationJobStatus → nhãn + tone chip (Manager dùng chip trạng thái, không phải chữ màu).
+function statusChip(row: NotifRow): { label: string; tone: Tone } {
   switch (row.status) {
     case "SENT":
-      return { label: "Đã gửi", color: toneVars("ok").fg };
+      return { label: "Đã gửi", tone: "ok" };
     case "PENDING":
     case "PROCESSING":
-      return { label: "Đang chờ", color: toneVars("warn").fg };
+      return { label: "Đang chờ", tone: "warn" };
     case "FAILED":
       return row.attempts > 0 && row.attempts < row.maxAttempts
-        ? { label: `Thử lại (${row.attempts}/${row.maxAttempts})`, color: toneVars("warn").fg }
-        : { label: "Thất bại", color: toneVars("red").fg };
+        ? { label: `Thử lại (${row.attempts}/${row.maxAttempts})`, tone: "warn" }
+        : { label: "Thất bại", tone: "red" };
     case "CANCELLED":
-      return { label: "Đã huỷ", color: toneVars("muted").fg };
+      return { label: "Đã huỷ", tone: "muted" };
     case "SKIPPED":
-      return { label: "Bỏ qua", color: toneVars("muted").fg };
+      return { label: "Bỏ qua", tone: "muted" };
     default:
-      return { label: row.status, color: toneVars("muted").fg };
+      return { label: row.status, tone: "muted" };
   }
 }
 
@@ -138,8 +145,8 @@ export default async function AdminNotificationsPage() {
     {
       key: "time",
       header: "GIỜ",
-      width: "60px",
-      render: (row) => <span className="text-[12px] text-[var(--ink-soft)]">{formatTime(row.createdAt)}</span>,
+      width: "72px",
+      render: (row) => <span className="ofly-num text-[12.5px] text-[var(--ink2)]">{formatTime(row.createdAt)}</span>,
     },
     {
       key: "event",
@@ -147,10 +154,14 @@ export default async function AdminNotificationsPage() {
       width: "minmax(0,1.5fr)",
       render: (row) => (
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-medium">{row.type}</div>
+          <div className="truncate text-[13.5px] font-medium text-[var(--ink)]">{row.type}</div>
           {row.pnr || row.route ? (
-            <div className="mt-[2px] truncate text-[11px] text-[var(--ink-soft)]">
-              {[row.pnr, row.route ? formatRoute(row.route) : null].filter(Boolean).join(" · ")}
+            <div className="mt-[3px] flex items-center gap-[7px] truncate text-[11.5px] text-[var(--ink3)]">
+              {row.pnr ? (
+                <span className="ofly-mono text-[11px] font-medium tracking-[0.4px] text-[var(--ink2)]">{row.pnr}</span>
+              ) : null}
+              {row.pnr && row.route ? <span aria-hidden="true">·</span> : null}
+              {row.route ? <span className="truncate">{formatRoute(row.route)}</span> : null}
             </div>
           ) : null}
         </div>
@@ -161,50 +172,63 @@ export default async function AdminNotificationsPage() {
       header: "KÊNH",
       width: "128px",
       render: (row) => (
-        <span className="text-[12px] text-[var(--ink-soft)]">{CHANNEL_LABELS[row.channel] ?? row.channel}</span>
+        <span className="text-[12.5px] text-[var(--ink3)]">{CHANNEL_LABELS[row.channel] ?? row.channel}</span>
       ),
     },
     {
       key: "audience",
       header: "ĐỐI TƯỢNG",
-      width: "96px",
+      width: "104px",
       render: (row) =>
         row.audience === "CUSTOMER" ? <MiniChip tone="info">Khách</MiniChip> : <MiniChip tone="rust">Nội bộ</MiniChip>,
     },
     {
       key: "status",
       header: "TRẠNG THÁI",
-      width: "128px",
+      width: "148px",
       render: (row) => {
-        const status = statusText(row);
-        return (
-          <span className="text-[12px] font-semibold" style={{ color: status.color }}>
-            {status.label}
-          </span>
-        );
+        const status = statusChip(row);
+        return <Chip tone={status.tone}>{status.label}</Chip>;
       },
     },
   ];
 
   return (
     <div>
-      <div className="mb-6 grid gap-4 md:grid-cols-3">
-        {CHANNEL_CARDS.map((card) => (
-          <div key={card.channel} className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[22px] py-[20px]">
-            <div className="flex items-center justify-between">
-              <span className="ofly-serif text-[17px] font-medium">{card.name}</span>
-              <MiniChip tone={card.tone}>{card.chipLabel}</MiniChip>
-            </div>
-            <div className="mt-[9px] text-[12px] leading-[1.5] text-[var(--ink-soft)]">{card.desc}</div>
-            <div className="mt-[14px] text-[12px] text-[var(--ink-soft)]">
-              Hôm nay:{" "}
-              <strong className="ofly-serif text-[15px] font-medium text-[var(--ink)]">
-                {sentByChannel.get(card.channel) ?? 0}
-              </strong>{" "}
-              tin
-            </div>
-          </div>
-        ))}
+      <div className="mb-[18px] grid gap-3 md:grid-cols-3">
+        {CHANNEL_CARDS.map((card) => {
+          const t = toneVars(card.tone);
+          const Icon = card.icon;
+          return (
+            // h-full + mt-auto: dòng "Hôm nay" của 3 thẻ nằm thẳng hàng dù mô tả dài ngắn khác nhau.
+            <Panel key={card.channel} className="flex h-full flex-col">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-[10px]">
+                  <span
+                    className="flex h-[30px] w-[30px] flex-none items-center justify-center rounded-[8px] border"
+                    style={{ background: t.bg, borderColor: t.bd, color: t.fg }}
+                  >
+                    <Icon size={16} strokeWidth={1.7} aria-hidden="true" />
+                  </span>
+                  <span className="ofly-serif truncate text-[19px] font-medium leading-[1.15] tracking-[-0.5px] text-[var(--ink)]">
+                    {card.name}
+                  </span>
+                </div>
+                <MiniChip tone={card.tone}>{card.chipLabel}</MiniChip>
+              </div>
+
+              <p className="m-0 mt-[11px] text-[12.5px] leading-[1.5] text-[var(--ink3)]">{card.desc}</p>
+
+              <div className="mt-auto flex items-baseline gap-[7px] border-t border-[var(--line)] pt-[13px]">
+                <span className="text-[12px] text-[var(--ink3)]">Hôm nay:</span>
+                <span className="ofly-num text-[20px] font-bold leading-none text-[var(--ink)]">
+                  {sentByChannel.get(card.channel) ?? 0}
+                </span>
+                <span className="text-[12px] text-[var(--ink3)]">tin</span>
+              </div>
+            </Panel>
+          );
+        })}
       </div>
 
       <DataTable
@@ -212,7 +236,6 @@ export default async function AdminNotificationsPage() {
         rows={rows}
         getRowKey={(row) => row.id}
         empty="Chưa có thông báo nào được gửi."
-        className="overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface)]"
       />
     </div>
   );

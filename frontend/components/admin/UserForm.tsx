@@ -2,8 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { AlertTriangle, ArrowUpRight } from "lucide-react";
 import type { Role } from "@prisma/client";
 
+import { Btn } from "@/components/admin/ui/Btn";
+import { Field, Input, Select } from "@/components/admin/ui/Field";
+import { Eyebrow, Panel } from "@/components/admin/ui/Panel";
 import { ROLE_LABELS } from "@/lib/auth/constants";
 import type { AdminUserRecord } from "@/lib/users/admin";
 
@@ -13,6 +17,12 @@ interface UserFormProps {
 }
 
 const ROLES: Role[] = ["SUPER_ADMIN", "QUAN_LY_DAI_LY", "NHAN_VIEN_BAN", "KE_TOAN"];
+
+const ROLE_HINTS = [
+  "`SUPER_ADMIN` chỉ dùng cho quản trị hệ thống và bảo mật.",
+  "`QUAN_LY_DAI_LY` phù hợp cho người điều phối vận hành.",
+  "`KE_TOAN` nên giữ read-only ngoài phần payment.",
+];
 
 type FieldErrors = Record<string, string[] | undefined>;
 
@@ -71,101 +81,136 @@ export function UserForm({ mode, user }: UserFormProps) {
   }
 
   return (
-    <form action={onSubmit} className="space-y-5">
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <div className="space-y-5">
-          <section className="apg-admin-stat px-4 py-4">
-            <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Định danh</div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+    <form action={onSubmit} className="flex flex-col gap-[12px]">
+      <div className="grid gap-[12px] xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div className="flex flex-col gap-[12px]">
+          <Panel>
+            <Eyebrow>Định danh</Eyebrow>
+            <div className="mt-[14px] grid gap-[14px] md:grid-cols-2">
               {mode === "create" ? (
-                <label className="block md:col-span-2">
-                  <span className="apg-field-label">Email</span>
-                  <input className="apg-field mt-2" name="email" type="email" />
-                  {fieldErrors.email ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.email[0]}</span> : null}
-                </label>
+                <Field label="Email" error={fieldErrors.email?.[0]} className="md:col-span-2">
+                  <Input name="email" type="email" error={Boolean(fieldErrors.email)} />
+                </Field>
               ) : (
                 <div className="md:col-span-2">
-                  <span className="apg-field-label">Email</span>
-                  <div className="mt-2 rounded-[18px] border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface-soft)] px-4 py-3 text-[var(--apg-aviation-navy-deep)]">
+                  <Eyebrow>Email</Eyebrow>
+                  {/* Email khoá sau khi tạo → ô chỉ-đọc: cùng hình ô nhập nhưng không viền tương tác */}
+                  <div className="mt-[7px] rounded-[8px] border border-[var(--line)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] text-[var(--ink)]">
                     {user?.email}
                   </div>
                 </div>
               )}
 
-              <label className="block md:col-span-2">
-                <span className="apg-field-label">Họ tên</span>
-                <input className="apg-field mt-2" defaultValue={user?.fullName ?? ""} name="fullName" />
-                {fieldErrors.fullName ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.fullName[0]}</span> : null}
-              </label>
+              <Field label="Họ tên" error={fieldErrors.fullName?.[0]} className="md:col-span-2">
+                <Input defaultValue={user?.fullName ?? ""} name="fullName" error={Boolean(fieldErrors.fullName)} />
+              </Field>
             </div>
-          </section>
+          </Panel>
 
-          <section className="apg-admin-stat px-4 py-4">
-            <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Phân quyền</div>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="block">
-                <span className="apg-field-label">Role</span>
-                <select className="apg-field mt-2" defaultValue={user?.role ?? "NHAN_VIEN_BAN"} name="role">
-                  {ROLES.map((role) => (
-                    <option key={role} value={role}>
-                      {ROLE_LABELS[role]}
-                    </option>
-                  ))}
-                </select>
-                {fieldErrors.role ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.role[0]}</span> : null}
-              </label>
+          <Panel>
+            <Eyebrow>Phân quyền</Eyebrow>
+            <div className="mt-[14px] grid gap-[14px] md:grid-cols-2">
+              <Field label="Role" error={fieldErrors.role?.[0]}>
+                <Select
+                  defaultValue={user?.role ?? "NHAN_VIEN_BAN"}
+                  name="role"
+                  error={Boolean(fieldErrors.role)}
+                  options={ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))}
+                />
+              </Field>
 
-              <label className="flex items-center gap-3 rounded-[18px] border border-[var(--apg-border-default)] bg-white px-4 py-3 text-sm font-medium text-[var(--apg-text-secondary)]">
-                <input defaultChecked={user?.active ?? true} name="active" type="checkbox" />
+              <label className="flex items-center gap-[10px] self-end rounded-[8px] border border-[var(--line2)] bg-[var(--paper2)] px-[13px] py-[11px] text-[14px] font-medium text-[var(--ink2)]">
+                <input
+                  defaultChecked={user?.active ?? true}
+                  name="active"
+                  type="checkbox"
+                  className="h-[15px] w-[15px] accent-[var(--rust)]"
+                />
                 Active
               </label>
 
               {mode === "create" ? (
-                <label className="block md:col-span-2">
-                  <span className="apg-field-label">Mật khẩu tạm</span>
-                  <input className="apg-field mt-2" name="tempPassword" placeholder="Để trống để hệ thống tự tạo" />
-                  {fieldErrors.tempPassword ? <span className="mt-1 block text-xs text-rose-600">{fieldErrors.tempPassword[0]}</span> : null}
-                </label>
+                <Field
+                  label="Mật khẩu tạm"
+                  error={fieldErrors.tempPassword?.[0]}
+                  className="md:col-span-2"
+                >
+                  <Input
+                    mono
+                    name="tempPassword"
+                    placeholder="Để trống để hệ thống tự tạo"
+                    error={Boolean(fieldErrors.tempPassword)}
+                  />
+                </Field>
               ) : null}
             </div>
-          </section>
+          </Panel>
         </div>
 
-        <aside className="space-y-5">
-          <section className="apg-admin-stat px-4 py-4">
-            <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Khuyến nghị quyền</div>
-            <ul className="mt-3 space-y-2 text-sm leading-6 text-[var(--apg-text-secondary)]">
-              <li>`SUPER_ADMIN` chỉ dùng cho quản trị hệ thống và bảo mật.</li>
-              <li>`QUAN_LY_DAI_LY` phù hợp cho người điều phối vận hành.</li>
-              <li>`KE_TOAN` nên giữ read-only ngoài phần payment.</li>
+        <aside className="flex flex-col gap-[12px]">
+          <Panel>
+            <Eyebrow>Khuyến nghị quyền</Eyebrow>
+            <ul className="m-0 mt-[12px] flex list-none flex-col gap-[9px] p-0">
+              {ROLE_HINTS.map((hint) => (
+                <li key={hint} className="flex items-start gap-[9px] text-[12.5px] leading-[1.55] text-[var(--ink3)]">
+                  <span
+                    aria-hidden="true"
+                    className="mt-[7px] h-[5px] w-[5px] flex-none rounded-full bg-[var(--rustSoft)]"
+                  />
+                  {hint}
+                </li>
+              ))}
             </ul>
-          </section>
+          </Panel>
 
           {tempPassword ? (
-            <section className="rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-              Mật khẩu tạm chỉ hiển thị một lần:
-              <div className="mt-3 rounded-[14px] bg-white px-3 py-3 font-mono font-semibold text-[var(--apg-aviation-navy-deep)]">
+            <div
+              className="rounded-[12px] border px-[18px] py-[16px]"
+              style={{
+                background: "color-mix(in srgb, var(--amber) 8%, var(--paper))",
+                borderColor: "color-mix(in srgb, var(--amber) 32%, transparent)",
+              }}
+            >
+              <div className="flex items-center gap-[8px] text-[12.5px] font-semibold text-[var(--amber)]">
+                <AlertTriangle size={15} strokeWidth={1.5} />
+                Mật khẩu tạm chỉ hiển thị một lần:
+              </div>
+              <div className="ofly-num mt-[12px] rounded-[8px] border border-[var(--line)] bg-[var(--paper)] px-[13px] py-[11px] text-[14px] font-bold text-[var(--ink)]">
                 {tempPassword}
               </div>
               {createdUserId ? (
-                <a className="mt-3 inline-flex font-semibold underline" href={`/admin/users/${createdUserId}`}>
+                <a
+                  className="mt-[12px] inline-flex items-center gap-[6px] text-[12.5px] font-semibold text-[var(--rust)] hover:underline"
+                  href={`/admin/users/${createdUserId}`}
+                >
                   Mở tài khoản
+                  <ArrowUpRight size={14} strokeWidth={1.5} />
                 </a>
               ) : null}
-            </section>
+            </div>
           ) : null}
         </aside>
       </div>
 
       {formError ? (
-        <div className="rounded-[18px] border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{formError}</div>
+        <div
+          className="flex items-center gap-[9px] rounded-[12px] border px-[18px] py-[13px] text-[13px]"
+          style={{
+            background: "color-mix(in srgb, var(--red) 8%, var(--paper))",
+            borderColor: "color-mix(in srgb, var(--red) 30%, transparent)",
+            color: "var(--red)",
+          }}
+        >
+          <AlertTriangle size={15} strokeWidth={1.5} className="flex-none" />
+          {formError}
+        </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <button className="apg-btn-primary" disabled={isPending} type="submit">
+      <div className="flex flex-wrap items-center gap-[14px]">
+        <Btn type="submit" variant="rust" disabled={isPending}>
           {isPending ? "Đang lưu..." : mode === "create" ? "Tạo tài khoản" : "Lưu thay đổi"}
-        </button>
-        <p className="text-sm text-[var(--apg-text-secondary)]">
+        </Btn>
+        <p className="m-0 text-[12.5px] text-[var(--ink3)]">
           {mode === "create"
             ? "Sau khi tạo xong, hệ thống sẽ giữ mật khẩu tạm trên màn hình này đúng một lần."
             : "Sau khi lưu xong, trang sẽ tự làm mới để cập nhật hồ sơ tài khoản."}

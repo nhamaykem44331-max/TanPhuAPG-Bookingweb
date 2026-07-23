@@ -1,12 +1,21 @@
+import type { BookingStatus } from "@prisma/client";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 
-import { ADMIN_ROLES, CUSTOMER_MANAGER_ROLES } from "@/lib/auth/constants";
-import { requireRole } from "@/lib/auth/requireRole";
-import { getAdminCustomerById } from "@/lib/customers/admin";
 import { CustomerBlacklistDialog } from "@/components/admin/CustomerBlacklistDialog";
 import { CustomerForm } from "@/components/admin/CustomerForm";
 import { CustomerMergeDialog } from "@/components/admin/CustomerMergeDialog";
+import { Btn } from "@/components/admin/ui/Btn";
+import { Chip, MiniChip, StatusChip } from "@/components/admin/ui/Chip";
+import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
+import { Eyebrow, Panel } from "@/components/admin/ui/Panel";
+import { SectionTitle } from "@/components/admin/ui/PageHead";
+import { formatDateTime, formatNumber, formatVnd } from "@/lib/admin/ui/format";
+import { ADMIN_ROLES, CUSTOMER_MANAGER_ROLES } from "@/lib/auth/constants";
+import { requireRole } from "@/lib/auth/requireRole";
+import { getAdminCustomerById, type AdminCustomerBooking } from "@/lib/customers/admin";
 
 interface CustomerDetailPageProps {
   params: {
@@ -14,20 +23,10 @@ interface CustomerDetailPageProps {
   };
 }
 
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("vi-VN", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Ho_Chi_Minh",
-  }).format(new Date(value));
-}
-
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat("vi-VN").format(value);
-}
-
-function formatCurrency(value: number, currency: string | null | undefined = "VND"): string {
-  return currency === "VND" || !currency ? `${formatMoney(value)} ₫` : `${formatMoney(value)} ${currency}`;
+// Tiền hiển thị phải khớp mọi màn admin khác nên đi qua helper chung; chỉ nhánh
+// ngoại tệ (hiếm) mới ghép thêm mã tiền tệ, vẫn dùng formatNumber chung.
+function formatSaleAmount(value: number, currency: string | null | undefined): string {
+  return !currency || currency === "VND" ? formatVnd(value) : `${formatNumber(value)} ${currency}`;
 }
 
 function displayValue(value: string | null | undefined): string {
@@ -42,6 +41,42 @@ function stringifyTags(tags: unknown): string {
   return JSON.stringify(tags, null, 2);
 }
 
+function initials(fullName: string): string {
+  return fullName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "KH";
+}
+
+// Ô thông tin dùng lại trong hồ sơ: eyebrow + giá trị. Gom vào một chỗ để mọi ô
+// cùng nhịp chữ, khỏi lặp class ở 10 chỗ.
+function Info({ label, value, mono }: { label: ReactNode; value: ReactNode; mono?: boolean }) {
+  return (
+    <div className="rounded-[10px] border border-[var(--line)] bg-[var(--paper2)] px-[16px] py-[12px]">
+      <Eyebrow>{label}</Eyebrow>
+      <div
+        className={`mt-[6px] break-words text-[14px] font-semibold text-[var(--ink)] ${mono ? "ofly-num" : ""}`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+// Dòng "nhãn: giá trị" trong panel kiểm soát.
+function PaneRow({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="shrink-0 text-[12.5px] text-[var(--ink3)]">{label}</span>
+      <span className="ofly-num min-w-0 truncate text-right text-[13px] font-semibold text-[var(--ink)]">
+        {value}
+      </span>
+    </div>
+  );
+}
+
 export default async function CustomerDetailPage({ params }: CustomerDetailPageProps) {
   const session = await requireRole(ADMIN_ROLES);
   const detail = await getAdminCustomerById(params.id);
@@ -54,250 +89,240 @@ export default async function CustomerDetailPage({ params }: CustomerDetailPageP
   const canManage = CUSTOMER_MANAGER_ROLES.includes(session.user.role);
   const canMerge = session.user.role === "SUPER_ADMIN";
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--apg-text-secondary)]">
-        <Link className="font-semibold text-[var(--apg-aviation-navy)] hover:underline" href="/admin/customers">
-          ← Quay lại danh sách khách hàng
-        </Link>
-        <span className="apg-chip">Customer ID {customer.id.slice(-8)}</span>
-        <span className={`apg-chip ${customer.blacklisted ? "apg-chip-active" : ""}`}>
-          {customer.blacklisted ? "Đang blacklist" : "Hồ sơ hoạt động"}
+  const bookingColumns: DataTableColumn<AdminCustomerBooking>[] = [
+    {
+      key: "pnr",
+      header: "BOOKING",
+      width: "minmax(0,1fr)",
+      render: (booking) => (
+        <div className="min-w-0">
+          <div className="ofly-num text-[13px] font-bold tracking-[1px] text-[var(--rust)]">
+            {booking.pnr || "PENDING"}
+          </div>
+          <div className="ofly-num mt-[2px] truncate text-[11px] text-[var(--ink4)]">{booking.id.slice(-8)}</div>
+        </div>
+      ),
+    },
+    {
+      key: "routeSummary",
+      header: "HÀNH TRÌNH",
+      width: "minmax(0,1.3fr)",
+      // Ô bảng theo hợp đồng: thang 13.5px, mã chặng dùng mono cho thẳng cột
+      render: (booking) => (
+        <span className="ofly-num block truncate text-[13.5px] font-medium tracking-[0.5px] text-[var(--ink)]">
+          {booking.routeSummary}
         </span>
+      ),
+    },
+    {
+      key: "saleAmount",
+      header: "GIÁ BÁN",
+      width: "140px",
+      align: "right",
+      render: (booking) => (
+        <span className="ofly-num text-[13.5px] font-bold text-[var(--ink)]">
+          {formatSaleAmount(booking.saleAmount, booking.currency)}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "TRẠNG THÁI",
+      width: "168px",
+      render: (booking) => <StatusChip status={booking.status as BookingStatus} />,
+    },
+    {
+      key: "createdAt",
+      header: "NGÀY TẠO",
+      width: "160px",
+      render: (booking) => (
+        <span className="ofly-num text-[12.5px] text-[var(--ink3)]">{formatDateTime(booking.createdAt)}</span>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-[10px]">
+        <Link
+          className="inline-flex items-center gap-[7px] text-[13px] font-semibold text-[var(--rust)] transition-colors hover:text-[var(--rustLt)]"
+          href="/admin/customers"
+        >
+          <ArrowLeft size={15} strokeWidth={1.9} />
+          Quay lại danh sách khách hàng
+        </Link>
+        <MiniChip tone="muted">
+          <span className="ofly-num">Customer ID {customer.id.slice(-8)}</span>
+        </MiniChip>
+        <Chip tone={customer.blacklisted ? "red" : "ok"}>
+          {customer.blacklisted ? "Đang blacklist" : "Hồ sơ hoạt động"}
+        </Chip>
       </div>
 
-      <section className="apg-admin-sheet overflow-hidden">
-        <div className="grid gap-0 xl:grid-cols-[minmax(0,1.55fr)_380px]">
-          <div className="px-5 py-6 lg:px-6">
-            <p className="apg-eyebrow">Customer Desk</p>
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--apg-aviation-navy-deep)] text-sm font-semibold tracking-[0.08em] text-white shadow-sm">
-                {customer.fullName.slice(0, 2).toUpperCase()}
-              </div>
-              <div>
-                <h2 className="text-3xl font-semibold tracking-tight text-[var(--apg-aviation-navy-deep)]">{customer.fullName}</h2>
-                <p className="mt-1 text-sm text-[var(--apg-text-secondary)]">Hồ sơ khách hàng nội bộ dùng cho booking, blacklist và merge duplicate.</p>
+      <Panel padded={false} className="overflow-hidden">
+        <div className="grid xl:grid-cols-[minmax(0,1.55fr)_380px]">
+          <div className="px-[20px] py-[22px]">
+            <Eyebrow>Customer Desk</Eyebrow>
+            <div className="mt-4 flex flex-wrap items-center gap-[14px]">
+              <span
+                aria-hidden="true"
+                className="inline-flex h-[56px] w-[56px] flex-none items-center justify-center rounded-full text-[18px] font-bold tracking-[0.5px]"
+                style={{ background: "var(--gradNavy)", color: "#FFFFFF" }}
+              >
+                {initials(customer.fullName)}
+              </span>
+              <div className="min-w-0">
+                <h2 className="ofly-serif m-0 text-[27px] font-medium leading-[1.1] tracking-[-1px] text-[var(--ink)] sm:text-[31px]">
+                  {customer.fullName}
+                </h2>
+                <p className="m-0 mt-[8px] max-w-[520px] text-[13px] leading-[1.55] text-[var(--ink3)]">
+                  Hồ sơ khách hàng nội bộ dùng cho booking, blacklist và merge duplicate.
+                </p>
               </div>
             </div>
 
-            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Điện thoại</div>
-                <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.phone)}</div>
-              </article>
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Email</div>
-                <div className="mt-2 break-all text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.email)}</div>
-              </article>
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Số booking</div>
-                <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{customer.bookingCount}</div>
-              </article>
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Tạo lúc</div>
-                <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{formatDateTime(customer.createdAt)}</div>
-              </article>
+            <div className="mt-[18px] grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <Info label="Điện thoại" value={displayValue(customer.phone)} mono />
+              <Info label="Email" value={displayValue(customer.email)} />
+              <Info label="Số booking" value={customer.bookingCount} mono />
+              <Info label="Tạo lúc" value={formatDateTime(customer.createdAt)} mono />
             </div>
           </div>
 
-          <div className="border-t border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(233,238,242,0.95),rgba(255,255,255,0.98))] px-5 py-5 xl:border-l xl:border-t-0">
-            <div className="space-y-3">
-              <div className="apg-admin-stat px-4 py-4">
-                <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Tác vụ chính</div>
-                <div className="mt-3 flex flex-col gap-3">
-                  {canManage ? (
-                    <CustomerBlacklistDialog
-                      actorId={session.user.id}
-                      currentBlacklisted={customer.blacklisted}
-                      currentTags={customer.tags}
-                      customerId={customer.id}
-                    />
-                  ) : (
-                    <button className="apg-btn-secondary w-full opacity-60" disabled type="button">
-                      Chỉ xem hồ sơ
-                    </button>
-                  )}
-                  {canMerge ? (
-                    <CustomerMergeDialog
-                      disabled={customer.blacklisted}
-                      primary={{
-                        id: customer.id,
-                        fullName: customer.fullName,
-                        phone: customer.phone,
-                        email: customer.email,
-                        bookingCount: customer.bookingCount,
-                        blacklisted: customer.blacklisted,
-                      }}
-                    />
-                  ) : (
-                    <button className="apg-btn-secondary w-full opacity-60" disabled type="button">
-                      Merge duplicate
-                    </button>
-                  )}
-                </div>
+          {/* Cột phải kiểu DetailPane của Manager: nền --paper2, tách bằng viền --line */}
+          <div className="space-y-3 border-t border-[var(--line)] bg-[var(--paper2)] px-[20px] py-[20px] xl:border-l xl:border-t-0">
+            <Panel>
+              <Eyebrow>Tác vụ chính</Eyebrow>
+              <div className="mt-[14px] flex flex-col gap-[10px]">
+                {canManage ? (
+                  <CustomerBlacklistDialog
+                    actorId={session.user.id}
+                    currentBlacklisted={customer.blacklisted}
+                    currentTags={customer.tags}
+                    customerId={customer.id}
+                  />
+                ) : (
+                  <Btn variant="ghost" full disabled>
+                    Chỉ xem hồ sơ
+                  </Btn>
+                )}
+                {canMerge ? (
+                  <CustomerMergeDialog
+                    disabled={customer.blacklisted}
+                    primary={{
+                      id: customer.id,
+                      fullName: customer.fullName,
+                      phone: customer.phone,
+                      email: customer.email,
+                      bookingCount: customer.bookingCount,
+                      blacklisted: customer.blacklisted,
+                    }}
+                  />
+                ) : (
+                  <Btn variant="ghost" full disabled>
+                    Merge duplicate
+                  </Btn>
+                )}
               </div>
+            </Panel>
 
-              <div className="apg-admin-stat px-4 py-4">
-                <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Điểm kiểm soát</div>
-                <div className="mt-3 space-y-2 text-sm text-[var(--apg-text-secondary)]">
-                  <div>CMND / CCCD: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.idNumber)}</span></div>
-                  <div>Passport: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.passport)}</span></div>
-                  <div>Ngày sinh: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.dob)}</span></div>
-                  <div>Created by: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.createdById)}</span></div>
-                </div>
+            <Panel>
+              <Eyebrow>Điểm kiểm soát</Eyebrow>
+              <div className="mt-[14px] space-y-[9px]">
+                <PaneRow label="CMND / CCCD" value={displayValue(customer.idNumber)} />
+                <PaneRow label="Passport" value={displayValue(customer.passport)} />
+                <PaneRow label="Ngày sinh" value={displayValue(customer.dob)} />
+                <PaneRow label="Created by" value={displayValue(customer.createdById)} />
               </div>
-            </div>
+            </Panel>
           </div>
         </div>
-      </section>
+      </Panel>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <div className="apg-admin-sheet overflow-hidden">
-          <div className="border-b border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(238,242,245,0.98))] px-5 py-4 lg:px-6">
-            <p className="apg-eyebrow">Customer Profile</p>
-            <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">Thông tin và tags nội bộ</h3>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <Panel padded={false} className="overflow-hidden">
+          <div className="border-b border-[var(--line)] bg-[var(--paper2)] px-[20px] py-[16px]">
+            <Eyebrow>Customer Profile</Eyebrow>
+            <SectionTitle className="mt-[8px]">Thông tin và tags nội bộ</SectionTitle>
           </div>
 
-          <div className="grid gap-4 p-5 lg:grid-cols-2 lg:p-6">
+          <div className="grid gap-4 p-[20px] lg:grid-cols-2">
             <div className="space-y-3">
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Họ tên</div>
-                <div className="mt-2 text-base font-semibold text-[var(--apg-aviation-navy-deep)]">{customer.fullName}</div>
-              </article>
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Liên hệ</div>
-                <div className="mt-2 space-y-1 text-sm text-[var(--apg-text-secondary)]">
-                  <div>Điện thoại: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.phone)}</span></div>
-                  <div>Email: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.email)}</span></div>
+              <Info label="Họ tên" value={customer.fullName} />
+              <div className="rounded-[10px] border border-[var(--line)] bg-[var(--paper2)] px-[16px] py-[12px]">
+                <Eyebrow>Liên hệ</Eyebrow>
+                <div className="mt-[9px] space-y-[7px]">
+                  <PaneRow label="Điện thoại" value={displayValue(customer.phone)} />
+                  <PaneRow label="Email" value={displayValue(customer.email)} />
                 </div>
-              </article>
-              <article className="apg-admin-stat px-4 py-4">
-                <div className="text-xs uppercase tracking-[0.08em] text-[var(--apg-text-secondary)]">Giấy tờ</div>
-                <div className="mt-2 space-y-1 text-sm text-[var(--apg-text-secondary)]">
-                  <div>CMND / CCCD: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.idNumber)}</span></div>
-                  <div>Passport: <span className="font-semibold text-[var(--apg-aviation-navy-deep)]">{displayValue(customer.passport)}</span></div>
+              </div>
+              <div className="rounded-[10px] border border-[var(--line)] bg-[var(--paper2)] px-[16px] py-[12px]">
+                <Eyebrow>Giấy tờ</Eyebrow>
+                <div className="mt-[9px] space-y-[7px]">
+                  <PaneRow label="CMND / CCCD" value={displayValue(customer.idNumber)} />
+                  <PaneRow label="Passport" value={displayValue(customer.passport)} />
                 </div>
-              </article>
+              </div>
             </div>
 
-            <aside className="apg-admin-stat px-4 py-4">
-              <div className="apg-display text-[11px] uppercase tracking-[0.18em] text-[var(--apg-text-secondary)]">Tags JSON</div>
-              <p className="mt-3 text-sm leading-6 text-[var(--apg-text-secondary)]">
+            <aside className="rounded-[10px] border border-[var(--line)] bg-[var(--paper2)] px-[16px] py-[14px]">
+              <Eyebrow>Tags JSON</Eyebrow>
+              <p className="mt-[10px] text-[13px] leading-[1.55] text-[var(--ink3)]">
                 Đây là vùng metadata phục vụ blacklist reason, merge marker và các cờ nghiệp vụ mở rộng trong các sprint sau.
               </p>
-              <pre className="mt-4 max-h-[340px] overflow-auto rounded-[18px] bg-[var(--apg-aviation-navy-deep)]/95 p-4 text-xs leading-6 text-slate-50">
+              {/* Khối JSON nền navy đặc — chữ trắng là ngoại lệ hex duy nhất được phép */}
+              <pre
+                className="ofly-mono mt-[14px] max-h-[340px] overflow-auto rounded-[10px] p-[14px] text-[11.5px] leading-[1.7]"
+                style={{ background: "var(--navy)", color: "#FFFFFF" }}
+              >
                 {stringifyTags(customer.tags)}
               </pre>
             </aside>
           </div>
-        </div>
+        </Panel>
 
-        <section className="apg-admin-toolbar px-5 py-5 lg:px-6">
-          <p className="apg-eyebrow">Edit Customer</p>
-          <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">Chỉnh sửa hồ sơ</h3>
-          <p className="mt-2 text-sm leading-6 text-[var(--apg-text-secondary)]">
-            Toàn bộ thay đổi ở đây sẽ ghi AuditLog theo diff để truy nguyên chính xác field nào đã đổi.
-          </p>
+        <Panel padded={false} className="overflow-hidden">
+          <div className="border-b border-[var(--line)] bg-[var(--paper2)] px-[20px] py-[16px]">
+            <Eyebrow>Edit Customer</Eyebrow>
+            <SectionTitle className="mt-[8px]">Chỉnh sửa hồ sơ</SectionTitle>
+          </div>
 
-          <div className="mt-5">
+          <div className="p-[20px]">
+            <p className="m-0 mb-[16px] text-[13px] leading-[1.55] text-[var(--ink3)]">
+              Toàn bộ thay đổi ở đây sẽ ghi AuditLog theo diff để truy nguyên chính xác field nào đã đổi.
+            </p>
             {canManage ? (
               <CustomerForm customer={customer} mode="edit" />
             ) : (
-              <div className="rounded-[20px] border border-dashed border-[var(--apg-border-default)] bg-white px-4 py-10 text-center text-sm text-[var(--apg-text-secondary)]">
+              <div className="ofly-serif rounded-[10px] border border-dashed border-[var(--line2)] px-4 py-[42px] text-center text-[15px] italic text-[var(--ink3)]">
                 Role hiện tại chỉ có quyền xem hồ sơ khách hàng.
               </div>
             )}
           </div>
-        </section>
+        </Panel>
       </section>
 
-      <section className="apg-admin-sheet overflow-hidden">
-        <div className="border-b border-[var(--apg-border-default)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(238,242,245,0.98))] px-5 py-4 lg:px-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="apg-eyebrow">Booking History</p>
-              <h3 className="mt-2 text-2xl font-semibold text-[var(--apg-aviation-navy-deep)]">Lịch sử booking của khách hàng</h3>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--apg-text-secondary)]">
-              <span className="apg-chip">{bookings.length} booking liên kết</span>
-              <span className="apg-chip">Điều hướng hai chiều sang booking detail</span>
-            </div>
+      <Panel padded={false} className="overflow-hidden">
+        <div className="flex flex-col gap-3 border-b border-[var(--line)] bg-[var(--paper2)] px-[20px] py-[16px] lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <Eyebrow>Booking History</Eyebrow>
+            <SectionTitle className="mt-[8px]">Lịch sử booking của khách hàng</SectionTitle>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <MiniChip tone="rust">{bookings.length} booking liên kết</MiniChip>
+            <MiniChip tone="muted">Điều hướng hai chiều sang booking detail</MiniChip>
           </div>
         </div>
 
-        <div className="p-5 lg:p-6">
-          {bookings.length === 0 ? (
-            <div className="rounded-[20px] border border-dashed border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] px-4 py-10 text-center text-sm text-[var(--apg-text-secondary)]">
-              Khách hàng này chưa có booking.
-            </div>
-          ) : (
-            <>
-              <div className="grid gap-4 md:hidden">
-                {bookings.map((booking) => (
-                  <article key={booking.id} className="rounded-[22px] border border-[var(--apg-border-default)] bg-white p-4 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.16em] text-[var(--apg-text-secondary)]">{booking.status}</div>
-                        <Link className="mt-2 block text-xl font-semibold text-[var(--apg-aviation-navy)] hover:underline" href={`/admin/bookings/${booking.id}`}>
-                          {booking.pnr || "PENDING"}
-                        </Link>
-                      </div>
-                      <div className="apg-tabular text-lg font-semibold text-[var(--apg-aviation-navy-deep)]">
-                        {formatCurrency(booking.saleAmount, booking.currency)}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 text-sm text-[var(--apg-text-secondary)]">
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.16em]">Hành trình</div>
-                        <div className="mt-1 text-[var(--apg-aviation-navy-deep)]">{booking.routeSummary}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-[0.16em]">Ngày tạo</div>
-                        <div className="mt-1 text-[var(--apg-aviation-navy-deep)]">{formatDateTime(booking.createdAt)}</div>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-
-              <div className="hidden overflow-x-auto md:block">
-                <table className="apg-admin-table min-w-full border-collapse text-sm">
-                  <thead>
-                    <tr>
-                      <th className="px-5 py-4 font-semibold">Booking</th>
-                      <th className="px-4 py-4 font-semibold">Hành trình</th>
-                      <th className="px-4 py-4 font-semibold">Giá bán</th>
-                      <th className="px-4 py-4 font-semibold">Trạng thái</th>
-                      <th className="px-5 py-4 font-semibold">Ngày tạo</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bookings.map((booking) => (
-                      <tr key={booking.id} className="border-t border-[var(--apg-border-default)] align-top">
-                        <td className="px-5 py-4">
-                          <Link className="font-semibold text-[var(--apg-aviation-navy)] hover:underline" href={`/admin/bookings/${booking.id}`}>
-                            {booking.pnr || "PENDING"}
-                          </Link>
-                          <div className="mt-1 text-xs text-[var(--apg-text-secondary)]">{booking.id.slice(-8)}</div>
-                        </td>
-                        <td className="px-4 py-4 text-[var(--apg-aviation-navy-deep)]">{booking.routeSummary}</td>
-                        <td className="px-4 py-4">
-                          <div className="apg-tabular font-semibold text-[var(--apg-aviation-navy-deep)]">
-                            {formatCurrency(booking.saleAmount, booking.currency)}
-                          </div>
-                        </td>
-                        <td className="px-4 py-4 text-[var(--apg-text-secondary)]">{booking.status}</td>
-                        <td className="px-5 py-4 text-[var(--apg-text-secondary)]">{formatDateTime(booking.createdAt)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-        </div>
-      </section>
+        <DataTable
+          columns={bookingColumns}
+          rows={bookings}
+          getRowKey={(booking) => booking.id}
+          rowHref={(booking) => `/admin/bookings/${booking.id}`}
+          empty="Khách hàng này chưa có booking."
+          framed={false}
+        />
+      </Panel>
     </div>
   );
 }

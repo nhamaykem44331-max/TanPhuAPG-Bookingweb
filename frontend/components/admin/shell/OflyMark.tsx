@@ -1,39 +1,65 @@
-// Biểu tượng mặt trời mọc (semicircle + tia + đường chân trời, stroke rust) + chữ OpenFly.
-// Tham chiếu pixel: logo trong `OpenFly Admin.dc.html`.
+import Image from "next/image";
+
+// Thương hiệu Tân Phú APG ở đầu sidebar — logo ảnh + tên + dòng phụ.
+// Giữ nguyên tên file/export `OflyMark` để không phải sửa file khác.
 
 interface OflyMarkProps {
+  /** Cạnh của ô logo (px). */
   size?: number;
+  /** Cỡ chữ tên thương hiệu (px). */
   wordmarkSize?: number;
   showWordmark?: boolean;
 }
 
-export function OflyMark({ size = 26, wordmarkSize = 22, showWordmark = true }: OflyMarkProps) {
+export function OflyMark({ size = 32, wordmarkSize = 15, showWordmark = true }: OflyMarkProps) {
   return (
-    <div className="flex items-center gap-2.5">
-      <svg
+    <span className="flex min-w-0 items-center gap-2.5">
+      <Image
+        src="/assets/tanphu-apg-logo.jpg"
+        alt="Tân Phú APG"
         width={size}
         height={size}
-        viewBox="0 0 32 32"
-        fill="none"
-        stroke="var(--rust)"
-        strokeWidth="2.1"
-        strokeLinecap="round"
-        aria-hidden="true"
-      >
-        <line x1="4" y1="25" x2="28" y2="25" />
-        <path d="M9.5 25a6.5 6.5 0 0 1 13 0" />
-        <line x1="16" y1="6.5" x2="16" y2="11" />
-        <line x1="7" y1="9.5" x2="9.7" y2="13" />
-        <line x1="25" y1="9.5" x2="22.3" y2="13" />
-      </svg>
+        priority
+        style={{
+          width: size,
+          height: size,
+          flexShrink: 0,
+          borderRadius: 9,
+          objectFit: "cover",
+          // Bóng nhẹ để logo ảnh không "dán phẳng" vào nền giấy của sidebar.
+          boxShadow: "0 2px 8px rgba(10,37,71,0.18)",
+        }}
+      />
       {showWordmark ? (
-        <span
-          className="ofly-serif leading-none"
-          style={{ fontSize: wordmarkSize, fontWeight: 500, letterSpacing: "-0.3px" }}
-        >
-          Open<span style={{ color: "var(--rust)" }}>Fly</span>
+        <span style={{ display: "flex", flexDirection: "column", lineHeight: 1, minWidth: 0 }}>
+          <span
+            style={{
+              fontFamily: "var(--sans)",
+              fontSize: wordmarkSize,
+              fontWeight: 800,
+              letterSpacing: "0.3px",
+              color: "var(--ink)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Tân Phú <span style={{ color: "var(--rust)" }}>APG</span>
+          </span>
+          <span
+            style={{
+              fontFamily: "var(--sans)",
+              fontSize: 7.5,
+              fontWeight: 600,
+              letterSpacing: "0.6px",
+              textTransform: "uppercase",
+              color: "var(--ink4)",
+              marginTop: 3,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Corporate Aviation Services
+          </span>
         </span>
       ) : null}
-    </div>
+    </span>
   );
 }

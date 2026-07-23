@@ -1,5 +1,6 @@
-import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
+import { ButtonLink } from "@/components/admin/ui/Btn";
 import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
 import { formatNumber, formatTime } from "@/lib/admin/ui/format";
 import { buildAuditSummary } from "@/lib/audit/summary";
@@ -79,26 +80,30 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
   const previousOffset = Math.max(offset - PAGE_SIZE, 0);
   const nextOffset = offset + PAGE_SIZE;
   const hasNextPage = nextOffset < total;
-  const pageQuery = (value: number) => (value > 0 ? { offset: String(value) } : {});
+  // ButtonLink nhận href dạng chuỗi nên dựng sẵn query offset ở đây.
+  const pageHref = (value: number) => (value > 0 ? `/admin/audit?offset=${value}` : "/admin/audit");
 
   const columns: DataTableColumn<AuditRow>[] = [
     {
       key: "time",
       header: "THỜI GIAN",
-      width: "130px",
-      render: (row) => <span className="text-[12px] text-[var(--ink-soft)]">{row.time}</span>,
+      width: "148px",
+      // ofly-num (không phải ofly-mono) để có tabular-nums → cột thời gian thẳng hàng như ở payments/bookings.
+      render: (row) => <span className="ofly-num text-[12px] text-[var(--ink3)]">{row.time}</span>,
     },
     {
       key: "who",
       header: "NGƯỜI THỰC HIỆN",
-      width: "140px",
-      render: (row) => <span className="text-[13px] font-medium">{row.who}</span>,
+      width: "180px",
+      render: (row) => (
+        <span className="block truncate text-[13px] font-semibold text-[var(--ink)]">{row.who}</span>
+      ),
     },
     {
       key: "action",
       header: "HÀNH ĐỘNG",
       width: "minmax(0,1fr)",
-      render: (row) => <span className="text-[13px] text-[var(--ink-soft)]">{row.action}</span>,
+      render: (row) => <span className="text-[13.5px] text-[var(--ink2)]">{row.action}</span>,
     },
     {
       key: "order",
@@ -106,10 +111,11 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
       width: "110px",
       render: (row) => {
         const ref = orderRef(row);
+        // Mã đơn là mã kỹ thuật → ofly-num (mono + tabular-nums, §6) để các mã xếp thẳng cột.
         return ref ? (
-          <span className="ofly-sans text-[12px] font-semibold tracking-[1px] text-[var(--rust)]">{ref}</span>
+          <span className="ofly-num text-[12px] font-bold tracking-[0.6px] text-[var(--rust)]">{ref}</span>
         ) : (
-          <span className="text-[12px] text-[var(--ink-faint)]">—</span>
+          <span className="text-[12px] text-[var(--ink4)]">—</span>
         );
       },
     },
@@ -117,7 +123,7 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
 
   return (
     <div>
-      <p className="mb-[22px] max-w-[560px] text-[14px] leading-[1.6] text-[var(--ink-soft)]">
+      <p className="mb-[22px] max-w-[580px] text-[14px] leading-[1.55] text-[var(--ink3)]">
         Nhật ký thao tác nghiệp vụ trong <strong className="font-semibold text-[var(--ink)]">7 ngày gần nhất</strong>:
         xuất vé, đối soát, hoàn tiền, cập nhật cấu hình và phân quyền.
       </p>
@@ -127,29 +133,32 @@ export default async function AdminAuditPage({ searchParams }: AdminAuditPagePro
         rows={rows}
         getRowKey={(row) => row.id}
         empty="Chưa có nhật ký nào trong 7 ngày qua."
-        className="overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface)]"
       />
 
-      <div className="mt-4 flex items-center justify-between text-[12px] text-[var(--ink-soft)]">
-        <Link
-          href={{ pathname: "/admin/audit", query: pageQuery(previousOffset) }}
-          className={`rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] ${
-            offset === 0 ? "pointer-events-none opacity-40" : ""
-          }`}
+      <div className="mt-[14px] flex flex-wrap items-center justify-between gap-3 text-[12.5px] text-[var(--ink3)]">
+        {/* Trang đầu/cuối: khoá bằng pointer-events + mờ, giữ nguyên hành vi cũ */}
+        <ButtonLink
+          href={pageHref(previousOffset)}
+          variant="ghost"
+          size="sm"
+          icon={<ChevronLeft size={15} strokeWidth={1.5} aria-hidden="true" />}
+          className={offset === 0 ? "pointer-events-none opacity-40" : ""}
         >
           Trang trước
-        </Link>
-        <span>
-          Hiển thị {rows.length} / {formatNumber(total)} nhật ký
+        </ButtonLink>
+        <span className="order-last w-full text-center sm:order-none sm:w-auto">
+          Hiển thị <span className="ofly-num text-[var(--ink2)]">{rows.length}</span> /{" "}
+          <span className="ofly-num text-[var(--ink2)]">{formatNumber(total)}</span> nhật ký
         </span>
-        <Link
-          href={{ pathname: "/admin/audit", query: pageQuery(nextOffset) }}
-          className={`rounded-[8px] border border-[var(--line-strong)] px-[14px] py-[8px] font-medium transition hover:border-[var(--ink)] hover:text-[var(--ink)] ${
-            !hasNextPage ? "pointer-events-none opacity-40" : ""
-          }`}
+        <ButtonLink
+          href={pageHref(nextOffset)}
+          variant="ghost"
+          size="sm"
+          className={!hasNextPage ? "pointer-events-none opacity-40" : ""}
         >
           Trang sau
-        </Link>
+          <ChevronRight size={15} strokeWidth={1.5} aria-hidden="true" />
+        </ButtonLink>
       </div>
     </div>
   );

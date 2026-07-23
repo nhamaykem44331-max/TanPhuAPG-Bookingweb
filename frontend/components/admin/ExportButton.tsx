@@ -1,5 +1,12 @@
 "use client";
 
+import { Download, FileSpreadsheet } from "lucide-react";
+
+import { Btn } from "@/components/admin/ui/Btn";
+
+// Nút xuất file theo Manager: Btn variant "ghost" + icon lucide 16px (xem CongNoNcc →
+// `<Btn variant="ghost" icon={<Ic.download />}>Xuất CSV</Btn>`).
+
 interface ExportButtonProps {
   basePath: string;
   query: Record<string, string | undefined>;
@@ -21,12 +28,22 @@ function buildUrl(basePath: string, query: Record<string, string | undefined>, f
 export function ExportButton({ basePath, query }: ExportButtonProps) {
   return (
     <div className="flex flex-wrap gap-2">
-      <button className="apg-btn-secondary" type="button" onClick={() => window.location.assign(buildUrl(basePath, query, "csv"))}>
+      <Btn
+        variant="ghost"
+        size="sm"
+        icon={<Download size={16} strokeWidth={1.5} aria-hidden="true" />}
+        onClick={() => window.location.assign(buildUrl(basePath, query, "csv"))}
+      >
         Export CSV
-      </button>
-      <button className="apg-btn-secondary" type="button" onClick={() => window.location.assign(buildUrl(basePath, query, "xlsx"))}>
+      </Btn>
+      <Btn
+        variant="ghost"
+        size="sm"
+        icon={<FileSpreadsheet size={16} strokeWidth={1.5} aria-hidden="true" />}
+        onClick={() => window.location.assign(buildUrl(basePath, query, "xlsx"))}
+      >
         Export Excel
-      </button>
+      </Btn>
     </div>
   );
 }

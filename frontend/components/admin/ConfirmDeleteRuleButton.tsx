@@ -1,8 +1,10 @@
 "use client";
 
+import { Trash2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 
 import { deleteMarkupRuleAction } from "@/app/admin/markup-rules/actions";
+import { Btn } from "@/components/admin/ui/Btn";
 
 interface DeleteRuleFormProps {
   ruleId: string;
@@ -29,7 +31,7 @@ export function DeleteRuleForm({ ruleId, scope }: DeleteRuleFormProps) {
   }
 
   return (
-    <form action={deleteMarkupRuleAction} onSubmit={handleSubmit}>
+    <form action={deleteMarkupRuleAction} onSubmit={handleSubmit} className="flex">
       <input type="hidden" name="id" value={ruleId} />
       <DeleteSubmitButton />
     </form>
@@ -38,13 +40,14 @@ export function DeleteRuleForm({ ruleId, scope }: DeleteRuleFormProps) {
 function DeleteSubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      className="apg-btn-danger h-8 px-3 text-xs"
+    <Btn
+      variant="danger"
+      size="sm"
       type="submit"
       disabled={pending}
-      aria-disabled={pending}
+      icon={<Trash2 size={14} strokeWidth={1.5} />}
     >
       {pending ? "Đang xoá..." : "Xóa"}
-    </button>
+    </Btn>
   );
 }

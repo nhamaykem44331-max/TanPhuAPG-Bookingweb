@@ -1,36 +1,15 @@
-import Link from "next/link";
-
 import { AdminAirlineLogo } from "@/components/admin/AdminAirlineLogo";
+import { Chip } from "@/components/admin/ui/Chip";
+import { DataTable, type DataTableColumn } from "@/components/admin/ui/DataTable";
+import { formatDate, formatRoute, formatTime, formatVnd } from "@/lib/admin/ui/format";
+import type { Tone } from "@/lib/admin/ui/tones";
 import type { AdminBookingRecord } from "@/lib/bookings/admin";
+
+// Bảng PNR dựng lại trên DataTable dùng chung (skin Tân Phú APG) thay vì <table> tự viết —
+// một bộ khung bảng duy nhất cho mọi màn admin. Giữ nguyên props và các cột đang hiển thị.
 
 interface BookingTableProps {
   bookings: AdminBookingRecord[];
-}
-
-function formatMoney(value: number): string {
-  return `${new Intl.NumberFormat("vi-VN").format(value)} ₫`;
-}
-
-function formatDateParts(value: string | null): { time: string; date: string } {
-  if (!value) {
-    return { time: "--:--", date: "-" };
-  }
-
-  const date = new Date(value);
-
-  return {
-    time: new Intl.DateTimeFormat("vi-VN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "Asia/Ho_Chi_Minh",
-    }).format(date),
-    date: new Intl.DateTimeFormat("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      timeZone: "Asia/Ho_Chi_Minh",
-    }).format(date),
-  };
 }
 
 function isHoldOverdue(booking: AdminBookingRecord): boolean {
@@ -41,20 +20,21 @@ function displayValue(value: string | null | undefined): string {
   return value && value.trim() ? value : "-";
 }
 
-function statusClass(status: string, overdue: boolean): string {
+// Giữ đúng cách nhóm trạng thái cũ, chỉ đổi từ lớp màu Tailwind sang tone token.
+function statusTone(status: string, overdue: boolean): Tone {
   if (overdue || status === "CANCELLED" || status === "PAYMENT_FAILED" || status === "EXPIRED") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
+    return "red";
   }
 
   if (status === "TICKETED") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "ok";
   }
 
   if (status === "HELD" || status === "PENDING_PAYMENT") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
+    return "warn";
   }
 
-  return "border-slate-200 bg-slate-50 text-slate-700";
+  return "muted";
 }
 
 function statusLabel(status: string, overdue: boolean): string {
@@ -88,136 +68,157 @@ function pnrStatusLabel(status: string | null): string {
   return status;
 }
 
-function routeText(route: string): string {
-  return route.replace(/-/g, " → ");
+// Ô hai dòng: dòng trên là giá trị chính, dòng dưới là chú thích mờ.
+function Stack({ main, sub, mono }: { main: string; sub: string; mono?: boolean }) {
+  return (
+    <div className="min-w-0">
+      <div className={`truncate text-[13.5px] font-semibold text-[var(--ink)] ${mono ? "ofly-num" : ""}`}>{main}</div>
+      <div className="mt-[2px] truncate text-[11.5px] text-[var(--ink3)]">{sub}</div>
+    </div>
+  );
 }
 
 export function BookingTable({ bookings }: BookingTableProps) {
-  if (bookings.length === 0) {
-    return (
-      <div className="apg-admin-sheet p-8">
-        <div className="mx-auto max-w-xl text-center">
-          <h3 className="text-base font-semibold text-[var(--apg-text-primary)]">Chưa có PNR phù hợp</h3>
-          <p className="mt-2 text-sm leading-6 text-[var(--apg-text-secondary)]">
-            Nới điều kiện lọc hoặc đổi khoảng ngày để xem thêm PNR trong cùng đơn hàng.
-          </p>
+  const columns: DataTableColumn<AdminBookingRecord>[] = [
+    {
+      key: "pnr",
+      header: "PNR",
+      width: "112px",
+      render: (booking) => (
+        <div className="min-w-0">
+          <div className="ofly-num text-[13px] font-semibold text-[var(--rust)]">{booking.pnr}</div>
+          <div className="mt-[2px] truncate text-[11px] text-[var(--ink3)]">{pnrStatusLabel(booking.pnrStatus)}</div>
         </div>
-      </div>
-    );
-  }
+      ),
+    },
+    {
+      key: "orderCode",
+      header: "MÃ ĐƠN HÀNG",
+      width: "150px",
+      render: (booking) => (
+        <div className="min-w-0">
+          <div className="ofly-num truncate text-[13px] font-semibold text-[var(--ink)]">{booking.orderCode}</div>
+          <div className="mt-[2px] truncate text-[11.5px] text-[var(--ink3)]">Thanh toán gom theo mã đơn</div>
+        </div>
+      ),
+    },
+    {
+      key: "customerName",
+      header: "TÊN ĐẠI DIỆN",
+      width: "minmax(0,1fr)",
+      render: (booking) => (
+        <div className="min-w-0">
+          <div className="truncate text-[13.5px] font-medium text-[var(--ink)]">{displayValue(booking.customerName)}</div>
+          <div className="mt-[2px] text-[11.5px] text-[var(--ink3)]">
+            <span className="ofly-num">{booking.passengerCount}</span> khách
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "route",
+      header: "HÀNH TRÌNH",
+      width: "minmax(0,1.1fr)",
+      render: (booking) => (
+        <div className="min-w-0">
+          <div className="truncate text-[13.5px] font-semibold text-[var(--ink)]">{formatRoute(booking.route)}</div>
+          <div className="mt-[3px] flex items-center gap-[6px] text-[11.5px] text-[var(--ink3)]">
+            <AdminAirlineLogo code={booking.airline} airline={booking.airline} size={20} />
+            <span className="truncate">{displayValue(booking.airline)}</span>
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "departureDate",
+      header: "KHỞI HÀNH",
+      width: "112px",
+      render: (booking) => (
+        <Stack main={formatDate(booking.departureDate, "-")} sub={formatTime(booking.departureDate, "--:--")} mono />
+      ),
+    },
+    {
+      key: "sellPrice",
+      header: "TỔNG ĐƠN",
+      width: "148px",
+      align: "right",
+      render: (booking) => (
+        <div className="min-w-0">
+          <div className="ofly-num text-[13.5px] font-semibold text-[var(--ink)]">{formatVnd(booking.sellPrice)}</div>
+          <div className="ofly-num mt-[2px] truncate text-[11.5px] text-[var(--ink3)]">
+            Net {formatVnd(booking.netPrice)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "markupAmount",
+      header: "MARKUP",
+      width: "126px",
+      align: "right",
+      hideOnMobileCard: true,
+      render: (booking) => (
+        <span className="ofly-num text-[13.5px] font-semibold text-[var(--green)]">
+          +{formatVnd(booking.markupAmount)}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "TRẠNG THÁI ĐƠN",
+      width: "176px",
+      render: (booking) => {
+        const overdue = isHoldOverdue(booking);
+        return <Chip tone={statusTone(booking.status, overdue)}>{statusLabel(booking.status, overdue)}</Chip>;
+      },
+    },
+    {
+      key: "holdExpiresAt",
+      header: "TTL PNR",
+      width: "118px",
+      hideOnMobileCard: true,
+      render: (booking) => {
+        const overdue = isHoldOverdue(booking);
+        return (
+          <div className="min-w-0">
+            <div
+              className="ofly-num text-[13px] font-semibold"
+              style={{ color: overdue ? "var(--red)" : "var(--ink)" }}
+            >
+              {overdue ? "Quá hạn" : formatTime(booking.holdExpiresAt, "--:--")}
+            </div>
+            <div className="ofly-num mt-[2px] truncate text-[11.5px] text-[var(--ink3)]">
+              {formatDate(booking.holdExpiresAt, "-")}
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "createdAt",
+      header: "NGÀY TẠO",
+      width: "118px",
+      hideOnMobileCard: true,
+      render: (booking) => (
+        <Stack main={formatDate(booking.createdAt, "-")} sub={formatTime(booking.createdAt, "--:--")} mono />
+      ),
+    },
+  ];
 
   return (
-    <div className="apg-admin-sheet overflow-hidden">
-      <div className="hidden overflow-x-auto md:block">
-        <table className="apg-admin-table min-w-full border-collapse text-sm">
-          <thead>
-            <tr>
-              <th className="px-3 py-2.5 text-left font-semibold">PNR</th>
-              <th className="px-3 py-2.5 text-left font-semibold">Mã đơn hàng</th>
-              <th className="px-3 py-2.5 text-left font-semibold">Tên đại diện</th>
-              <th className="px-3 py-2.5 text-left font-semibold">Hành trình</th>
-              <th className="px-3 py-2.5 text-left font-semibold">Khởi hành</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Tổng đơn</th>
-              <th className="px-3 py-2.5 text-right font-semibold">Markup</th>
-              <th className="px-3 py-2.5 text-left font-semibold">Trạng thái đơn</th>
-              <th className="px-3 py-2.5 text-left font-semibold">TTL PNR</th>
-              <th className="px-3 py-2.5 text-left font-semibold">Ngày tạo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {bookings.map((booking) => {
-              const createdAt = formatDateParts(booking.createdAt);
-              const departure = formatDateParts(booking.departureDate);
-              const ttl = formatDateParts(booking.holdExpiresAt);
-              const overdue = isHoldOverdue(booking);
-
-              return (
-                <tr key={booking.pnrRecordId} className="border-t border-[var(--apg-border-default)] align-middle hover:bg-[var(--apg-admin-table-hover)]">
-                  <td className="px-3 py-2.5">
-                    <Link className="apg-pnr-chip apg-mono w-fit" href={`/admin/bookings/${booking.id}`}>
-                      {booking.pnr}
-                    </Link>
-                    <div className="mt-1 text-[11px] text-[var(--apg-text-muted)]">{pnrStatusLabel(booking.pnrStatus)}</div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="font-semibold text-[var(--apg-text-primary)]">{booking.orderCode}</div>
-                    <div className="mt-0.5 text-xs text-[var(--apg-text-muted)]">Thanh toán gom theo mã đơn</div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="max-w-[220px] truncate font-semibold text-[var(--apg-text-primary)]">{displayValue(booking.customerName)}</div>
-                    <div className="mt-0.5 text-xs text-[var(--apg-text-muted)]">{booking.passengerCount} khách</div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="font-semibold text-[var(--apg-text-primary)]">{routeText(booking.route)}</div>
-                    <div className="mt-1 inline-flex items-center gap-1.5 text-xs text-[var(--apg-text-muted)]">
-                      <AdminAirlineLogo code={booking.airline} airline={booking.airline} size={22} />
-                      <span>{displayValue(booking.airline)}</span>
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="apg-tabular font-semibold text-[var(--apg-text-primary)]">{departure.date}</div>
-                    <div className="mt-0.5 text-xs text-[var(--apg-text-muted)]">{departure.time}</div>
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <div className="apg-tabular font-semibold text-[var(--apg-text-primary)]">{formatMoney(booking.sellPrice)}</div>
-                    <div className="mt-0.5 text-xs text-[var(--apg-text-muted)]">Net {formatMoney(booking.netPrice)}</div>
-                  </td>
-                  <td className="px-3 py-2.5 text-right">
-                    <div className="apg-tabular font-semibold text-emerald-600">+{formatMoney(booking.markupAmount)}</div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusClass(booking.status, overdue)}`}>
-                      {statusLabel(booking.status, overdue)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className={`apg-tabular font-semibold ${overdue ? "text-rose-600" : "text-[var(--apg-text-primary)]"}`}>
-                      {overdue ? "Quá hạn" : ttl.time}
-                    </div>
-                    <div className="mt-0.5 text-xs text-[var(--apg-text-muted)]">{ttl.date}</div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="apg-tabular font-semibold text-[var(--apg-text-primary)]">{createdAt.date}</div>
-                    <div className="mt-0.5 text-xs text-[var(--apg-text-muted)]">{createdAt.time}</div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="grid gap-3 p-3 md:hidden">
-        {bookings.map((booking) => {
-          const departure = formatDateParts(booking.departureDate);
-          const overdue = isHoldOverdue(booking);
-
-          return (
-            <article key={booking.pnrRecordId} className="rounded-lg border border-[var(--apg-border-default)] bg-[var(--apg-bg-surface)] p-4">
-              <div className="flex items-start justify-between gap-3">
-                <Link className="apg-pnr-chip apg-mono" href={`/admin/bookings/${booking.id}`}>
-                  {booking.pnr}
-                </Link>
-                <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusClass(booking.status, overdue)}`}>
-                  {statusLabel(booking.status, overdue)}
-                </span>
-              </div>
-              <div className="mt-3 text-sm text-[var(--apg-text-muted)]">{booking.orderCode}</div>
-              <div className="mt-2 flex items-center gap-2">
-                <AdminAirlineLogo code={booking.airline} airline={booking.airline} size={22} />
-                <div className="font-semibold text-[var(--apg-text-primary)]">{displayValue(booking.customerName)}</div>
-              </div>
-              <div className="mt-1 text-sm text-[var(--apg-text-secondary)]">
-                {routeText(booking.route)} · {departure.date} {departure.time}
-              </div>
-              <div className="mt-3 flex items-center justify-between text-sm">
-                <span className="text-[var(--apg-text-muted)]">Tổng đơn</span>
-                <span className="apg-tabular font-semibold text-[var(--apg-text-primary)]">{formatMoney(booking.sellPrice)}</span>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-    </div>
+    <DataTable
+      columns={columns}
+      rows={bookings}
+      getRowKey={(booking) => booking.pnrRecordId}
+      rowHref={(booking) => `/admin/bookings/${booking.id}`}
+      empty={
+        <>
+          <div>Chưa có PNR phù hợp</div>
+          <div className="ofly-sans mx-auto mt-[10px] max-w-[420px] text-[13px] not-italic leading-[1.55] text-[var(--ink3)]">
+            Nới điều kiện lọc hoặc đổi khoảng ngày để xem thêm PNR trong cùng đơn hàng.
+          </div>
+        </>
+      }
+    />
   );
 }

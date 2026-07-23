@@ -43,7 +43,8 @@ function groupForHref(href?: string): NavGroup {
 }
 
 function IconForHref({ href, active }: { href?: string; active: boolean }) {
-  const className = `h-4 w-4 ${active ? "text-[var(--apg-text-primary)]" : "text-[var(--apg-text-muted)]"}`;
+  // Token của shell .ofly (--ink/--ink3) để đổi theo theme sáng/tối
+  const className = `h-4 w-4 ${active ? "text-[var(--ink)]" : "text-[var(--ink3)]"}`;
 
   if (href?.includes("/dashboard")) return <Gauge className={className} aria-hidden="true" />;
   if (href?.includes("/observability")) return <Activity className={className} aria-hidden="true" />;
@@ -71,7 +72,7 @@ export function AdminNavRail({ items }: AdminNavRailProps) {
         {grouped.map(({ group, items: groupItems }) => (
           <section key={group} className="space-y-1">
             {group !== "Overview" ? (
-              <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--apg-text-muted)]">
+              <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--ink3)]">
                 {group}
               </div>
             ) : null}
@@ -89,7 +90,8 @@ export function AdminNavRail({ items }: AdminNavRailProps) {
                 >
                   <IconForHref href={href} active={active} />
                   <span className="truncate">{item.label}</span>
-                  {href.includes("/price-alerts") ? <Activity className="ml-auto h-3.5 w-3.5 text-cyan-400/80" aria-hidden="true" /> : null}
+                  {/* Chấm báo hiệu dùng accent navy thay màu Tailwind cứng để theo được theme */}
+                  {href.includes("/price-alerts") ? <Activity className="ml-auto h-3.5 w-3.5 text-[var(--rust)]" aria-hidden="true" /> : null}
                 </Link>
               );
             })}

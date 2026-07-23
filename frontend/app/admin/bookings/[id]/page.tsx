@@ -4,11 +4,15 @@ import type {
   NotificationJobStatus,
   PaymentMethod,
 } from "@prisma/client";
+import { ArrowLeft, Lock } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { OrderActions } from "@/components/admin/bookings/OrderActions";
-import { StatusChip } from "@/components/admin/ui/Chip";
+import { Chip, MiniChip, StatusChip } from "@/components/admin/ui/Chip";
+import { PageHead } from "@/components/admin/ui/PageHead";
+import { Panel, PanelHeading } from "@/components/admin/ui/Panel";
+import { StatTile } from "@/components/admin/ui/Stat";
 import { formatDate, formatDateTime, formatRoute, formatTime, formatVnd } from "@/lib/admin/ui/format";
 import { toneVars, type Tone } from "@/lib/admin/ui/tones";
 import {
@@ -82,6 +86,30 @@ const NOTIF_TITLES: Record<string, string> = {
   PAYMENT_REMINDER: "Nhắc thanh toán",
   TICKETING_REQUIRED: "Cần xuất vé",
 };
+
+// Hàng "khoản mục · số tiền" trong khối bóc tách giá — dáng ô bảng Manager (13.5px, --ink2).
+function MoneyRow({
+  label,
+  value,
+  valueClassName,
+  strong,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+  strong?: boolean;
+}) {
+  return (
+    <div
+      className={`flex items-baseline justify-between gap-3 border-b border-[var(--line)] px-[18px] last:border-b-0 ${
+        strong ? "py-[13px]" : "py-[11px]"
+      }`}
+    >
+      <span className={`text-[13px] ${strong ? "font-semibold text-[var(--ink)]" : "text-[var(--ink2)]"}`}>{label}</span>
+      <span className={`ofly-num text-[13.5px] font-semibold text-[var(--ink)] ${valueClassName ?? ""}`}>{value}</span>
+    </div>
+  );
+}
 
 function recordOf(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
@@ -191,58 +219,71 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
 
   return (
     <div>
+      {/* Link quay lại dùng chung một dạng với các màn admin khác: icon lucide, 13px, --ink2. */}
       <Link
         href="/admin/bookings"
-        className="mb-[18px] inline-flex items-center gap-[7px] text-[12px] font-medium text-[var(--ink-soft)] transition hover:text-[var(--rust)]"
+        className="mb-[18px] inline-flex w-fit items-center gap-[7px] text-[13px] font-semibold text-[var(--ink2)] transition-colors hover:text-[var(--ink)]"
       >
-        ← Tất cả đơn
+        <ArrowLeft size={15} strokeWidth={1.5} aria-hidden="true" />
+        Tất cả đơn
       </Link>
 
-      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_344px]">
+      {/* Đầu màn theo PageHead của Manager: mã đơn là "danh tính" nên đặt ở tiêu đề, dùng mono. */}
+      <PageHead
+        eyebrow="Chi tiết đơn"
+        title={<span className="ofly-num">{booking.orderCode}</span>}
+        sub={`${booking.airline ?? "—"} · ${formatRoute(booking.routeSummary)} · ${headerSub}`}
+        actions={
+          <>
+            <StatusChip status={booking.status} />
+            <StatTile label="PNR" value={booking.pnr || "—"} tone="rust" minWidth={118} />
+            <StatTile label="Khách trả" value={formatVnd(booking.saleAmount)} tone="navy" minWidth={150} />
+          </>
+        }
+      />
+
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1fr)_344px]">
         {/* LEFT */}
-        <div className="flex flex-col gap-5">
-          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[26px]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <div className="ofly-eyebrow mb-[9px]">{`${booking.airline ?? "—"} · ${booking.orderCode}`}</div>
-                <div className="ofly-serif text-[34px] font-medium leading-none tracking-[-0.5px]">
-                  {formatRoute(booking.routeSummary)}
-                </div>
-                <div className="mt-[10px] text-[13px] text-[var(--ink-soft)]">{headerSub}</div>
-              </div>
-              {booking.priceLockedAt ? (
-                <div className="flex items-center gap-2 rounded-[8px] border border-[var(--line)] bg-[var(--surface-2)] px-[13px] py-[9px]">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--rust)" strokeWidth="2" aria-hidden="true">
-                    <rect x="5" y="11" width="14" height="9" rx="2" />
-                    <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-                  </svg>
-                  <div className="text-[11px] leading-[1.4]">
-                    <span className="font-semibold">Giá đã khoá</span>
-                    <br />
-                    <span className="text-[var(--ink-soft)]">{formatDateTime(booking.priceLockedAt)}</span>
-                  </div>
-                </div>
-              ) : null}
+        <div className="flex flex-col gap-3">
+          <Panel>
+            <PanelHeading
+              eyebrow="Hành trình"
+              action={
+                booking.priceLockedAt ? (
+                  <span className="inline-flex items-center gap-[7px] rounded-[8px] border border-[var(--line)] bg-[var(--paper2)] px-[11px] py-[7px]">
+                    <Lock size={13} strokeWidth={1.5} className="text-[var(--rust)]" />
+                    <span className="text-[11px] leading-[1.35] text-[var(--ink2)]">
+                      <span className="font-semibold text-[var(--ink)]">Giá đã khoá</span>
+                      <br />
+                      <span className="ofly-num text-[var(--ink3)]">{formatDateTime(booking.priceLockedAt)}</span>
+                    </span>
+                  </span>
+                ) : null
+              }
+            />
+            <div className="ofly-serif mt-[14px] text-[30px] font-medium leading-none tracking-[-1.2px] text-[var(--ink)]">
+              {formatRoute(booking.routeSummary)}
             </div>
-          </section>
+            <div className="mt-[10px] text-[13px] text-[var(--ink3)]">{headerSub}</div>
+          </Panel>
 
           {itinerary && itinerary.legs.length > 0 ? (
-            <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[24px]">
-              <div className="ofly-eyebrow mb-5">Chi tiết chuyến bay</div>
-              <div className="flex flex-col gap-5">
+            <Panel>
+              <PanelHeading eyebrow="Chi tiết chuyến bay" />
+              <div className="mt-[18px] flex flex-col gap-[18px]">
                 {itinerary.legs.map((leg, legIndex) => (
                   <div
                     key={`${leg.direction}-${leg.route}-${legIndex}`}
-                    className={legIndex > 0 ? "border-t border-[var(--line)] pt-5" : ""}
+                    className={legIndex > 0 ? "border-t border-[var(--line)] pt-[18px]" : ""}
                   >
-                    <div className="mb-[14px] flex flex-wrap items-center justify-between gap-2">
+                    <div className="mb-[12px] flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-[10px]">
-                        <span className="rounded-full bg-[var(--surface-2)] px-[10px] py-[3px] text-[11px] font-semibold text-[var(--ink-soft)]">
-                          {leg.direction === "outbound" ? "Chiều đi" : "Chiều về"}
+                        <MiniChip tone="muted">{leg.direction === "outbound" ? "Chiều đi" : "Chiều về"}</MiniChip>
+                        <span className="ofly-serif text-[18px] font-medium tracking-[-0.4px] text-[var(--ink)]">
+                          {formatRoute(leg.route)}
                         </span>
-                        <span className="ofly-serif text-[18px] font-medium">{formatRoute(leg.route)}</span>
                       </div>
-                      <span className="text-[12px] text-[var(--ink-soft)]">
+                      <span className="text-[12px] text-[var(--ink3)]">
                         {[leg.airline, leg.cabin].filter(Boolean).join(" · ") || "—"}
                       </span>
                     </div>
@@ -250,26 +291,32 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
                       {leg.segments.map((segment, segmentIndex) => (
                         <div
                           key={`${segment.flightNumber ?? "seg"}-${segmentIndex}`}
-                          className="flex items-center gap-[14px] rounded-[8px] border border-[var(--line)] bg-[var(--surface-2)] px-[14px] py-[12px]"
+                          className="flex items-center gap-[14px] rounded-[10px] border border-[var(--line)] bg-[var(--paper2)] px-[14px] py-[12px]"
                         >
                           <div className="flex w-[68px] flex-none flex-col">
-                            <span className="ofly-sans text-[13px] font-semibold tracking-[0.5px] text-[var(--rust)]">
+                            <span className="ofly-num text-[13px] font-bold text-[var(--rust)]">
                               {segment.flightNumber ?? "—"}
                             </span>
+                            {/* dữ liệu thật trên nền --paper2: --ink4 chỉ đạt ~2.4:1 → dùng --ink3 (§2: ink4 chỉ cho placeholder) */}
                             {segment.aircraft ? (
-                              <span className="mt-[2px] text-[10px] text-[var(--ink-faint)]">{segment.aircraft}</span>
+                              <span className="mt-[3px] text-[11px] text-[var(--ink3)]">{segment.aircraft}</span>
                             ) : null}
                           </div>
                           <div className="flex-1">
-                            <div className="ofly-serif text-[17px] font-medium leading-none">{formatTime(segment.departAt)}</div>
-                            <div className="mt-[4px] text-[12px] font-medium text-[var(--ink-soft)]">{segment.from ?? "—"}</div>
-                            <div className="text-[10px] text-[var(--ink-faint)]">{formatDate(segment.departAt, "")}</div>
+                            {/* giờ bay là số → mono (§2), khớp hàng chặng gọn của Manager; serif để dành cho tiêu đề */}
+                            <div className="ofly-num text-[15px] font-bold leading-none text-[var(--ink)]">
+                              {formatTime(segment.departAt)}
+                            </div>
+                            <div className="mt-[5px] text-[12px] font-medium text-[var(--ink2)]">{segment.from ?? "—"}</div>
+                            <div className="ofly-num text-[11px] text-[var(--ink3)]">{formatDate(segment.departAt, "")}</div>
                           </div>
-                          <div className="flex-none text-[var(--ink-faint)]">→</div>
+                          <div className="flex-none text-[var(--ink3)]">→</div>
                           <div className="flex-1 text-right">
-                            <div className="ofly-serif text-[17px] font-medium leading-none">{formatTime(segment.arrivalAt)}</div>
-                            <div className="mt-[4px] text-[12px] font-medium text-[var(--ink-soft)]">{segment.to ?? "—"}</div>
-                            <div className="text-[10px] text-[var(--ink-faint)]">{formatDate(segment.arrivalAt, "")}</div>
+                            <div className="ofly-num text-[15px] font-bold leading-none text-[var(--ink)]">
+                              {formatTime(segment.arrivalAt)}
+                            </div>
+                            <div className="mt-[5px] text-[12px] font-medium text-[var(--ink2)]">{segment.to ?? "—"}</div>
+                            <div className="ofly-num text-[11px] text-[var(--ink3)]">{formatDate(segment.arrivalAt, "")}</div>
                           </div>
                         </div>
                       ))}
@@ -277,15 +324,15 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
                   </div>
                 ))}
               </div>
-            </section>
+            </Panel>
           ) : null}
 
-          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[24px]">
-            <div className="ofly-eyebrow mb-5">Dòng thời gian đơn</div>
+          <Panel>
+            <PanelHeading eyebrow="Dòng thời gian đơn" />
             {timeline.length === 0 ? (
-              <div className="text-[13px] italic text-[var(--ink-soft)]">Chưa có sự kiện nào.</div>
+              <div className="ofly-serif py-[38px] text-center text-[16px] italic text-[var(--ink3)]">Chưa có sự kiện nào.</div>
             ) : (
-              <div className="flex flex-col">
+              <div className="mt-[18px] flex flex-col">
                 {timeline.map((event, index) => {
                   const isLast = index === timeline.length - 1;
                   const tone: Tone = isLast ? "rust" : "ok";
@@ -304,119 +351,122 @@ export default async function BookingDetailPage({ params }: BookingDetailPagePro
                         <div className="text-[14px] leading-[1.3] text-[var(--ink)]" style={{ fontWeight: isLast ? 600 : 500 }}>
                           {event.title}
                         </div>
-                        <div className="mt-[3px] text-[11px] text-[var(--ink-faint)]">{formatDateTime(event.occurredAt)}</div>
+                        <div className="ofly-num mt-[4px] text-[11px] text-[var(--ink3)]">{formatDateTime(event.occurredAt)}</div>
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-          </section>
+          </Panel>
 
-          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[24px]">
-            <div className="ofly-eyebrow mb-4">{`Hành khách (${passengers.length})`}</div>
+          <Panel>
+            <PanelHeading eyebrow={`Hành khách (${passengers.length})`} />
             {passengers.length === 0 ? (
-              <div className="text-[13px] italic text-[var(--ink-soft)]">Chưa đọc được danh sách hành khách.</div>
+              <div className="ofly-serif py-[38px] text-center text-[16px] italic text-[var(--ink3)]">
+                Chưa đọc được danh sách hành khách.
+              </div>
             ) : (
-              passengers.map((passenger, index) => (
-                <div
-                  key={`${passenger.fullName}-${index}`}
-                  className="flex items-center justify-between border-b border-[var(--line)] py-[11px] last:border-b-0"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="ofly-serif flex h-[30px] w-[30px] items-center justify-center rounded-full bg-[var(--surface-2)] text-[13px] font-medium text-[var(--ink-soft)]">
-                      {passenger.initial}
+              <div className="mt-[10px]">
+                {passengers.map((passenger, index) => (
+                  <div
+                    key={`${passenger.fullName}-${index}`}
+                    className="flex items-center justify-between gap-3 border-b border-[var(--line)] py-[11px] last:border-b-0"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <span className="ofly-serif flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full bg-[var(--paper2)] text-[13px] font-medium text-[var(--ink2)]">
+                        {passenger.initial}
+                      </span>
+                      <span className="truncate text-[14px] font-medium text-[var(--ink)]">{passenger.fullName}</span>
                     </div>
-                    <span className="text-[14px] font-medium">{passenger.fullName}</span>
+                    <span className="shrink-0 text-[12px] text-[var(--ink3)]">{passenger.roleLabel}</span>
                   </div>
-                  <span className="text-[12px] text-[var(--ink-soft)]">{passenger.roleLabel}</span>
-                </div>
-              ))
+                ))}
+              </div>
             )}
-          </section>
+          </Panel>
 
-          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-[28px] py-[24px]">
-            <div className="ofly-eyebrow mb-4">Lịch sử thông báo</div>
+          <Panel>
+            <PanelHeading eyebrow="Lịch sử thông báo" />
             {notificationJobs.length === 0 ? (
-              <div className="text-[13px] italic text-[var(--ink-soft)]">Chưa có thông báo nào.</div>
+              <div className="ofly-serif py-[38px] text-center text-[16px] italic text-[var(--ink3)]">Chưa có thông báo nào.</div>
             ) : (
-              notificationJobs.map((job) => {
-                const meta = NOTIF_STATUS_META[job.status];
-                return (
-                  <div key={job.id} className="flex gap-[13px] border-b border-[var(--line)] py-[12px] last:border-b-0">
-                    <span
-                      className="mt-[5px] inline-block flex-none rounded-full"
-                      style={{ width: 7, height: 7, background: toneVars(meta.tone).solid }}
-                      aria-hidden="true"
-                    />
-                    <div className="flex-1">
-                      <div className="text-[13px] font-medium leading-[1.35]">{notificationTitle(job.type)}</div>
-                      <div className="mt-[3px] text-[11px] text-[var(--ink-soft)]">
-                        {`${CHANNEL_LABELS[job.channel]} · ${AUDIENCE_LABELS[job.audience]} · ${formatDateTime(job.scheduledAt)}`}
+              <div className="mt-[10px]">
+                {notificationJobs.map((job) => {
+                  const meta = NOTIF_STATUS_META[job.status];
+                  return (
+                    <div key={job.id} className="flex items-start gap-[13px] border-b border-[var(--line)] py-[12px] last:border-b-0">
+                      <span
+                        className="mt-[6px] inline-block flex-none rounded-full"
+                        style={{ width: 7, height: 7, background: toneVars(meta.tone).solid }}
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] font-medium leading-[1.35] text-[var(--ink)]">{notificationTitle(job.type)}</div>
+                        <div className="mt-[4px] text-[11px] text-[var(--ink3)]">
+                          {`${CHANNEL_LABELS[job.channel]} · ${AUDIENCE_LABELS[job.audience]} · ${formatDateTime(job.scheduledAt)}`}
+                        </div>
                       </div>
+                      <MiniChip tone={meta.tone}>{meta.label}</MiniChip>
                     </div>
-                    <span className="whitespace-nowrap text-[11px] font-semibold" style={{ color: toneVars(meta.tone).fg }}>
-                      {meta.label}
-                    </span>
-                  </div>
-                );
-              })
+                  );
+                })}
+              </div>
             )}
-          </section>
+          </Panel>
         </div>
 
         {/* RIGHT */}
-        <div className="flex flex-col gap-5 lg:sticky lg:top-[96px]">
-          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-[24px]">
-            <div className="mb-[14px] flex items-center justify-between gap-3">
-              <StatusChip status={booking.status} />
-              <span className="ofly-sans text-[13px] font-semibold tracking-[1px] text-[var(--rust)]">{booking.pnr || "—"}</span>
-            </div>
+        <div className="flex flex-col gap-3 lg:sticky lg:top-[96px]">
+          <Panel>
+            <PanelHeading eyebrow="Thao tác đơn" />
             {sla ? (
-              <div className="mb-4 rounded-[8px] px-[14px] py-[12px]" style={{ background: toneVars(sla.tone).bg }}>
+              <div
+                className="mt-[14px] rounded-[10px] border px-[14px] py-[12px]"
+                style={{ background: toneVars(sla.tone).bg, borderColor: toneVars(sla.tone).bd }}
+              >
                 <div className="text-[12px] font-semibold" style={{ color: toneVars(sla.tone).fg }}>
                   {sla.text}
                 </div>
-                <div className="mt-[3px] text-[11px] text-[var(--ink-soft)]">{sla.sub}</div>
+                <div className="mt-[4px] text-[11px] text-[var(--ink3)]">{sla.sub}</div>
               </div>
             ) : null}
-            <OrderActions
-              bookingId={booking.id}
-              status={booking.status}
-              alreadyHandedOff={booking.rmsSyncedAt !== null}
-              totalPaid={paymentSummary.totalPaid}
-              permissions={permissions}
+            <div className="mt-[14px]">
+              <OrderActions
+                bookingId={booking.id}
+                status={booking.status}
+                alreadyHandedOff={booking.rmsSyncedAt !== null}
+                totalPaid={paymentSummary.totalPaid}
+                permissions={permissions}
+              />
+            </div>
+          </Panel>
+
+          {/* Bóc tách giá dựng theo GridHead của Manager: hàng tiêu đề nền --paper2 + các dòng khoản mục. */}
+          <Panel padded={false} className="overflow-hidden">
+            <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] bg-[var(--paper2)] px-[18px] py-[11px] text-[10px] font-bold uppercase leading-none tracking-[0.4px] text-[var(--ink3)]">
+              <span>Thanh toán</span>
+              <span>Số tiền</span>
+            </div>
+            <MoneyRow label="Giá net (vốn)" value={formatVnd(booking.netAmount)} />
+            <MoneyRow
+              label="Markup"
+              value={`+ ${formatVnd(booking.markupAmount)}`}
+              valueClassName="text-[var(--rust)]"
             />
-          </section>
+            <MoneyRow label="Khách trả" value={formatVnd(booking.saleAmount)} strong />
+            <div className="flex items-center justify-between gap-3 bg-[var(--paper2)] px-[18px] py-[12px]">
+              <span className="text-[12px] text-[var(--ink3)]">{payMethodLabel}</span>
+              <Chip tone={payStatusTone}>{payStatusLabel}</Chip>
+            </div>
+          </Panel>
 
-          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-[24px]">
-            <div className="ofly-eyebrow mb-4">Thanh toán</div>
-            <div className="flex justify-between py-[7px] text-[13px]">
-              <span className="text-[var(--ink-soft)]">Giá net (vốn)</span>
-              <span className="font-medium">{formatVnd(booking.netAmount)}</span>
-            </div>
-            <div className="flex justify-between py-[7px] text-[13px]">
-              <span className="text-[var(--ink-soft)]">Markup</span>
-              <span className="font-medium text-[var(--rust)]">+ {formatVnd(booking.markupAmount)}</span>
-            </div>
-            <div className="mt-[5px] flex justify-between border-t border-[var(--line)] pb-[7px] pt-[11px] text-[14px]">
-              <span className="font-semibold">Khách trả</span>
-              <span className="ofly-serif text-[18px] font-medium">{formatVnd(booking.saleAmount)}</span>
-            </div>
-            <div className="mt-[14px] flex items-center justify-between border-t border-[var(--line)] pt-[14px]">
-              <span className="text-[12px] text-[var(--ink-soft)]">{payMethodLabel}</span>
-              <span className="text-[11px] font-semibold" style={{ color: toneVars(payStatusTone).fg }}>
-                {payStatusLabel}
-              </span>
-            </div>
-          </section>
-
-          <section className="rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-[24px]">
-            <div className="ofly-eyebrow mb-[14px]">Khách hàng</div>
-            <div className="text-[14px] font-medium">{customer?.fullName ?? "—"}</div>
-            <div className="mt-[5px] text-[13px] text-[var(--ink-soft)]">{customer?.phone ?? "Chưa có số điện thoại"}</div>
-            {customer?.email ? <div className="mt-[3px] text-[13px] text-[var(--ink-soft)]">{customer.email}</div> : null}
-          </section>
+          <Panel>
+            <PanelHeading eyebrow="Khách hàng" />
+            <div className="mt-[14px] text-[14px] font-medium text-[var(--ink)]">{customer?.fullName ?? "—"}</div>
+            <div className="ofly-num mt-[6px] text-[13px] text-[var(--ink2)]">{customer?.phone ?? "Chưa có số điện thoại"}</div>
+            {customer?.email ? <div className="mt-[3px] break-all text-[13px] text-[var(--ink3)]">{customer.email}</div> : null}
+          </Panel>
         </div>
       </div>
     </div>
